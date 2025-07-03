@@ -1,0 +1,448 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🍩 Donuland Management System</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <!-- Loading Screen -->
+    <div class="loading-screen" id="loadingScreen">
+        <div class="loading-content">
+            <div class="donut">🍩</div>
+            <h1>Donuland Management System</h1>
+            <div class="loading-bar">
+                <div class="loading-progress"></div>
+            </div>
+            <p>Inicializuji systém...</p>
+        </div>
+    </div>
+
+    <!-- Main App -->
+    <div class="app" id="mainApp" style="display: none;">
+        <!-- Header -->
+        <header class="header">
+            <div class="header-content">
+                <h1>🍩 Donuland Management System</h1>
+                <div class="header-controls">
+                    <button class="btn btn-refresh" onclick="loadData()">
+                        <span id="loadBtn">🔄 Načíst data</span>
+                    </button>
+                    <div class="status" id="status">
+                        <span class="status-dot"></span>
+                        <span>Offline</span>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <!-- Navigation -->
+        <nav class="nav">
+            <button class="nav-btn active" data-section="prediction">🤖 AI Predikce</button>
+            <button class="nav-btn" data-section="calendar">📅 Kalendář</button>
+            <button class="nav-btn" data-section="analytics">📊 Analýzy</button>
+            <button class="nav-btn" data-section="settings">⚙️ Nastavení</button>
+        </nav>
+
+        <!-- Main Content -->
+        <main class="main">
+            <!-- AI PREDIKCE SECTION -->
+            <section class="section active" id="prediction">
+                <div class="section-header">
+                    <h2>🤖 AI Predikce prodeje</h2>
+                    <p>Inteligentní odhad prodeje na základě historických dat, počasí a lokace</p>
+                </div>
+
+                <!-- Formulář základních údajů -->
+                <div class="card">
+                    <h3>📋 Základní údaje o akci</h3>
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label>Název akce *</label>
+                            <input type="text" id="eventName" placeholder="Burger Fest, ČokoFest..." 
+                                   list="eventNames" onchange="updatePrediction()">
+                            <datalist id="eventNames"></datalist>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label>Kategorie *</label>
+                            <select id="category" onchange="updatePrediction()">
+                                <option value="">Vyberte kategorii</option>
+                                <option value="food festival">Food festival</option>
+                                <option value="veletrh">Veletrh/ČokoFest</option>
+                                <option value="koncert">Koncert</option>
+                                <option value="kulturní akce">Kulturní akce</option>
+                                <option value="sportovní">Sportovní akce</option>
+                                <option value="ostatní">Ostatní</option>
+                            </select>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label>Město *</label>
+                            <input type="text" id="city" placeholder="Praha, Brno, Ostrava..." 
+                                   list="cities" onchange="updateDistance(); updateWeather(); updatePrediction()">
+                            <datalist id="cities">
+                                <option value="Praha">
+                                <option value="Brno">
+                                <option value="Ostrava">
+                                <option value="Plzeň">
+                                <option value="Liberec">
+                                <option value="Olomouc">
+                                <option value="Hradec Králové">
+                                <option value="Pardubice">
+                                <option value="České Budějovice">
+                                <option value="Ústí nad Labem">
+                            </datalist>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label>Datum akce *</label>
+                            <input type="date" id="eventDate" onchange="updateWeather(); updatePrediction()">
+                        </div>
+                        
+                        <div class="form-group">
+                            <label>Očekávaná návštěvnost *</label>
+                            <input type="number" id="visitors" placeholder="5000" min="50" onchange="updatePrediction()">
+                        </div>
+                        
+                        <div class="form-group">
+                            <label>Konkurence *</label>
+                            <select id="competition" onchange="updatePrediction()">
+                                <option value="">Vyberte úroveň</option>
+                                <option value="1">1 - Malá konkurence</option>
+                                <option value="2">2 - Střední konkurence</option>
+                                <option value="3">3 - Velká konkurence</option>
+                            </select>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label>Typ akce *</label>
+                            <select id="eventType" onchange="updatePrediction()">
+                                <option value="">Vyberte typ</option>
+                                <option value="outdoor">🌤️ Venkovní (počasí ovlivní)</option>
+                                <option value="indoor">🏢 Vnitřní (bez vlivu počasí)</option>
+                            </select>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label>Business model *</label>
+                            <select id="businessModel" onchange="updateBusinessInfo(); updatePrediction()">
+                                <option value="">Vyberte model</option>
+                                <option value="owner">🏪 Majitel (vy + brigádníci)</option>
+                                <option value="employee">👨‍💼 Zaměstnanec (+ % z obratu)</option>
+                                <option value="franchise">🤝 Franšíza (nákup 52 Kč/ks)</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <div id="businessInfo" class="business-info" style="display: none;"></div>
+                </div>
+
+                <!-- Náklady a nájem -->
+                <div class="card">
+                    <h3>💰 Náklady a logistika</h3>
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label>Typ nájmu *</label>
+                            <select id="rentType" onchange="updateRentFields(); updatePrediction()">
+                                <option value="">Vyberte typ</option>
+                                <option value="fixed">Fixní nájem</option>
+                                <option value="percentage">% z obratu</option>
+                                <option value="mixed">Fixní + % z obratu</option>
+                                <option value="free">Zdarma</option>
+                            </select>
+                        </div>
+                        
+                        <div class="form-group" id="fixedRentGroup" style="display: none;">
+                            <label>Fixní nájem (Kč)</label>
+                            <input type="number" id="fixedRent" placeholder="5000" onchange="updatePrediction()">
+                        </div>
+                        
+                        <div class="form-group" id="percentageGroup" style="display: none;">
+                            <label>% z obratu</label>
+                            <input type="number" id="percentage" placeholder="15" max="100" onchange="updatePrediction()">
+                        </div>
+                        
+                        <div class="form-group" id="mixedFixedGroup" style="display: none;">
+                            <label>Fixní část (Kč)</label>
+                            <input type="number" id="mixedFixed" placeholder="2000" onchange="updatePrediction()">
+                        </div>
+                        
+                        <div class="form-group" id="mixedPercentageGroup" style="display: none;">
+                            <label>% část z obratu</label>
+                            <input type="number" id="mixedPercentage" placeholder="10" max="100" onchange="updatePrediction()">
+                        </div>
+                        
+                        <div class="form-group">
+                            <label>Vzdálenost od Prahy</label>
+                            <input type="text" id="distance" readonly placeholder="Automaticky">
+                        </div>
+                        
+                        <div class="form-group">
+                            <label>Cena donut (Kč)</label>
+                            <input type="number" id="price" value="50" onchange="updatePrediction()">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Počasí (jen pro venkovní akce) -->
+                <div class="card" id="weatherCard" style="display: none;">
+                    <h3>🌤️ Předpověď počasí</h3>
+                    <div id="weatherDisplay">
+                        <p>Vyberte město a datum pro načtení předpovědi počasí</p>
+                    </div>
+                </div>
+
+                <!-- Historická data -->
+                <div class="card" id="historicalCard" style="display: none;">
+                    <h3>📈 Podobné akce z historie</h3>
+                    <div id="historicalData"></div>
+                </div>
+
+                <!-- Výsledky predikce -->
+                <div class="card results-card">
+                    <h3>📊 Výsledky predikce</h3>
+                    <div id="predictionResults">
+                        <p class="placeholder">Vyplňte všechna povinná pole pro zobrazení predikce</p>
+                    </div>
+                    
+                    <div class="action-buttons" style="display: none;" id="actionButtons">
+                        <button class="btn btn-save" onclick="savePrediction()">💾 Uložit predikci</button>
+                        <button class="btn btn-export" onclick="exportPrediction()">📄 Export</button>
+                    </div>
+                </div>
+            </section>
+
+            <!-- KALENDÁŘ SECTION -->
+            <section class="section" id="calendar">
+                <div class="section-header">
+                    <h2>📅 Kalendář akcí</h2>
+                    <p>Přehled všech naplánovaných akcí</p>
+                </div>
+
+                <!-- Kalendář Controls -->
+                <div class="card">
+                    <div class="calendar-controls">
+                        <button class="btn" onclick="previousMonth()">‹ Předchozí</button>
+                        <h3 id="currentMonth">Říjen 2024</h3>
+                        <button class="btn" onclick="nextMonth()">Následující ›</button>
+                        <button class="btn btn-today" onclick="goToToday()">Dnes</button>
+                    </div>
+                    
+                    <div class="calendar-filters">
+                        <select id="cityFilter" onchange="filterCalendar()">
+                            <option value="">Všechna města</option>
+                        </select>
+                        <select id="categoryFilter" onchange="filterCalendar()">
+                            <option value="">Všechny kategorie</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- Kalendářní mřížka -->
+                <div class="card">
+                    <div class="calendar-grid" id="calendarGrid">
+                        <!-- Kalendář se vygeneruje JS -->
+                    </div>
+                </div>
+
+                <!-- Seznam akcí pro aktuální měsíc -->
+                <div class="card">
+                    <h3>📋 Akce v tomto měsíci</h3>
+                    <div id="monthEvents"></div>
+                </div>
+            </section>
+
+            <!-- ANALÝZY SECTION -->
+            <section class="section" id="analytics">
+                <div class="section-header">
+                    <h2>📊 Analýzy a statistiky</h2>
+                    <p>Detailní přehled výkonnosti akcí</p>
+                </div>
+
+                <!-- Celkové statistiky -->
+                <div class="card">
+                    <h3>📈 Celkové statistiky</h3>
+                    <div id="overallStats" class="stats-grid">
+                        <!-- Stats se naplní JS -->
+                    </div>
+                </div>
+
+                <!-- Top výsledky -->
+                <div class="analytics-grid">
+                    <div class="card">
+                        <h3>🏆 Nejúspěšnější akce</h3>
+                        <div id="topEvents"></div>
+                    </div>
+                    
+                    <div class="card">
+                        <h3>🏙️ Nejlepší města</h3>
+                        <div id="topCities"></div>
+                    </div>
+                    
+                    <div class="card">
+                        <h3>📊 Nejlepší kategorie</h3>
+                        <div id="topCategories"></div>
+                    </div>
+                </div>
+
+                <!-- Trendy a porovnání -->
+                <div class="card">
+                    <h3>📉 Trendy v čase</h3>
+                    <div class="chart-container">
+                        <canvas id="trendsChart" width="400" height="200"></canvas>
+                    </div>
+                </div>
+
+                <!-- Predikce vs realita -->
+                <div class="card">
+                    <h3>🎯 Přesnost predikcí</h3>
+                    <div id="predictionAccuracy"></div>
+                </div>
+            </section>
+
+            <!-- NASTAVENÍ SECTION -->
+            <section class="section" id="settings">
+                <div class="section-header">
+                    <h2>⚙️ Nastavení systému</h2>
+                    <p>Konfigurace API a business parametrů</p>
+                </div>
+
+                <!-- API nastavení -->
+                <div class="card">
+                    <h3>🔗 API nastavení</h3>
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label>Google Sheets URL</label>
+                            <input type="url" id="sheetsUrl" 
+                                   value="https://docs.google.com/spreadsheets/d/1LclCz9hb0hlb1D92OyVqk6Cbam7PRK6KgAzGgiGs6iE/edit?usp=sharing">
+                        </div>
+                        
+                        <div class="form-group">
+                            <label>OpenWeather API Key</label>
+                            <input type="password" id="weatherKey" value="c2fb0e86623880dc86162892b0fd9c95">
+                        </div>
+                        
+                        <div class="form-group">
+                            <label>Google Maps API Key</label>
+                            <input type="password" id="mapsKey" value="AIzaSyBTTA_MKa6FrxKpkcd7c5-d3FnC6FBLVTc">
+                        </div>
+                    </div>
+                    
+                    <div class="button-group">
+                        <button class="btn btn-save" onclick="saveSettings()">💾 Uložit</button>
+                        <button class="btn" onclick="testConnections()">🔧 Test připojení</button>
+                        <button class="btn" onclick="resetSettings()">🔄 Reset</button>
+                    </div>
+                </div>
+
+                <!-- Business parametry -->
+                <div class="card">
+                    <h3>💼 Business parametry</h3>
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label>Náklad na donut (Kč)</label>
+                            <input type="number" id="donutCost" value="32" step="0.1">
+                        </div>
+                        
+                        <div class="form-group">
+                            <label>Cena pro franšízy (Kč)</label>
+                            <input type="number" id="franchisePrice" value="52" step="0.1">
+                        </div>
+                        
+                        <div class="form-group">
+                            <label>Hodinová mzda (Kč)</label>
+                            <input type="number" id="hourlyWage" value="150">
+                        </div>
+                        
+                        <div class="form-group">
+                            <label>Pracovní hodin na akci</label>
+                            <input type="number" id="workHours" value="10">
+                        </div>
+                        
+                        <div class="form-group">
+                            <label>Náklady dopravy (Kč/km)</label>
+                            <input type="number" id="fuelCost" value="15" step="0.1">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Predikční faktory -->
+                <div class="card">
+                    <h3>🧠 Predikční faktory</h3>
+                    <div class="factors-grid">
+                        <div class="factor-group">
+                            <h4>Kategorie akcí</h4>
+                            <div class="factor-item">
+                                <label>Food festival</label>
+                                <input type="number" id="factorFood" value="0.15" step="0.01">
+                            </div>
+                            <div class="factor-item">
+                                <label>Veletrh/ČokoFest</label>
+                                <input type="number" id="factorVeletrh" value="0.18" step="0.01">
+                            </div>
+                            <div class="factor-item">
+                                <label>Koncert</label>
+                                <input type="number" id="factorKoncert" value="0.08" step="0.01">
+                            </div>
+                        </div>
+                        
+                        <div class="factor-group">
+                            <h4>Města</h4>
+                            <div class="factor-item">
+                                <label>Praha</label>
+                                <input type="number" id="factorPraha" value="1.3" step="0.1">
+                            </div>
+                            <div class="factor-item">
+                                <label>Brno</label>
+                                <input type="number" id="factorBrno" value="1.2" step="0.1">
+                            </div>
+                            <div class="factor-item">
+                                <label>Ostatní města</label>
+                                <input type="number" id="factorOther" value="0.85" step="0.1">
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <button class="btn" onclick="resetFactors()">🔄 Obnovit výchozí faktory</button>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- Notifications -->
+    <div id="notifications"></div>
+
+    <!-- Modal pro editaci akce -->
+    <div class="modal" id="eventModal" style="display: none;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="modalTitle">Editovat akci</h3>
+                <button class="modal-close" onclick="closeModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label>Název akce</label>
+                    <input type="text" id="modalEventName">
+                </div>
+                <div class="form-group">
+                    <label>Reálně prodáno (pro proběhlé akce)</label>
+                    <input type="number" id="modalSales">
+                </div>
+                <div class="form-group">
+                    <label>Poznámka</label>
+                    <textarea id="modalNotes" rows="3"></textarea>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-save" onclick="saveEventEdit()">💾 Uložit</button>
+                <button class="btn btn-delete" onclick="deleteEvent()">🗑️ Smazat</button>
+                <button class="btn" onclick="closeModal()">Zrušit</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
