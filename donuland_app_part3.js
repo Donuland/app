@@ -1,6 +1,6 @@
 /* ========================================
-   DONULAND MANAGEMENT SYSTEM - APP.JS ČÁST 3 (1/2)
-   Vzdálenosti, UI zobrazení, export/save
+   DONULAND MANAGEMENT SYSTEM - APP.JS ČÁST 3A (1/2)
+   Vzdálenosti, UI zobrazení
    ======================================== */
 
 // ========================================
@@ -557,6 +557,13 @@ function updateRentFields() {
             break;
     }
 }
+
+console.log('✅ App.js část 3A načtena - vzdálenosti a UI zobrazení');
+/* ========================================
+   DONULAND MANAGEMENT SYSTEM - APP.JS ČÁST 3B (2/2)
+   Export/save, nastavení, utility funkce
+   ======================================== */
+
 // ========================================
 // EXPORT A SAVE FUNKCE
 // ========================================
@@ -1259,4 +1266,4 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 });
 
-console.log('✅ App.js část 3 načtena - kompletní funkcionalita');
+console.log('✅ App.js část 3B načtena - export/save a nastavení');
