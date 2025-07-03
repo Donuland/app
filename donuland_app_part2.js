@@ -616,9 +616,45 @@ function getWeatherImpactFactor(weather) {
     return Math.max(0.3, factor);
 }
 
-// Odstranění diakritiky
-function removeDiacritics(str) {
-    return str.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+// ========================================
+// LOADING STAVY A CHYBY PREDIKCE
+// ========================================
+
+function showPredictionLoading() {
+    document.getElementById('predictionResults').innerHTML = `
+        <div class="loading">🤖 AI počítá predikci...</div>
+    `;
+}
+
+function showPredictionError(message) {
+    document.getElementById('predictionResults').innerHTML = `
+        <div class="error">${message}</div>
+    `;
+    const actionButtons = document.getElementById('actionButtons');
+    if (actionButtons) {
+        actionButtons.style.display = 'none';
+    }
+}
+
+function showWeatherLoading() {
+    const weatherDisplay = document.getElementById('weatherDisplay');
+    if (weatherDisplay) {
+        weatherDisplay.innerHTML = `<div class="loading">🌤️ Načítám předpověď počasí...</div>`;
+    }
+}
+
+function showWeatherError(message) {
+    const weatherDisplay = document.getElementById('weatherDisplay');
+    if (weatherDisplay) {
+        weatherDisplay.innerHTML = `<div class="error">❌ Chyba počasí: ${message}</div>`;
+    }
+}
+
+function hideWeatherCard() {
+    const weatherCard = document.getElementById('weatherCard');
+    if (weatherCard) {
+        weatherCard.style.display = 'none';
+    }
 }
 
 console.log('✅ App.js část 2 načtena - predikce a počasí');
