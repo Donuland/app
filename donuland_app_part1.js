@@ -115,11 +115,6 @@ function initializeUI() {
     
     // Nastavení výchozích hodnot
     setDefaultValues();
-    
-    // Inicializace kalendáře
-    if (typeof renderCalendar === 'function') {
-        renderCalendar();
-    }
 }
 
 // Navigace mezi sekcemi
@@ -134,13 +129,6 @@ function initializeNavigation() {
             // Aktualizace aktivního tlačítka
             navButtons.forEach(btn => btn.classList.remove('active'));
             button.classList.add('active');
-            
-            // Speciální akce pro jednotlivé sekce
-            if (sectionId === 'calendar' && typeof renderCalendar === 'function') {
-                renderCalendar();
-            } else if (sectionId === 'analytics' && typeof loadAnalytics === 'function') {
-                loadAnalytics();
-            }
         });
     });
 }
@@ -437,63 +425,6 @@ function updateDataLists() {
 }
 
 // ========================================
-// NOTIFIKACE
-// ========================================
-
-// Zobrazení notifikace
-function showNotification(message, type = 'info', duration = 5000) {
-    const notificationsContainer = document.getElementById('notifications');
-    if (!notificationsContainer) return;
-    
-    const notification = document.createElement('div');
-    notification.className = `notification ${type}`;
-    
-    const icon = getNotificationIcon(type);
-    
-    notification.innerHTML = `
-        <div class="notification-icon">${icon}</div>
-        <div class="notification-content">
-            <div class="notification-message">${message}</div>
-        </div>
-        <button class="notification-close" onclick="closeNotification(this)">&times;</button>
-    `;
-    
-    notificationsContainer.appendChild(notification);
-    
-    // Animace zobrazení
-    setTimeout(() => notification.classList.add('show'), 100);
-    
-    // Automatické zavření
-    if (duration > 0) {
-        setTimeout(() => closeNotification(notification.querySelector('.notification-close')), duration);
-    }
-}
-
-// Ikony pro notifikace
-function getNotificationIcon(type) {
-    const icons = {
-        'success': '✅',
-        'error': '❌',
-        'warning': '⚠️',
-        'info': 'ℹ️'
-    };
-    return icons[type] || icons.info;
-}
-
-// Zavření notifikace
-function closeNotification(closeButton) {
-    const notification = closeButton.closest('.notification');
-    if (notification) {
-        notification.classList.remove('show');
-        setTimeout(() => {
-            if (notification.parentNode) {
-                notification.parentNode.removeChild(notification);
-            }
-        }, 300);
-    }
-}
-
-// ========================================
 // HELPER FUNKCE
 // ========================================
 
@@ -553,6 +484,42 @@ function validateForm() {
     });
     
     return errors;
+}
+
+// Odstranění diakritiky
+function removeDiacritics(str) {
+    return str.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+}
+
+// Notifikace
+function showNotification(message, type = 'info', duration = 5000) {
+    const notification = document.createElement('div');
+    notification.className = `notification ${type}`;
+    
+    const icon = type === 'success' ? '✅' : type === 'error' ? '❌' : 'ℹ️';
+    
+    notification.innerHTML = `
+        <div style="font-size: 1.3em;">${icon}</div>
+        <div style="flex: 1;">
+            <div style="font-weight: 600; margin-bottom: 5px;">${type.toUpperCase()}</div>
+            <div style="color: #666; font-size: 0.9em;">${message}</div>
+        </div>
+        <button class="notification-close" onclick="this.parentElement.remove()">&times;</button>
+    `;
+    
+    document.body.appendChild(notification);
+    
+    // Animace zobrazení
+    setTimeout(() => notification.classList.add('show'), 100);
+    
+    // Automatické zavření
+    if (duration > 0) {
+        setTimeout(() => {
+            if (notification.parentElement) {
+                notification.remove();
+            }
+        }, duration);
+    }
 }
 
 console.log('✅ App.js část 1 načtena - základní struktura');
