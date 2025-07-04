@@ -86,8 +86,14 @@
                         </div>
                         
                         <div class="form-group">
-                            <label>Datum akce *</label>
-                            <input type="date" id="eventDate">
+                            <label>Datum akce od *</label>
+                            <input type="date" id="eventDateFrom">
+                        </div>
+                        
+                        <div class="form-group">
+                            <label>Datum akce do *</label>
+                            <input type="date" id="eventDateTo">
+                            <small>Pro jednodenní akce zadejte stejné datum jako "od"</small>
                         </div>
                         
                         <div class="form-group">
@@ -183,6 +189,7 @@
                     <div id="weatherDisplay">
                         <div class="weather-placeholder">
                             <p>📍 Vyberte město a datum akce pro načtení předpovědi počasí</p>
+                            <p><small>Počasí se zobrazí pro první den vícedenní akce</small></p>
                         </div>
                     </div>
                 </div>
@@ -544,8 +551,12 @@
                     <input type="text" id="modalEventName" readonly>
                 </div>
                 <div class="form-group">
-                    <label>Datum akce</label>
-                    <input type="text" id="modalEventDate" readonly>
+                    <label>Datum akce od</label>
+                    <input type="text" id="modalEventDateFrom" readonly>
+                </div>
+                <div class="form-group">
+                    <label>Datum akce do</label>
+                    <input type="text" id="modalEventDateTo" readonly>
                 </div>
                 <div class="form-group">
                     <label>Město</label>
