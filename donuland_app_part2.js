@@ -216,7 +216,7 @@ function parseSheetData(csvText) {
             record.city = getColumnValue(values, 'D');
             record.eventName = getColumnValue(values, 'E');
             record.category = getColumnValue(values, 'F');
-            record.sales = parseFloat(getColumnValue(values, 'M')) || 0;
+            record.sales = parseFloat(getColumnValue(values, 'N')) || 0;
             record.visitors = parseFloat(getColumnValue(values, 'Q')) || 0;
             record.weather = getColumnValue(values, 'R') || '';
             record.competition = parseInt(getColumnValue(values, 'W')) || 2;
