@@ -1,9 +1,10 @@
 /* ========================================
-   DONULAND MANAGEMENT SYSTEM - PART 3A (OPRAVENO)
+   DONULAND MANAGEMENT SYSTEM - PART 3
    UI Display & Results Visualization
+   Pouze zobrazení výsledků z Part 2C
    ======================================== */
 
-console.log('🍩 Donuland Part 3A (Fixed) loading...');
+console.log('🍩 Donuland Part 3 loading...');
 
 // ========================================
 // PREDICTION RESULTS DISPLAY
@@ -22,31 +23,8 @@ function displayPredictionResults(predictionData) {
     }
     
     try {
-        // Generování doporučení
-        const recommendations = generateRecommendations(formData, prediction, businessResults);
-        
-        // Hlavní výsledky
-        const mainResultsHtml = generateMainResults(prediction, businessResults);
-        
-        // Faktory breakdown
-        const factorsHtml = generateFactorsBreakdown(prediction.factors);
-        
-        // Business breakdown
-        const businessHtml = generateBusinessBreakdown(businessResults);
-        
-        // Doporučení
-        const recommendationsHtml = generateRecommendationsHtml(recommendations);
-        
-        // Sestavení celého HTML
-        const html = `
-            <div class="prediction-results-container">
-                ${mainResultsHtml}
-                ${factorsHtml}
-                ${businessHtml}
-                ${recommendationsHtml}
-            </div>
-        `;
-        
+        // Generování HTML pro výsledky
+        const html = generatePredictionHTML(prediction, businessResults, formData);
         resultsDiv.innerHTML = html;
         
         // Animace zobrazení
@@ -63,8 +41,8 @@ function displayPredictionResults(predictionData) {
     }
 }
 
-// Generování hlavních výsledků
-function generateMainResults(prediction, businessResults) {
+// Generování HTML pro predikci
+function generatePredictionHTML(prediction, businessResults, formData) {
     const sales = prediction.predictedSales;
     const confidence = prediction.confidence;
     const revenue = businessResults.revenue;
@@ -72,240 +50,201 @@ function generateMainResults(prediction, businessResults) {
     const roi = businessResults.roi;
     const margin = businessResults.margin;
     
-    // Určení barvy podle ziskovosti
-    let profitColor = '#28a745'; // Zelená
-    let profitIcon = '✅';
-    
-    if (profit <= 0) {
-        profitColor = '#dc3545'; // Červená
-        profitIcon = '❌';
-    } else if (profit < 1000) {
-        profitColor = '#ffc107'; // Žlutá
-        profitIcon = '⚠️';
-    }
-    
-    // Určení barvy podle confidence
-    let confidenceColor = '#28a745';
-    if (confidence < 60) confidenceColor = '#ffc107';
-    if (confidence < 40) confidenceColor = '#dc3545';
+    // Určení barev podle hodnot
+    const confidenceColor = confidence > 70 ? '#28a745' : confidence > 40 ? '#ffc107' : '#dc3545';
+    const profitColor = profit > 0 ? '#28a745' : '#dc3545';
+    const profitIcon = profit > 0 ? '✅' : '❌';
+    const roiColor = roi > 20 ? '#28a745' : roi > 0 ? '#ffc107' : '#dc3545';
+    const marginColor = margin > 30 ? '#28a745' : margin > 15 ? '#ffc107' : '#dc3545';
     
     return `
-        <div class="main-results">
-            <h3>🎯 Výsledky AI predikce</h3>
+        <div class="prediction-results-container">
+            <!-- Hlavní výsledky -->
+            <div class="main-results">
+                <h3>🎯 Výsledky AI predikce</h3>
+                
+                <div class="results-grid">
+                    <div class="result-item primary">
+                        <div class="result-icon">🍩</div>
+                        <div class="result-value">${formatNumber(sales)}</div>
+                        <div class="result-label">Predikovaný prodej (ks)</div>
+                    </div>
+                    
+                    <div class="result-item">
+                        <div class="result-icon">🎯</div>
+                        <div class="result-value" style="color: ${confidenceColor};">${confidence}%</div>
+                        <div class="result-label">Confidence predikce</div>
+                    </div>
+                    
+                    <div class="result-item">
+                        <div class="result-icon">💰</div>
+                        <div class="result-value">${formatCurrency(revenue)}</div>
+                        <div class="result-label">Očekávaný obrat</div>
+                    </div>
+                    
+                    <div class="result-item">
+                        <div class="result-icon">${profitIcon}</div>
+                        <div class="result-value" style="color: ${profitColor};">${formatCurrency(profit)}</div>
+                        <div class="result-label">Očekávaný zisk</div>
+                    </div>
+                    
+                    <div class="result-item">
+                        <div class="result-icon">📈</div>
+                        <div class="result-value" style="color: ${roiColor};">${roi.toFixed(1)}%</div>
+                        <div class="result-label">ROI</div>
+                    </div>
+                    
+                    <div class="result-item">
+                        <div class="result-icon">📊</div>
+                        <div class="result-value" style="color: ${marginColor};">${margin.toFixed(1)}%</div>
+                        <div class="result-label">Marže</div>
+                    </div>
+                </div>
+            </div>
             
-            <div class="results-grid">
-                <div class="result-item primary">
-                    <div class="result-icon">🍩</div>
-                    <div class="result-value">${formatNumber(sales)}</div>
-                    <div class="result-label">Predikovaný prodej (ks)</div>
+            <!-- Faktory breakdown -->
+            <div class="factors-breakdown">
+                <h4>🧠 Rozklad AI faktorů</h4>
+                <div class="factors-explanation">
+                    <p>Finální konverze: <strong>${(prediction.factors.final * 100).toFixed(2)}%</strong> návštěvníků koupí donut</p>
                 </div>
                 
-                <div class="result-item">
-                    <div class="result-icon">🎯</div>
-                    <div class="result-value" style="color: ${confidenceColor};">${confidence}%</div>
-                    <div class="result-label">Confidence predikce</div>
+                <div class="factors-grid">
+                    ${generateFactorItem('📋 Kategorie', prediction.factors.base)}
+                    ${generateFactorItem('📊 Historické data', prediction.factors.historical)}
+                    ${generateFactorItem('🏙️ Město', prediction.factors.city)}
+                    ${generateFactorItem('🏪 Konkurence', prediction.factors.competition)}
+                    ${generateFactorItem('📅 Sezóna', prediction.factors.seasonal)}
+                    ${generateFactorItem('👥 Velikost akce', prediction.factors.size)}
+                    ${generateFactorItem('🌤️ Počasí', prediction.factors.weather)}
+                    ${generateFactorItem('⏰ Délka akce', prediction.factors.duration)}
                 </div>
                 
-                <div class="result-item">
-                    <div class="result-icon">💰</div>
-                    <div class="result-value">${formatCurrency(revenue)}</div>
-                    <div class="result-label">Očekávaný obrat</div>
+                <div class="factors-note">
+                    <small>💡 Faktory >100% zvyšují prodej, <100% snižují. Zelená = pozitivní, červená = negativní vliv.</small>
+                </div>
+            </div>
+            
+            <!-- Business breakdown -->
+            <div class="business-breakdown">
+                <h4>💼 Finanční analýza</h4>
+                
+                <div class="business-summary">
+                    <div class="business-metric">
+                        <span class="metric-label">Break-even point:</span>
+                        <span class="metric-value">${formatNumber(businessResults.breakeven)} ks</span>
+                    </div>
+                    <div class="business-metric">
+                        <span class="metric-label">Business model:</span>
+                        <span class="metric-value">${getBusinessModelLabel(businessResults.metadata.businessModel)}</span>
+                    </div>
+                    <div class="business-metric">
+                        <span class="metric-label">Cena za kus:</span>
+                        <span class="metric-value">${formatCurrency(businessResults.metadata.pricePerUnit)}</span>
+                    </div>
                 </div>
                 
-                <div class="result-item">
-                    <div class="result-icon">${profitIcon}</div>
-                    <div class="result-value" style="color: ${profitColor};">${formatCurrency(profit)}</div>
-                    <div class="result-label">Očekávaný zisk</div>
+                <div class="costs-breakdown">
+                    <h5>📊 Rozpis nákladů</h5>
+                    <div class="costs-grid">
+                        <div class="cost-item">
+                            <div class="cost-icon">🍩</div>
+                            <div class="cost-details">
+                                <div class="cost-name">Výroba</div>
+                                <div class="cost-value">${formatCurrency(businessResults.costs.production)}</div>
+                            </div>
+                        </div>
+                        
+                        <div class="cost-item">
+                            <div class="cost-icon">👨‍💼</div>
+                            <div class="cost-details">
+                                <div class="cost-name">Mzdy</div>
+                                <div class="cost-value">${formatCurrency(businessResults.costs.labor)}</div>
+                            </div>
+                        </div>
+                        
+                        <div class="cost-item">
+                            <div class="cost-icon">🚗</div>
+                            <div class="cost-details">
+                                <div class="cost-name">Doprava</div>
+                                <div class="cost-value">${formatCurrency(businessResults.costs.transport)}</div>
+                            </div>
+                        </div>
+                        
+                        <div class="cost-item">
+                            <div class="cost-icon">🏢</div>
+                            <div class="cost-details">
+                                <div class="cost-name">Nájem</div>
+                                <div class="cost-value">${formatCurrency(businessResults.costs.rent)}</div>
+                            </div>
+                        </div>
+                        
+                        ${businessResults.costs.revenueShare > 0 ? `
+                        <div class="cost-item">
+                            <div class="cost-icon">📊</div>
+                            <div class="cost-details">
+                                <div class="cost-name">% z obratu</div>
+                                <div class="cost-value">${formatCurrency(businessResults.costs.revenueShare)}</div>
+                            </div>
+                        </div>
+                        ` : ''}
+                    </div>
+                    
+                    <div class="costs-total">
+                        <div class="total-row revenue">
+                            <span>💰 Celkový obrat:</span>
+                            <span>${formatCurrency(revenue)}</span>
+                        </div>
+                        <div class="total-row costs">
+                            <span>💸 Celkové náklady:</span>
+                            <span>${formatCurrency(businessResults.totalCosts)}</span>
+                        </div>
+                        <div class="total-row profit ${profit > 0 ? 'positive' : 'negative'}">
+                            <span><strong>${profitIcon} Čistý zisk:</strong></span>
+                            <span><strong>${formatCurrency(profit)}</strong></span>
+                        </div>
+                    </div>
                 </div>
-                
-                <div class="result-item">
-                    <div class="result-icon">📈</div>
-                    <div class="result-value" style="color: ${roi > 20 ? '#28a745' : roi > 0 ? '#ffc107' : '#dc3545'};">${roi.toFixed(1)}%</div>
-                    <div class="result-label">ROI</div>
-                </div>
-                
-                <div class="result-item">
-                    <div class="result-icon">📊</div>
-                    <div class="result-value" style="color: ${margin > 30 ? '#28a745' : margin > 15 ? '#ffc107' : '#dc3545'};">${margin.toFixed(1)}%</div>
-                    <div class="result-label">Marže</div>
-                </div>
+            </div>
+            
+            <!-- Doporučení -->
+            ${generateRecommendationsHTML(formData, prediction, businessResults)}
+        </div>
+    `;
+}
+
+// Helper funkce pro generování faktoru
+function generateFactorItem(name, value) {
+    const percentage = (value * 100).toFixed(0);
+    const barWidth = Math.min(Math.abs(value - 1) * 100 + 50, 100);
+    const barColor = value > 1 ? '#28a745' : value < 1 ? '#dc3545' : '#6c757d';
+    
+    return `
+        <div class="factor-item">
+            <div class="factor-name">${name}</div>
+            <div class="factor-value">${percentage}%</div>
+            <div class="factor-bar">
+                <div class="factor-fill" style="width: ${barWidth}%; background-color: ${barColor};"></div>
             </div>
         </div>
     `;
 }
 
-// Generování breakdown faktorů
-function generateFactorsBreakdown(factors) {
-    return `
-        <div class="factors-breakdown">
-            <h4>🧠 Rozklad AI faktorů</h4>
-            <div class="factors-explanation">
-                <p>Finální konverze: <strong>${(factors.final * 100).toFixed(2)}%</strong> návštěvníků koupí donut</p>
-            </div>
-            
-            <div class="factors-grid">
-                <div class="factor-item">
-                    <div class="factor-name">📋 Kategorie</div>
-                    <div class="factor-value">${(factors.base * 100).toFixed(1)}%</div>
-                    <div class="factor-bar">
-                        <div class="factor-fill" style="width: ${factors.base * 100}%"></div>
-                    </div>
-                </div>
-                
-                <div class="factor-item">
-                    <div class="factor-name">📊 Historické data</div>
-                    <div class="factor-value">${(factors.historical * 100).toFixed(0)}%</div>
-                    <div class="factor-bar">
-                        <div class="factor-fill" style="width: ${Math.min(factors.historical * 50, 100)}%; background-color: ${factors.historical > 1 ? '#28a745' : factors.historical < 1 ? '#dc3545' : '#6c757d'}"></div>
-                    </div>
-                </div>
-                
-                <div class="factor-item">
-                    <div class="factor-name">🏙️ Město</div>
-                    <div class="factor-value">${(factors.city * 100).toFixed(0)}%</div>
-                    <div class="factor-bar">
-                        <div class="factor-fill" style="width: ${Math.min(factors.city * 50, 100)}%; background-color: ${factors.city > 1 ? '#28a745' : factors.city < 1 ? '#dc3545' : '#6c757d'}"></div>
-                    </div>
-                </div>
-                
-                <div class="factor-item">
-                    <div class="factor-name">🏪 Konkurence</div>
-                    <div class="factor-value">${(factors.competition * 100).toFixed(0)}%</div>
-                    <div class="factor-bar">
-                        <div class="factor-fill" style="width: ${Math.min(factors.competition * 50, 100)}%; background-color: ${factors.competition > 1 ? '#28a745' : factors.competition < 1 ? '#dc3545' : '#6c757d'}"></div>
-                    </div>
-                </div>
-                
-                <div class="factor-item">
-                    <div class="factor-name">📅 Sezóna</div>
-                    <div class="factor-value">${(factors.seasonal * 100).toFixed(0)}%</div>
-                    <div class="factor-bar">
-                        <div class="factor-fill" style="width: ${Math.min(factors.seasonal * 50, 100)}%; background-color: ${factors.seasonal > 1 ? '#28a745' : factors.seasonal < 1 ? '#dc3545' : '#6c757d'}"></div>
-                    </div>
-                </div>
-                
-                <div class="factor-item">
-                    <div class="factor-name">👥 Velikost akce</div>
-                    <div class="factor-value">${(factors.size * 100).toFixed(0)}%</div>
-                    <div class="factor-bar">
-                        <div class="factor-fill" style="width: ${Math.min(factors.size * 50, 100)}%; background-color: ${factors.size > 1 ? '#28a745' : factors.size < 1 ? '#dc3545' : '#6c757d'}"></div>
-                    </div>
-                </div>
-                
-                <div class="factor-item">
-                    <div class="factor-name">🌤️ Počasí</div>
-                    <div class="factor-value">${(factors.weather * 100).toFixed(0)}%</div>
-                    <div class="factor-bar">
-                        <div class="factor-fill" style="width: ${Math.min(factors.weather * 50, 100)}%; background-color: ${factors.weather > 1 ? '#28a745' : factors.weather < 1 ? '#dc3545' : '#6c757d'}"></div>
-                    </div>
-                </div>
-                
-                <div class="factor-item">
-                    <div class="factor-name">⏰ Délka akce</div>
-                    <div class="factor-value">${(factors.duration * 100).toFixed(0)}%</div>
-                    <div class="factor-bar">
-                        <div class="factor-fill" style="width: ${Math.min(factors.duration * 50, 100)}%; background-color: ${factors.duration > 1 ? '#28a745' : factors.duration < 1 ? '#dc3545' : '#6c757d'}"></div>
-                    </div>
-                </div>
-            </div>
-            
-            <div class="factors-note">
-                <small>💡 Faktory >100% zvyšují prodej, <100% snižují. Zelená = pozitivní, červená = negativní vliv.</small>
-            </div>
-        </div>
-    `;
-}
-
-// Generování business breakdown
-function generateBusinessBreakdown(businessResults) {
-    const { revenue, costs, totalCosts, profit, breakeven, metadata } = businessResults;
-    
-    return `
-        <div class="business-breakdown">
-            <h4>💼 Finanční analýza</h4>
-            
-            <div class="business-summary">
-                <div class="business-metric">
-                    <span class="metric-label">Break-even point:</span>
-                    <span class="metric-value">${formatNumber(breakeven)} ks</span>
-                </div>
-                <div class="business-metric">
-                    <span class="metric-label">Business model:</span>
-                    <span class="metric-value">${getBusinessModelLabel(metadata.businessModel)}</span>
-                </div>
-                <div class="business-metric">
-                    <span class="metric-label">Cena za kus:</span>
-                    <span class="metric-value">${formatCurrency(metadata.pricePerUnit)}</span>
-                </div>
-            </div>
-            
-            <div class="costs-breakdown">
-                <h5>📊 Rozpis nákladů</h5>
-                <div class="costs-grid">
-                    <div class="cost-item">
-                        <div class="cost-icon">🍩</div>
-                        <div class="cost-details">
-                            <div class="cost-name">Výroba</div>
-                            <div class="cost-value">${formatCurrency(costs.production)}</div>
-                        </div>
-                    </div>
-                    
-                    <div class="cost-item">
-                        <div class="cost-icon">👨‍💼</div>
-                        <div class="cost-details">
-                            <div class="cost-name">Mzdy</div>
-                            <div class="cost-value">${formatCurrency(costs.labor)}</div>
-                        </div>
-                    </div>
-                    
-                    <div class="cost-item">
-                        <div class="cost-icon">🚗</div>
-                        <div class="cost-details">
-                            <div class="cost-name">Doprava</div>
-                            <div class="cost-value">${formatCurrency(costs.transport)}</div>
-                        </div>
-                    </div>
-                    
-                    <div class="cost-item">
-                        <div class="cost-icon">🏢</div>
-                        <div class="cost-details">
-                            <div class="cost-name">Nájem</div>
-                            <div class="cost-value">${formatCurrency(costs.rent)}</div>
-                        </div>
-                    </div>
-                    
-                    ${costs.revenueShare > 0 ? `
-                    <div class="cost-item">
-                        <div class="cost-icon">📊</div>
-                        <div class="cost-details">
-                            <div class="cost-name">% z obratu</div>
-                            <div class="cost-value">${formatCurrency(costs.revenueShare)}</div>
-                        </div>
-                    </div>
-                    ` : ''}
-                </div>
-                
-                <div class="costs-total">
-                    <div class="total-row revenue">
-                        <span>💰 Celkový obrat:</span>
-                        <span>${formatCurrency(revenue)}</span>
-                    </div>
-                    <div class="total-row costs">
-                        <span>💸 Celkové náklady:</span>
-                        <span>${formatCurrency(totalCosts)}</span>
-                    </div>
-                    <div class="total-row profit ${profit > 0 ? 'positive' : 'negative'}">
-                        <span><strong>${profit > 0 ? '✅' : '❌'} Čistý zisk:</strong></span>
-                        <span><strong>${formatCurrency(profit)}</strong></span>
-                    </div>
-                </div>
-            </div>
-        </div>
-    `;
+// Helper funkce pro business model label
+function getBusinessModelLabel(businessModel) {
+    const labels = {
+        'owner': '🏪 Majitel',
+        'employee': '👨‍💼 Zaměstnanec',
+        'franchise': '🤝 Franšíza'
+    };
+    return labels[businessModel] || businessModel;
 }
 
 // Generování doporučení HTML
-function generateRecommendationsHtml(recommendations) {
+function generateRecommendationsHTML(formData, prediction, businessResults) {
+    // Použití funkce z Part 2C
+    const recommendations = generateRecommendations(formData, prediction, businessResults);
+    
     if (!recommendations || recommendations.length === 0) {
         return `
             <div class="recommendations">
@@ -389,21 +328,6 @@ function hideActionButtons() {
     if (actionButtons) {
         actionButtons.style.display = 'none';
     }
-}
-
-// ========================================
-// UTILITY FUNCTIONS
-// ========================================
-
-// Získání labelu pro business model
-function getBusinessModelLabel(businessModel) {
-    const labels = {
-        'owner': '🏪 Majitel',
-        'employee': '👨‍💼 Zaměstnanec',
-        'franchise': '🤝 Franšíza'
-    };
-    
-    return labels[businessModel] || businessModel;
 }
 
 // ========================================
@@ -519,764 +443,319 @@ function animateLoadingSteps() {
 }
 
 // ========================================
-// EVENT LISTENERS PRO PART 3A (OPRAVENO)
+// CSS STYLES
 // ========================================
 
-// Event listener pro vypočítanou predikci
+// Přidání CSS stylů pro Part 3
+function addPart3Styles() {
+    const style = document.createElement('style');
+    style.textContent = `
+        .prediction-results-container {
+            display: flex;
+            flex-direction: column;
+            gap: 25px;
+        }
+        
+        .factors-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 15px;
+            margin-top: 15px;
+        }
+        
+        .factor-item {
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            border-left: 4px solid #667eea;
+        }
+        
+        .factor-name {
+            font-weight: 600;
+            margin-bottom: 8px;
+            color: #333;
+        }
+        
+        .factor-value {
+            font-size: 1.2em;
+            font-weight: 700;
+            color: #667eea;
+            margin-bottom: 8px;
+        }
+        
+        .factor-bar {
+            height: 6px;
+            background: #e9ecef;
+            border-radius: 3px;
+            overflow: hidden;
+        }
+        
+        .factor-fill {
+            height: 100%;
+            transition: width 0.8s ease;
+        }
+        
+        .business-summary {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+        
+        .business-metric {
+            background: white;
+            padding: 12px;
+            border-radius: 6px;
+            border: 1px solid #e9ecef;
+        }
+        
+        .metric-label {
+            font-size: 0.9em;
+            color: #666;
+            display: block;
+        }
+        
+        .metric-value {
+            font-weight: 600;
+            color: #333;
+            font-size: 1.1em;
+        }
+        
+        .costs-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+        
+        .cost-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            border: 1px solid #e9ecef;
+        }
+        
+        .cost-icon {
+            font-size: 1.5em;
+            flex-shrink: 0;
+        }
+        
+        .cost-name {
+            font-size: 0.9em;
+            color: #666;
+        }
+        
+        .cost-value {
+            font-weight: 600;
+            color: #333;
+        }
+        
+        .costs-total {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            border: 2px solid #667eea;
+        }
+        
+        .total-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 0;
+            border-bottom: 1px solid #e9ecef;
+        }
+        
+        .total-row:last-child {
+            border-bottom: none;
+            margin-top: 10px;
+            padding-top: 15px;
+            border-top: 2px solid #667eea;
+        }
+        
+        .total-row.positive {
+            color: #28a745;
+        }
+        
+        .total-row.negative {
+            color: #dc3545;
+        }
+        
+        .recommendation-item {
+            display: flex;
+            align-items: flex-start;
+            gap: 12px;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 12px;
+            border-left: 4px solid #17a2b8;
+        }
+        
+        .recommendation-item.success {
+            background: #d4edda;
+            border-left-color: #28a745;
+        }
+        
+        .recommendation-item.warning {
+            background: #fff3cd;
+            border-left-color: #ffc107;
+        }
+        
+        .recommendation-item.error {
+            background: #f8d7da;
+            border-left-color: #dc3545;
+        }
+        
+        .recommendation-icon {
+            font-size: 1.3em;
+            flex-shrink: 0;
+        }
+        
+        .recommendation-title {
+            font-weight: 600;
+            margin-bottom: 4px;
+        }
+        
+        .recommendation-text {
+            font-size: 0.95em;
+            line-height: 1.4;
+        }
+        
+        .prediction-loading {
+            text-align: center;
+            padding: 40px 20px;
+        }
+        
+        .loading-steps {
+            margin-top: 20px;
+            text-align: left;
+            max-width: 300px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+        
+        .loading-step {
+            padding: 8px 0;
+            opacity: 0.5;
+            transition: opacity 0.3s;
+        }
+        
+        .loading-step.active {
+            opacity: 1;
+            font-weight: 600;
+            color: #667eea;
+        }
+        
+        .loading-step.completed {
+            opacity: 0.7;
+            color: #28a745;
+        }
+        
+        .prediction-error {
+            text-align: center;
+            padding: 40px 20px;
+            color: #dc3545;
+        }
+        
+        .error-icon {
+            font-size: 4rem;
+            margin-bottom: 20px;
+        }
+        
+        .btn-retry {
+            margin-top: 20px;
+            background: #dc3545;
+            color: white;
+        }
+        
+        @media (max-width: 768px) {
+            .factors-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .business-summary {
+                grid-template-columns: 1fr;
+            }
+            
+            .costs-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    `;
+    
+    document.head.appendChild(style);
+}
+
+// ========================================
+// EVENT LISTENERS - POUZE ZOBRAZENÍ
+// ========================================
+
+// Event listener pro vypočítanou predikci z Part 2C
 eventBus.on('predictionCalculated', (predictionData) => {
-    console.log('🎯 Prediction calculated, displaying results');
+    console.log('🎯 Part 3: Displaying prediction results');
     displayPredictionResults(predictionData);
 });
 
-// Event listener pro začátek prediction loading
+// Event listener pro změnu formuláře - pouze aktualizace placeholder
+eventBus.on('formChanged', (formData) => {
+    const validation = validateRequiredFields();
+    if (!validation.valid) {
+        displayPredictionPlaceholder();
+        updateFieldsStatus();
+    }
+});
+
+// Event listener pro začátek výpočtu predikce
 eventBus.on('predictionStarted', () => {
-    console.log('🤖 Prediction started, showing loading');
+    console.log('🤖 Part 3: Showing loading state');
     displayPredictionLoading();
     hideActionButtons();
 });
 
 // Event listener pro chybu predikce
 eventBus.on('predictionError', (error) => {
-    console.log('❌ Prediction error, showing error message');
+    console.log('❌ Part 3: Showing error state');
     displayErrorResults(error.message || 'Neznámá chyba při výpočtu predikce');
     hideActionButtons();
 });
 
 // ========================================
-// INICIALIZACE PART 3A
+// INICIALIZACE
 // ========================================
 
 // Inicializace při načtení stránky
 document.addEventListener('DOMContentLoaded', function() {
-    console.log('🎨 Initializing Part 3A UI...');
+    console.log('🎨 Initializing Part 3 UI Display...');
+    
+    // Přidání CSS stylů
+    addPart3Styles();
     
     // Zobrazení placeholder na začátku
     setTimeout(() => {
         displayPredictionPlaceholder();
+        updateFieldsStatus();
     }, 100);
     
     // Skrytí action buttons na začátku
     hideActionButtons();
     
-    console.log('✅ Part 3A UI initialized');
+    console.log('✅ Part 3 UI Display initialized');
 });
 
 // ========================================
-// FINALIZACE PART 3A
+// FINALIZACE
 // ========================================
 
-console.log('✅ Donuland Part 3A (Fixed) loaded successfully');
+console.log('✅ Donuland Part 3 loaded successfully');
 console.log('🎨 Features: ✅ Results Display ✅ Factors Breakdown ✅ Business Analysis ✅ Recommendations');
 console.log('🎯 UI States: Placeholder → Loading → Results/Error');
 console.log('💡 Interactive: Field status tracking + Action buttons');
-console.log('⏳ Ready for Part 3B: Enhanced Validation & Form Features');
+console.log('🔗 Connected to Part 2C via eventBus - NO conflicts with Part 1&2');
 
-// Event pro signalizaci dokončení části 3A
-eventBus.emit('part3aLoaded', { 
+// Event pro signalizaci dokončení části 3
+eventBus.emit('part3Loaded', { 
     timestamp: Date.now(),
-    version: '1.1.0',
+    version: '1.0.0',
     features: ['results-display', 'factors-breakdown', 'business-analysis', 'recommendations-display', 'loading-states', 'error-handling']
-});
-/* ========================================
-   DONULAND MANAGEMENT SYSTEM - PART 3B (OPRAVENO)
-   Enhanced Validation & Smart Form Features
-   ======================================== */
-
-console.log('🍩 Donuland Part 3B (Fixed) loading...');
-
-// ========================================
-// ENHANCED FORM VALIDATION (OPRAVENO)
-// ========================================
-
-// Vylepšená validace formuláře s opravou konfliktu
-function validateRequiredFieldsEnhanced() {
-    console.log('🔍 Enhanced validation running...');
-    
-    const requiredFields = [
-        { id: 'eventName', name: 'Název akce', minLength: 3 },
-        { id: 'category', name: 'Kategorie' },
-        { id: 'city', name: 'Město/Lokalita', minLength: 2 },
-        { id: 'eventDateFrom', name: 'Datum od' },
-        { id: 'eventDateTo', name: 'Datum do' },
-        { id: 'visitors', name: 'Návštěvnost', min: 50, max: 100000 },
-        { id: 'competition', name: 'Konkurence' },
-        { id: 'eventType', name: 'Typ akce' },
-        { id: 'businessModel', name: 'Business model' },
-        { id: 'rentType', name: 'Typ nájmu' }
-    ];
-    
-    let allValid = true;
-    const errors = [];
-    
-    requiredFields.forEach(field => {
-        const element = document.getElementById(field.id);
-        const isValid = validateSingleFieldEnhanced(element, field);
-        
-        if (!isValid.valid) {
-            allValid = false;
-            errors.push(...isValid.errors);
-            markFieldAsError(element, isValid.errors);
-        } else {
-            markFieldAsValid(element);
-        }
-    });
-    
-    // Speciální validace
-    const specialValidation = performSpecialValidationEnhanced();
-    if (!specialValidation.valid) {
-        allValid = false;
-        errors.push(...specialValidation.errors);
-    }
-    
-    return { valid: allValid, errors: errors };
-}
-
-// Validace jednotlivého pole s enhanced funkcemi
-function validateSingleFieldEnhanced(element, fieldConfig) {
-    if (!element) {
-        return { valid: false, errors: [`Pole ${fieldConfig.name} nebylo nalezeno`] };
-    }
-    
-    const value = element.value.trim();
-    const errors = [];
-    
-    // Základní povinnost
-    if (!value) {
-        errors.push(`${fieldConfig.name} je povinné pole`);
-        return { valid: false, errors };
-    }
-    
-    // Minimální délka pro textová pole
-    if (fieldConfig.minLength && value.length < fieldConfig.minLength) {
-        errors.push(`${fieldConfig.name} musí mít alespoň ${fieldConfig.minLength} znaků`);
-    }
-    
-    // Číselné rozsahy
-    if (fieldConfig.min !== undefined || fieldConfig.max !== undefined) {
-        const numValue = parseFloat(value);
-        
-        if (isNaN(numValue)) {
-            errors.push(`${fieldConfig.name} musí být číslo`);
-        } else {
-            if (fieldConfig.min !== undefined && numValue < fieldConfig.min) {
-                errors.push(`${fieldConfig.name} musí být alespoň ${fieldConfig.min}`);
-            }
-            if (fieldConfig.max !== undefined && numValue > fieldConfig.max) {
-                errors.push(`${fieldConfig.name} nesmí být více než ${fieldConfig.max}`);
-            }
-        }
-    }
-    
-    return { valid: errors.length === 0, errors };
-}
-
-// Speciální validace s enhanced funkcemi
-function performSpecialValidationEnhanced() {
-    const errors = [];
-    
-    // Validace datumů
-    const dateFrom = document.getElementById('eventDateFrom').value;
-    const dateTo = document.getElementById('eventDateTo').value;
-    
-    if (dateFrom && dateTo) {
-        const dateFromObj = new Date(dateFrom);
-        const dateToObj = new Date(dateTo);
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-        
-        // Datum do musí být >= datum od
-        if (dateToObj < dateFromObj) {
-            errors.push('Datum do nesmí být dříve než datum od');
-            markFieldAsError(document.getElementById('eventDateTo'), ['Neplatné datum']);
-        }
-        
-        // Varování pro příliš vzdálené budoucí akce
-        const maxFutureDate = new Date();
-        maxFutureDate.setFullYear(maxFutureDate.getFullYear() + 1);
-        
-        if (dateFromObj > maxFutureDate) {
-            errors.push('Akce je příliš daleko v budoucnosti (max 1 rok)');
-        }
-        
-        // Info pro akce v minulosti (není chyba)
-        if (dateFromObj < today) {
-            setTimeout(() => {
-                showNotification('⚠️ Akce je naplánována v minulosti', 'warning', 3000);
-            }, 100);
-        }
-    }
-    
-    // Validace business logiky
-    const rentType = document.getElementById('rentType').value;
-    
-    // Specifické validace podle rent type
-    if (rentType === 'fixed') {
-        const fixedRent = parseFloat(document.getElementById('fixedRent')?.value || 0);
-        if (fixedRent <= 0) {
-            errors.push('Fixní nájem musí být vyšší než 0 Kč');
-            const fixedRentEl = document.getElementById('fixedRent');
-            if (fixedRentEl) markFieldAsError(fixedRentEl, ['Neplatná hodnota']);
-        }
-    }
-    
-    if (rentType === 'percentage') {
-        const percentage = parseFloat(document.getElementById('percentage')?.value || 0);
-        if (percentage <= 0 || percentage > 50) {
-            errors.push('Procenta z obratu musí být mezi 1-50%');
-            const percentageEl = document.getElementById('percentage');
-            if (percentageEl) markFieldAsError(percentageEl, ['Neplatná hodnota']);
-        }
-    }
-    
-    if (rentType === 'mixed') {
-        const mixedFixed = parseFloat(document.getElementById('mixedFixed')?.value || 0);
-        const mixedPercentage = parseFloat(document.getElementById('mixedPercentage')?.value || 0);
-        
-        if (mixedFixed <= 0 && mixedPercentage <= 0) {
-            errors.push('Kombinovaný nájem musí mít alespoň jednu hodnotu > 0');
-        }
-    }
-    
-    // Validace ceny
-    const price = parseFloat(document.getElementById('price')?.value || 0);
-    if (price < 30 || price > 100) {
-        // Není chyba, jen upozornění
-        setTimeout(() => {
-            showNotification('💡 Neobvyklá cena - doporučeno 45-55 Kč', 'info', 3000);
-        }, 100);
-    }
-    
-    return { valid: errors.length === 0, errors };
-}
-
-// Označení pole jako chybné
-function markFieldAsError(element, errors) {
-    if (!element) return;
-    
-    element.classList.add('error');
-    element.classList.remove('valid');
-    element.setAttribute('title', errors.join(', '));
-    
-    // Přidání chybové zprávy
-    let errorDiv = element.parentElement.querySelector('.field-error');
-    if (!errorDiv) {
-        errorDiv = document.createElement('div');
-        errorDiv.className = 'field-error';
-        element.parentElement.appendChild(errorDiv);
-    }
-    
-    errorDiv.innerHTML = `
-        <span class="error-icon">⚠️</span>
-        <span class="error-text">${errors[0]}</span>
-    `;
-    errorDiv.style.display = 'block';
-}
-
-// Označení pole jako validní
-function markFieldAsValid(element) {
-    if (!element) return;
-    
-    element.classList.remove('error');
-    element.classList.add('valid');
-    element.removeAttribute('title');
-    
-    // Odstranění chybové zprávy
-    const errorDiv = element.parentElement.querySelector('.field-error');
-    if (errorDiv) {
-        errorDiv.style.display = 'none';
-    }
-    
-    // Přidání success efektu (dočasně)
-    element.style.borderColor = '#28a745';
-    element.style.boxShadow = '0 0 0 2px rgba(40, 167, 69, 0.2)';
-    
-    // Odstranění po 2 sekundách
-    setTimeout(() => {
-        if (element.classList.contains('valid')) {
-            element.style.borderColor = '';
-            element.style.boxShadow = '';
-        }
-    }, 2000);
-}
-
-// ========================================
-// REAL-TIME FORM VALIDATION
-// ========================================
-
-// Nastavení real-time validace
-function setupRealTimeValidation() {
-    console.log('⚡ Setting up real-time validation...');
-    
-    const formElements = document.querySelectorAll('input, select, textarea');
-    
-    formElements.forEach(element => {
-        // Debounced validation při psaní
-        const debouncedValidation = debounce(() => {
-            validateAndTriggerUpdate(element);
-        }, 300);
-        
-        // Event listeners
-        element.addEventListener('input', debouncedValidation);
-        element.addEventListener('change', () => {
-            validateAndTriggerUpdate(element);
-        });
-        
-        element.addEventListener('blur', () => {
-            validateSingleFieldByElement(element);
-        });
-        
-        element.addEventListener('focus', () => {
-            // Odstranění error styling při focusu
-            element.classList.remove('error');
-            const errorDiv = element.parentElement.querySelector('.field-error');
-            if (errorDiv) {
-                errorDiv.style.display = 'none';
-            }
-        });
-    });
-    
-    console.log('✅ Real-time validation setup complete');
-}
-
-// Validace a trigger update
-function validateAndTriggerUpdate(element) {
-    validateSingleFieldByElement(element);
-    updatePredictionTriggerEnhanced();
-}
-
-// Validace jednoho pole podle elementu
-function validateSingleFieldByElement(element) {
-    if (!element || !element.id) return;
-    
-    // Najít konfiguraci pole
-    const fieldConfigs = {
-        'eventName': { name: 'Název akce', minLength: 3 },
-        'category': { name: 'Kategorie' },
-        'city': { name: 'Město/Lokalita', minLength: 2 },
-        'eventDateFrom': { name: 'Datum od' },
-        'eventDateTo': { name: 'Datum do' },
-        'visitors': { name: 'Návštěvnost', min: 50, max: 100000 },
-        'competition': { name: 'Konkurence' },
-        'eventType': { name: 'Typ akce' },
-        'businessModel': { name: 'Business model' },
-        'rentType': { name: 'Typ nájmu' },
-        'price': { name: 'Cena', min: 30, max: 100 }
-    };
-    
-    const fieldConfig = fieldConfigs[element.id];
-    if (!fieldConfig) return;
-    
-    const result = validateSingleFieldEnhanced(element, fieldConfig);
-    
-    if (result.valid) {
-        markFieldAsValid(element);
-    } else {
-        markFieldAsError(element, result.errors);
-    }
-}
-
-// ========================================
-// SMART FORM SUGGESTIONS
-// ========================================
-
-// Inteligentní návrhy při psaní
-function setupSmartSuggestions() {
-    console.log('🧠 Setting up smart suggestions...');
-    
-    // Návrhy pro města na základě historických dat
-    setupCitySuggestionsEnhanced();
-    
-    // Auto-kategorization na základě názvu
-    setupAutoCategorizationEnhanced();
-    
-    // Smart defaults
-    setupSmartDefaultsEnhanced();
-}
-
-// Enhanced návrhy měst z historických dat
-function setupCitySuggestionsEnhanced() {
-    const cityInput = document.getElementById('city');
-    if (!cityInput) return;
-    
-    cityInput.addEventListener('input', debounce(() => {
-        const value = cityInput.value.toLowerCase().trim();
-        if (value.length < 2) return;
-        
-        // Najít podobná města v historických datech
-        if (globalState.historicalData && globalState.historicalData.length > 0) {
-            const suggestions = globalState.historicalData
-                .map(record => record.city)
-                .filter(city => city && city.toLowerCase().includes(value))
-                .filter((city, index, self) => self.indexOf(city) === index) // unique
-                .slice(0, 5);
-            
-            if (suggestions.length > 0) {
-                showCitySuggestionsEnhanced(cityInput, suggestions);
-            }
-        }
-    }, 300));
-}
-
-// Zobrazení návrhů měst
-function showCitySuggestionsEnhanced(input, suggestions) {
-    // Odstranění starých návrhů
-    const existingSuggestions = document.querySelector('.city-suggestions');
-    if (existingSuggestions) {
-        existingSuggestions.remove();
-    }
-    
-    // Vytvoření nových návrhů
-    const suggestionsDiv = document.createElement('div');
-    suggestionsDiv.className = 'city-suggestions';
-    suggestionsDiv.style.cssText = `
-        position: absolute;
-        top: 100%;
-        left: 0;
-        right: 0;
-        background: white;
-        border: 1px solid #ccc;
-        border-radius: 6px;
-        box-shadow: 0 4px 20px rgba(0,0,0,0.1);
-        z-index: 1000;
-        max-height: 200px;
-        overflow-y: auto;
-    `;
-    
-    suggestionsDiv.innerHTML = suggestions.map(city => 
-        `<div class="suggestion-item" style="padding: 10px; cursor: pointer; border-bottom: 1px solid #eee;" 
-              onclick="selectCitySuggestionEnhanced('${escapeHtml(city)}')"
-              onmouseover="this.style.backgroundColor='#f5f5f5'"
-              onmouseout="this.style.backgroundColor=''">${escapeHtml(city)}</div>`
-    ).join('');
-    
-    input.parentElement.style.position = 'relative';
-    input.parentElement.appendChild(suggestionsDiv);
-    
-    // Auto-hide po 10 sekundách
-    setTimeout(() => {
-        if (suggestionsDiv.parentElement) {
-            suggestionsDiv.remove();
-        }
-    }, 10000);
-}
-
-// Výběr návrhu města
-function selectCitySuggestionEnhanced(city) {
-    const cityInput = document.getElementById('city');
-    if (cityInput) {
-        cityInput.value = city;
-        cityInput.dispatchEvent(new Event('change'));
-        
-        // Odstranění návrhů
-        const suggestions = document.querySelector('.city-suggestions');
-        if (suggestions) {
-            suggestions.remove();
-        }
-        
-        // Trigger distance calculation
-        eventBus.emit('cityChanged', { city: city });
-    }
-}
-
-// Auto-kategorizace na základě názvu akce
-function setupAutoCategorizationEnhanced() {
-    const eventNameInput = document.getElementById('eventName');
-    const categorySelect = document.getElementById('category');
-    
-    if (!eventNameInput || !categorySelect) return;
-    
-    eventNameInput.addEventListener('input', debounce(() => {
-        const name = eventNameInput.value.toLowerCase();
-        
-        // Už je kategorie vybraná? Nepřepisuj
-        if (categorySelect.value) return;
-        
-        // Klíčová slova pro kategorie
-        const categoryKeywords = {
-            'food festival': ['food', 'fest', 'gastro', 'jídlo', 'kulinář', 'chuť', 'gurmán', 'burger', 'pizza'],
-            'veletrh': ['veletrh', 'výstava', 'trh', 'čoko', 'chocolate', 'jarmark', 'cokofest'],
-            'koncert': ['koncert', 'hudba', 'festival', 'music', 'kapela', 'zpěv', 'band'],
-            'kulturní akce': ['kultura', 'divadlo', 'muzeum', 'galerie', 'umění', 'výstava', 'film'],
-            'sportovní': ['sport', 'běh', 'maraton', 'závod', 'turnaj', 'pohár', 'cyklo', 'fotbal']
-        };
-        
-        for (const [category, keywords] of Object.entries(categoryKeywords)) {
-            if (keywords.some(keyword => name.includes(keyword))) {
-                categorySelect.value = category;
-                categorySelect.dispatchEvent(new Event('change'));
-                
-                // Notifikace o auto-výběru
-                showNotification(`🤖 Auto-vybráno: ${category}`, 'info', 2000);
-                break;
-            }
-        }
-    }, 1000));
-}
-
-// Smart defaults na základě kontextu
-function setupSmartDefaultsEnhanced() {
-    // Auto-nastavení datumu do = datum od pro jednodenní akce
-    const dateFromInput = document.getElementById('eventDateFrom');
-    const dateToInput = document.getElementById('eventDateTo');
-    
-    if (dateFromInput && dateToInput) {
-        dateFromInput.addEventListener('change', () => {
-            if (!dateToInput.value && dateFromInput.value) {
-                dateToInput.value = dateFromInput.value;
-                dateToInput.dispatchEvent(new Event('change'));
-            }
-        });
-    }
-    
-    // Smart business model doporučení
-    const visitorsInput = document.getElementById('visitors');
-    const businessModelSelect = document.getElementById('businessModel');
-    
-    if (visitorsInput && businessModelSelect) {
-        visitorsInput.addEventListener('change', debounce(() => {
-            const visitors = parseInt(visitorsInput.value);
-            
-            if (!businessModelSelect.value && visitors > 0) {
-                let recommendedModel = 'owner'; // default
-                
-                if (visitors < 1000) {
-                    recommendedModel = 'franchise'; // Menší riziko pro malé akce
-                } else if (visitors > 10000) {
-                    recommendedModel = 'owner'; // Vyšší zisk pro velké akce
-                } else {
-                    recommendedModel = 'employee'; // Střední cesta
-                }
-                
-                businessModelSelect.value = recommendedModel;
-                businessModelSelect.dispatchEvent(new Event('change'));
-                
-                const modelNames = {
-                    'owner': 'Majitel',
-                    'employee': 'Zaměstnanec', 
-                    'franchise': 'Franšíza'
-                };
-                
-                showNotification(`💡 Doporučeno: ${modelNames[recommendedModel]} pro ${formatNumber(visitors)} návštěvníků`, 'info', 3000);
-            }
-        }, 1500));
-    }
-}
-
-// ========================================
-// FORM PROGRESS TRACKING
-// ========================================
-
-// Aktualizace pokroku formuláře
-function updateFormProgressEnhanced() {
-    const requiredFields = [
-        'eventName', 'category', 'city', 'eventDateFrom', 'eventDateTo', 
-        'visitors', 'competition', 'eventType', 'businessModel', 'rentType'
-    ];
-    
-    let completedFields = 0;
-    
-    requiredFields.forEach(fieldId => {
-        const element = document.getElementById(fieldId);
-        if (element && element.value.trim()) {
-            completedFields++;
-        }
-    });
-    
-    const progress = (completedFields / requiredFields.length) * 100;
-    
-    // Emit progress event
-    eventBus.emit('formProgressChanged', {
-        progress: progress,
-        completedFields: completedFields,
-        totalFields: requiredFields.length
-    });
-    
-    return { progress, completedFields, totalFields: requiredFields.length };
-}
-
-// ========================================
-// FORM AUTO-SAVE
-// ========================================
-
-// Automatické ukládání formuláře do localStorage
-function setupAutoSaveEnhanced() {
-    console.log('💾 Setting up enhanced auto-save...');
-    
-    const formElements = document.querySelectorAll('input, select, textarea');
-    
-    const debouncedSave = debounce(() => {
-        saveFormToLocalStorageEnhanced();
-    }, 3000);
-    
-    formElements.forEach(element => {
-        element.addEventListener('input', debouncedSave);
-        element.addEventListener('change', debouncedSave);
-    });
-    
-    // Načtení při startu
-    loadFormFromLocalStorageEnhanced();
-}
-
-// Uložení formuláře do localStorage
-function saveFormToLocalStorageEnhanced() {
-    try {
-        const formData = gatherFormData();
-        const saveData = {
-            formData: formData,
-            timestamp: Date.now(),
-            url: window.location.href,
-            version: '3b'
-        };
-        
-        localStorage.setItem('donuland_form_autosave', JSON.stringify(saveData));
-        console.log('💾 Enhanced form auto-saved');
-        
-    } catch (error) {
-        console.error('❌ Enhanced auto-save failed:', error);
-    }
-}
-
-// Načtení formuláře z localStorage
-function loadFormFromLocalStorageEnhanced() {
-    try {
-        const saved = localStorage.getItem('donuland_form_autosave');
-        if (!saved) return;
-        
-        const saveData = JSON.parse(saved);
-        const age = Date.now() - saveData.timestamp;
-        
-        // Načíst pouze pokud je mladší než 24 hodin
-        if (age > 24 * 60 * 60 * 1000) {
-            localStorage.removeItem('donuland_form_autosave');
-            return;
-        }
-        
-        const formData = saveData.formData;
-        let fieldsRestored = 0;
-        
-        // Načtení dat do formuláře (pouze pokud jsou pole prázdná)
-        Object.keys(formData).forEach(key => {
-            const element = document.getElementById(key);
-            if (element && !element.value && formData[key]) {
-                element.value = formData[key];
-                fieldsRestored++;
-            }
-        });
-        
-        if (fieldsRestored > 0) {
-            console.log(`📥 Form data restored: ${fieldsRestored} fields`);
-            showNotification(`📥 Obnoveno ${fieldsRestored} polí z auto-save`, 'info', 3000);
-        }
-        
-    } catch (error) {
-        console.error('❌ Enhanced auto-load failed:', error);
-        localStorage.removeItem('donuland_form_autosave');
-    }
-}
-
-// ========================================
-// PREDICTION TRIGGER OPTIMIZATION
-// ========================================
-
-// Optimalizovaný trigger pro predikci
-function updatePredictionTriggerEnhanced() {
-    // Debounced predikce - spustí se až po dokončení psaní
-    if (globalState.predictionTimeoutEnhanced) {
-        clearTimeout(globalState.predictionTimeoutEnhanced);
-    }
-    
-    globalState.predictionTimeoutEnhanced = setTimeout(() => {
-        // Použít původní validaci pro kompatibilitu
-        const validation = validateRequiredFields();
-        
-        if (validation.valid) {
-            // Aktualizace field status pro UI
-            updateFieldsStatus();
-            
-            // Emit event pro predikci
-            eventBus.emit('formValidAndReady');
-            
-            // Pokud nejsou spuštěny jiné operace, spustit predikci
-            if (!globalState.isLoadingPrediction && !globalState.isLoadingWeather) {
-                eventBus.emit('triggerPrediction');
-            }
-        } else {
-            // Form není validní, zobrazit placeholder
-            updateFieldsStatus();
-            eventBus.emit('formNotValid', validation.errors);
-        }
-        
-        // Aktualizace progress
-        updateFormProgressEnhanced();
-        
-    }, 700); // 700ms delay pro lepší UX
-}
-
-// ========================================
-// EVENT LISTENERS PRO PART 3B (OPRAVENO)
-// ========================================
-
-// Event listeners pro enhanced validation
-eventBus.on('formValidAndReady', () => {
-    console.log('✅ Enhanced form is valid and ready for prediction');
-});
-
-eventBus.on('formNotValid', (errors) => {
-    console.log('❌ Enhanced form validation failed:', errors);
-    displayPredictionPlaceholder();
-});
-
-// Event pro změnu formuláře s enhanced funkcemi
-eventBus.on('formChanged', (formData) => {
-    console.log('📝 Enhanced form changed handler');
-    updateFormProgressEnhanced();
-});
-
-// Event pro progress změnu
-eventBus.on('formProgressChanged', (data) => {
-    console.log(`📊 Enhanced form progress: ${data.progress.toFixed(1)}%`);
-});
-
-// ========================================
-// INICIALIZACE PART 3B
-// ========================================
-
-// Inicializace při načtení stránky
-document.addEventListener('DOMContentLoaded', function() {
-    console.log('📝 Initializing Part 3B Enhanced Features...');
-    
-    // Malé zpoždění pro zajištění načtení předchozích částí
-    setTimeout(() => {
-        // Nastavení enhanced validation
-        setupRealTimeValidation();
-        
-        // Nastavení smart suggestions
-        setupSmartSuggestions();
-        
-        // Nastavení auto-save
-        setupAutoSaveEnhanced();
-        
-        // První progress update
-        updateFormProgressEnhanced();
-        
-        console.log('✅ Part 3B Enhanced Features initialized');
-    }, 500);
-});
-
-// ========================================
-// FINALIZACE PART 3B
-// ========================================
-
-console.log('✅ Donuland Part 3B (Fixed) loaded successfully');
-console.log('📝 Features: ✅ Enhanced Validation ✅ Real-time Feedback ✅ Smart Suggestions ✅ Auto-save');
-console.log('🧠 Smart features: Auto-categorization + City suggestions + Smart defaults');
-console.log('⚡ Real-time: Field validation + Progress tracking + Debounced prediction trigger');
-console.log('🔧 Fixed: No conflicts with Part 1&2, preserved Google Maps autocomplete');
-console.log('⏳ Ready for Part 4: Calendar & Analytics');
-
-// Event pro signalizaci dokončení části 3B
-eventBus.emit('part3bLoaded', { 
-    timestamp: Date.now(),
-    version: '1.1.0',
-    features: ['enhanced-validation', 'real-time-feedback', 'smart-suggestions', 'auto-save', 'progress-tracking', 'conflict-free']
 });
