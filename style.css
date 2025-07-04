@@ -499,6 +499,7 @@ body {
 
 .form-group {
     margin-bottom: var(--spacing-md);
+    position: relative;
 }
 
 .form-group label {
@@ -554,6 +555,125 @@ body {
     margin-top: var(--spacing-xs);
     color: var(--gray-500);
     font-size: var(--font-size-xs);
+    line-height: 1.4;
+}
+
+/* ========================================
+   GOOGLE MAPS AUTOCOMPLETE STYLING
+   ======================================== */
+
+/* Input field pro Google autocomplete */
+.google-autocomplete {
+    position: relative;
+    z-index: 1;
+}
+
+.google-autocomplete:focus {
+    border-color: var(--primary-color) !important;
+    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1) !important;
+}
+
+/* Google Maps dropdown container */
+.pac-container {
+    background: var(--white);
+    border-radius: var(--radius-sm);
+    box-shadow: var(--shadow-lg);
+    border: 1px solid var(--gray-300);
+    font-family: var(--font-family);
+    z-index: 9999 !important;
+    margin-top: 2px;
+}
+
+/* Individual autocomplete items */
+.pac-item {
+    padding: 12px var(--spacing-md);
+    border-bottom: 1px solid var(--gray-200);
+    cursor: pointer;
+    transition: all 0.2s ease;
+    font-size: var(--font-size-sm);
+}
+
+.pac-item:last-child {
+    border-bottom: none;
+}
+
+.pac-item:hover,
+.pac-item-selected {
+    background: var(--gray-100);
+    border-left: 3px solid var(--primary-color);
+}
+
+/* Main text (city name) */
+.pac-item-query {
+    color: var(--gray-800);
+    font-weight: 600;
+}
+
+/* Secondary text (region, country) */
+.pac-matched {
+    color: var(--primary-color);
+    font-weight: 700;
+}
+
+.pac-item-query .pac-matched {
+    color: var(--primary-color);
+}
+
+/* Icon styling */
+.pac-icon {
+    background-image: none !important;
+    width: 20px;
+    height: 20px;
+    margin-right: var(--spacing-sm);
+}
+
+.pac-icon::before {
+    content: "📍";
+    font-size: 16px;
+    line-height: 20px;
+}
+
+/* Loading state */
+.pac-container:empty::before {
+    content: "Hledám místa...";
+    display: block;
+    padding: 12px var(--spacing-md);
+    color: var(--gray-500);
+    font-style: italic;
+    text-align: center;
+}
+
+/* Error state */
+.pac-container.pac-logo::after {
+    display: none !important;
+}
+
+/* Mobile responsivity for autocomplete */
+@media (max-width: 768px) {
+    .pac-container {
+        max-width: calc(100vw - 40px);
+        left: 20px !important;
+        right: 20px !important;
+        width: auto !important;
+    }
+    
+    .pac-item {
+        padding: 10px;
+        font-size: var(--font-size-xs);
+    }
+}
+
+/* Distance calculation loading state */
+.form-group input#distance.calculating {
+    background: linear-gradient(90deg, var(--gray-100) 25%, var(--gray-200) 50%, var(--gray-100) 75%);
+    background-size: 200% 100%;
+    animation: loadingShimmer 1.5s infinite;
+    color: var(--gray-600);
+}
+
+@keyframes loadingShimmer {
+    0% { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
 }
 
 /* ========================================
@@ -1264,6 +1384,7 @@ body {
     padding: var(--spacing-lg);
     border-radius: var(--radius-md);
     border: 1px solid var(--gray-200);
+    margin-bottom: var(--spacing-lg);
 }
 
 .factor-group h4 {
