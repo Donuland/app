@@ -1,7 +1,9 @@
 /* ========================================
-   DONULAND MANAGEMENT SYSTEM - APP.JS ČÁST 1
-   Základní konfigurace, globální proměnné, inicializace
+   DONULAND MANAGEMENT SYSTEM - PART 1
+   Core systém, globální objekty, inicializace
    ======================================== */
+
+console.log('🍩 Donuland Part 1 loading...');
 
 // ========================================
 // GLOBÁLNÍ KONFIGURACE
@@ -75,7 +77,7 @@ const CONFIG = {
 };
 
 // ========================================
-// GLOBÁLNÍ PROMĚNNÉ A STÁTY
+// GLOBÁLNÍ STAV APLIKACE
 // ========================================
 
 const globalState = {
@@ -83,11 +85,13 @@ const globalState = {
     historicalData: [],
     weatherCache: new Map(),
     distanceCache: new Map(),
+    googleMapsLoaded: false,
     
     // Loading stavy
     isLoading: false,
     isLoadingWeather: false,
     isLoadingPrediction: false,
+    isLoadingDistance: false,
     
     // Metadata
     lastDataLoad: null,
@@ -102,12 +106,20 @@ const globalState = {
     lastFormData: null,
     lastPrediction: null,
     
+    // Google Maps objekty
+    autocomplete: null,
+    placesService: null,
+    distanceService: null,
+    
     // Chyby a logy
     errors: [],
     debugMode: false
 };
 
-// Event emitter pro komunikaci mezi komponenty
+// ========================================
+// EVENT BUS PRO KOMUNIKACI MEZI KOMPONENTY
+// ========================================
+
 const eventBus = {
     events: new Map(),
     
@@ -125,6 +137,12 @@ const eventBus = {
                     callback(data);
                 } catch (error) {
                     console.error(`Error in event ${event}:`, error);
+                    globalState.errors.push({
+                        type: 'event',
+                        event: event,
+                        message: error.message,
+                        timestamp: new Date().toISOString()
+                    });
                 }
             });
         }
@@ -142,7 +160,418 @@ const eventBus = {
 };
 
 // ========================================
-// INICIALIZACE APLIKACE
+// UTILITY FUNKCE
+// ========================================
+
+// Debounce funkce pro omezení počtu volání
+function debounce(func, wait) {
+    let timeout;
+    return function executedFunction(...args) {
+        const later = () => {
+            clearTimeout(timeout);
+            func(...args);
+        };
+        clearTimeout(timeout);
+        timeout = setTimeout(later, wait);
+    };
+}
+
+// Throttle funkce pro omezení frekvence volání
+function throttle(func, wait) {
+    let inThrottle;
+    return function(...args) {
+        if (!inThrottle) {
+            func.apply(this, args);
+            inThrottle = true;
+            setTimeout(() => inThrottle = false, wait);
+        }
+    };
+}
+
+// Formátování čísel pro české prostředí
+function formatNumber(number) {
+    if (number === null || number === undefined || isNaN(number)) {
+        return '0';
+    }
+    return new Intl.NumberFormat('cs-CZ').format(Math.round(number));
+}
+
+// Formátování měny
+function formatCurrency(amount) {
+    if (amount === null || amount === undefined || isNaN(amount)) {
+        return '0 Kč';
+    }
+    return new Intl.NumberFormat('cs-CZ', {
+        style: 'currency',
+        currency: 'CZK',
+        minimumFractionDigits: 0,
+        maximumFractionDigits: 0
+    }).format(Math.round(amount));
+}
+
+// Formátování data
+function formatDate(date) {
+    if (!date) return '';
+    
+    if (typeof date === 'string') {
+        date = new Date(date);
+    }
+    
+    if (isNaN(date.getTime())) {
+        return '';
+    }
+    
+    return date.toLocaleDateString('cs-CZ');
+}
+
+// Formátování času
+function formatTime(date) {
+    if (!date) return '';
+    
+    if (typeof date === 'string') {
+        date = new Date(date);
+    }
+    
+    if (isNaN(date.getTime())) {
+        return '';
+    }
+    
+    return date.toLocaleTimeString('cs-CZ', { 
+        hour: '2-digit', 
+        minute: '2-digit' 
+    });
+}
+
+// Escape HTML pro bezpečnost
+function escapeHtml(text) {
+    if (!text) return '';
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+// Odstranění diakritiky pro porovnávání
+function removeDiacritics(str) {
+    if (!str) return '';
+    return str.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+}
+
+// Generování unikátního ID
+function generateId() {
+    return Date.now().toString(36) + Math.random().toString(36).substr(2);
+}
+
+// Deep clone objektu
+function deepClone(obj) {
+    if (obj === null || typeof obj !== 'object') return obj;
+    if (obj instanceof Date) return new Date(obj);
+    if (obj instanceof Array) return obj.map(item => deepClone(item));
+    if (typeof obj === 'object') {
+        const cloned = {};
+        for (const key in obj) {
+            if (obj.hasOwnProperty(key)) {
+                cloned[key] = deepClone(obj[key]);
+            }
+        }
+        return cloned;
+    }
+}
+
+// ========================================
+// VALIDACE A FORMS
+// ========================================
+
+// Validace povinných polí
+function validateRequiredFields() {
+    const requiredFields = [
+        'eventName', 'category', 'city', 'eventDateFrom', 'eventDateTo', 
+        'visitors', 'competition', 'eventType', 'businessModel', 'rentType'
+    ];
+    
+    let allValid = true;
+    const errors = [];
+    
+    requiredFields.forEach(fieldId => {
+        const element = document.getElementById(fieldId);
+        if (element) {
+            const value = element.value.trim();
+            
+            if (!value) {
+                allValid = false;
+                element.classList.add('error');
+                errors.push(`${fieldId} je povinné pole`);
+            } else {
+                element.classList.remove('error');
+            }
+        }
+    });
+    
+    // Speciální validace - datum do >= datum od
+    const dateFrom = document.getElementById('eventDateFrom').value;
+    const dateTo = document.getElementById('eventDateTo').value;
+    
+    if (dateFrom && dateTo && new Date(dateTo) < new Date(dateFrom)) {
+        allValid = false;
+        document.getElementById('eventDateTo').classList.add('error');
+        errors.push('Datum do musí být stejné nebo pozdější než datum od');
+    }
+    
+    // Validace návštěvnosti
+    const visitors = parseInt(document.getElementById('visitors').value);
+    if (visitors && (visitors < 50 || visitors > 100000)) {
+        allValid = false;
+        document.getElementById('visitors').classList.add('error');
+        errors.push('Návštěvnost musí být mezi 50 a 100 000');
+    }
+    
+    return { valid: allValid, errors: errors };
+}
+
+// Sběr dat z formuláře
+function gatherFormData() {
+    const formData = {
+        // Základní údaje
+        eventName: document.getElementById('eventName').value.trim(),
+        category: document.getElementById('category').value,
+        city: document.getElementById('city').value.trim(),
+        eventDateFrom: document.getElementById('eventDateFrom').value,
+        eventDateTo: document.getElementById('eventDateTo').value,
+        visitors: parseInt(document.getElementById('visitors').value) || 0,
+        competition: parseInt(document.getElementById('competition').value) || 2,
+        eventType: document.getElementById('eventType').value,
+        businessModel: document.getElementById('businessModel').value,
+        rentType: document.getElementById('rentType').value,
+        
+        // Náklady
+        price: parseFloat(document.getElementById('price').value) || CONFIG.DONUT_PRICE,
+        fixedRent: parseFloat(document.getElementById('fixedRent').value) || 0,
+        percentage: parseFloat(document.getElementById('percentage').value) || 0,
+        mixedFixed: parseFloat(document.getElementById('mixedFixed').value) || 0,
+        mixedPercentage: parseFloat(document.getElementById('mixedPercentage').value) || 0,
+        
+        // Automaticky vypočítané
+        distance: document.getElementById('distance').value || '0 km',
+        
+        // Metadata
+        timestamp: new Date().toISOString(),
+        multiDay: null // Bude vypočítáno
+    };
+    
+    // Vypočítat jestli je vícedenní
+    if (formData.eventDateFrom && formData.eventDateTo) {
+        const daysDiff = Math.ceil((new Date(formData.eventDateTo) - new Date(formData.eventDateFrom)) / (1000 * 60 * 60 * 24));
+        formData.multiDay = daysDiff > 0;
+        formData.durationDays = daysDiff + 1; // +1 protože i stejný den = 1 den
+    }
+    
+    return formData;
+}
+
+// ========================================
+// NOTIFIKACE SYSTÉM
+// ========================================
+
+let notificationCounter = 0;
+
+function showNotification(message, type = 'info', duration = 5000) {
+    const container = document.getElementById('notifications') || createNotificationContainer();
+    
+    const notificationId = `notification-${++notificationCounter}`;
+    const notification = document.createElement('div');
+    notification.className = `notification ${type}`;
+    notification.id = notificationId;
+    
+    // Ikony podle typu
+    const icons = {
+        success: '✅',
+        error: '❌',
+        warning: '⚠️',
+        info: 'ℹ️'
+    };
+    
+    const icon = icons[type] || icons.info;
+    
+    notification.innerHTML = `
+        <div class="notification-icon">${icon}</div>
+        <div class="notification-content">
+            <div class="notification-title">${type.toUpperCase()}</div>
+            <div class="notification-message">${escapeHtml(message)}</div>
+        </div>
+        <button class="notification-close" onclick="closeNotification('${notificationId}')">&times;</button>
+    `;
+    
+    container.appendChild(notification);
+    
+    // Animace zobrazení
+    requestAnimationFrame(() => {
+        notification.classList.add('show');
+    });
+    
+    // Automatické zavření
+    if (duration > 0) {
+        setTimeout(() => {
+            closeNotification(notificationId);
+        }, duration);
+    }
+    
+    console.log(`📢 Notification: ${type} - ${message}`);
+    
+    // Emit event
+    eventBus.emit('notificationShown', { type, message, duration });
+    
+    return notificationId;
+}
+
+// Vytvoření kontejneru pro notifikace
+function createNotificationContainer() {
+    const container = document.createElement('div');
+    container.id = 'notifications';
+    container.className = 'notifications-container';
+    document.body.appendChild(container);
+    return container;
+}
+
+// Zavření notifikace
+function closeNotification(notificationId) {
+    const notification = document.getElementById(notificationId);
+    if (notification) {
+        notification.classList.remove('show');
+        setTimeout(() => {
+            if (notification.parentElement) {
+                notification.remove();
+            }
+        }, 300);
+    }
+}
+
+// ========================================
+// STATUS MANAGEMENT
+// ========================================
+
+// Aktualizace status indikátoru
+function updateStatus(status, message) {
+    const statusEl = document.getElementById('status');
+    if (!statusEl) return;
+    
+    // Odstranění všech status tříd
+    statusEl.className = 'status';
+    statusEl.classList.add(status);
+    
+    // Aktualizace obsahu
+    statusEl.innerHTML = `
+        <span class="status-dot"></span>
+        <span>${escapeHtml(message)}</span>
+    `;
+    
+    console.log(`📊 Status updated: ${status} - ${message}`);
+    
+    // Emit event pro jiné komponenty
+    eventBus.emit('statusChanged', { status, message, timestamp: Date.now() });
+}
+
+// Aktualizace load tlačítka
+function updateLoadButton(state, customText = null) {
+    const loadBtn = document.getElementById('loadBtn');
+    const parentButton = loadBtn ? loadBtn.parentElement : null;
+    
+    if (!loadBtn || !parentButton) return;
+    
+    switch (state) {
+        case 'loading':
+            loadBtn.innerHTML = '⏳ Načítám...';
+            parentButton.disabled = true;
+            parentButton.classList.add('loading');
+            break;
+            
+        case 'success':
+            loadBtn.innerHTML = '✅ Data načtena';
+            parentButton.disabled = false;
+            parentButton.classList.remove('loading');
+            
+            // Návrat na původní text po 3 sekundách
+            setTimeout(() => {
+                if (loadBtn.innerHTML === '✅ Data načtena') {
+                    loadBtn.innerHTML = '🔄 Načíst data';
+                }
+            }, 3000);
+            break;
+            
+        case 'error':
+            loadBtn.innerHTML = '❌ Chyba při načítání';
+            parentButton.disabled = false;
+            parentButton.classList.remove('loading');
+            
+            // Návrat na původní text po 4 sekundách
+            setTimeout(() => {
+                if (loadBtn.innerHTML === '❌ Chyba při načítání') {
+                    loadBtn.innerHTML = '🔄 Načíst data';
+                }
+            }, 4000);
+            break;
+            
+        case 'custom':
+            if (customText) {
+                loadBtn.innerHTML = customText;
+                parentButton.disabled = false;
+                parentButton.classList.remove('loading');
+            }
+            break;
+            
+        default:
+            loadBtn.innerHTML = '🔄 Načíst data';
+            parentButton.disabled = false;
+            parentButton.classList.remove('loading');
+    }
+}
+
+// ========================================
+// LOADING MANAGEMENT
+// ========================================
+
+// Zobrazení/skrytí loading overlay
+function showLoadingOverlay(text = 'Načítám data...') {
+    const overlay = document.getElementById('loadingOverlay');
+    const loadingText = document.getElementById('loadingText');
+    
+    if (overlay) {
+        if (loadingText) loadingText.textContent = text;
+        overlay.style.display = 'flex';
+    }
+}
+
+function hideLoadingOverlay() {
+    const overlay = document.getElementById('loadingOverlay');
+    if (overlay) {
+        overlay.style.display = 'none';
+    }
+}
+
+// Skrytí loading screen
+function hideLoadingScreen() {
+    console.log('🎬 Hiding loading screen...');
+    
+    const loadingScreen = document.getElementById('loadingScreen');
+    const mainApp = document.getElementById('mainApp');
+    
+    if (loadingScreen && mainApp) {
+        // Fade out loading screen
+        loadingScreen.style.opacity = '0';
+        
+        setTimeout(() => {
+            loadingScreen.style.display = 'none';
+            mainApp.style.display = 'block';
+            mainApp.classList.add('fade-in');
+            
+            // Emit event o dokončení načtení
+            eventBus.emit('appLoaded', { timestamp: Date.now() });
+            
+            console.log('✅ App is now visible and ready');
+        }, 500);
+    }
+}
+
+// ========================================
+// INICIALIZACE CORE SYSTÉMU
 // ========================================
 
 // Hlavní inicializace při načtení DOM
@@ -171,6 +600,12 @@ document.addEventListener('DOMContentLoaded', function() {
     } catch (error) {
         console.error('❌ Failed to initialize application:', error);
         showNotification('Chyba při inicializaci aplikace', 'error');
+        globalState.errors.push({
+            type: 'initialization',
+            message: error.message,
+            stack: error.stack,
+            timestamp: new Date().toISOString()
+        });
     }
 });
 
@@ -181,7 +616,7 @@ function initializeCore() {
     // Kontrola požadovaných HTML elementů
     const requiredElements = [
         'loadingScreen', 'mainApp', 'status', 'predictionResults',
-        'eventName', 'category', 'city', 'eventDate', 'visitors',
+        'eventName', 'category', 'city', 'eventDateFrom', 'eventDateTo', 'visitors',
         'competition', 'eventType', 'businessModel', 'rentType'
     ];
     
@@ -202,6 +637,8 @@ function initializeCore() {
         globalState.debugMode = true;
         console.log('🐛 Debug mode enabled');
     }
+    
+    console.log('✅ Core components initialized');
 }
 
 // Nastavení výchozích hodnot formuláře
@@ -211,9 +648,16 @@ function setDefaultFormValues() {
     // Datum akce - 7 dní do budoucna
     const nextWeek = new Date();
     nextWeek.setDate(nextWeek.getDate() + 7);
-    const eventDateInput = document.getElementById('eventDate');
-    if (eventDateInput) {
-        eventDateInput.value = nextWeek.toISOString().split('T')[0];
+    const dateString = nextWeek.toISOString().split('T')[0];
+    
+    const eventDateFromInput = document.getElementById('eventDateFrom');
+    const eventDateToInput = document.getElementById('eventDateTo');
+    
+    if (eventDateFromInput && !eventDateFromInput.value) {
+        eventDateFromInput.value = dateString;
+    }
+    if (eventDateToInput && !eventDateToInput.value) {
+        eventDateToInput.value = dateString; // Stejné datum pro jednodenní akci
     }
     
     // Výchozí cena donut
@@ -222,41 +666,7 @@ function setDefaultFormValues() {
         priceInput.value = CONFIG.DONUT_PRICE;
     }
     
-    // Nastavení business parametrů v nastavení
-    const businessParams = [
-        { id: 'donutCost', value: CONFIG.DONUT_COST },
-        { id: 'franchisePrice', value: CONFIG.FRANCHISE_PRICE },
-        { id: 'hourlyWage', value: CONFIG.HOURLY_WAGE },
-        { id: 'workHours', value: CONFIG.WORK_HOURS },
-        { id: 'fuelCost', value: CONFIG.FUEL_COST }
-    ];
-    
-    businessParams.forEach(param => {
-        const element = document.getElementById(param.id);
-        if (element && !element.value) {
-            element.value = param.value;
-        }
-    });
-    
-    // Nastavení predikčních faktorů
-    const factors = [
-        { id: 'factorFood', value: CONFIG.CATEGORY_FACTORS['food festival'] },
-        { id: 'factorVeletrh', value: CONFIG.CATEGORY_FACTORS['veletrh'] },
-        { id: 'factorKoncert', value: CONFIG.CATEGORY_FACTORS['koncert'] },
-        { id: 'factorKultura', value: CONFIG.CATEGORY_FACTORS['kulturní akce'] },
-        { id: 'factorSport', value: CONFIG.CATEGORY_FACTORS['sportovní'] },
-        { id: 'factorPraha', value: CONFIG.CITY_FACTORS['praha'] },
-        { id: 'factorBrno', value: CONFIG.CITY_FACTORS['brno'] },
-        { id: 'factorOstrava', value: CONFIG.CITY_FACTORS['ostrava'] },
-        { id: 'factorOther', value: CONFIG.CITY_FACTORS['default'] }
-    ];
-    
-    factors.forEach(factor => {
-        const element = document.getElementById(factor.id);
-        if (element && !element.value) {
-            element.value = factor.value;
-        }
-    });
+    console.log('✅ Default form values set');
 }
 
 // Inicializace cache systému
@@ -364,13 +774,16 @@ function showSection(sectionId) {
         // Speciální akce pro jednotlivé sekce
         switch (sectionId) {
             case 'calendar':
-                initializeCalendar();
+                // Bude implementováno v part4
+                eventBus.emit('calendarRequested');
                 break;
             case 'analytics':
-                initializeAnalytics();
+                // Bude implementováno v part4
+                eventBus.emit('analyticsRequested');
                 break;
             case 'settings':
-                updateDataStatistics();
+                // Bude implementováno v part5
+                eventBus.emit('settingsRequested');
                 break;
         }
     } else {
@@ -384,7 +797,7 @@ function initializeFormElements() {
     
     // Přidání change listenerů pro automatickou predikci
     const formElements = [
-        'eventName', 'category', 'city', 'eventDate', 'visitors',
+        'eventName', 'category', 'city', 'eventDateFrom', 'eventDateTo', 'visitors',
         'competition', 'eventType', 'businessModel', 'rentType',
         'fixedRent', 'percentage', 'mixedFixed', 'mixedPercentage', 'price'
     ];
@@ -393,8 +806,10 @@ function initializeFormElements() {
         const element = document.getElementById(elementId);
         if (element) {
             element.addEventListener('change', debounce(() => {
-                if (validateRequiredFields()) {
-                    updatePrediction();
+                const validation = validateRequiredFields();
+                if (validation.valid) {
+                    // Trigger predikci - bude implementováno v part3
+                    eventBus.emit('formChanged', gatherFormData());
                 }
             }, 500));
             
@@ -410,32 +825,56 @@ function initializeFormElements() {
     });
     
     // Speciální handlery pro konkrétní prvky
+    setupSpecialFormHandlers();
+    
+    console.log('✅ Form elements initialized');
+}
+
+// Setup speciálních form handlerů
+function setupSpecialFormHandlers() {
     const eventTypeSelect = document.getElementById('eventType');
     if (eventTypeSelect) {
-        eventTypeSelect.addEventListener('change', updateWeatherCard);
+        eventTypeSelect.addEventListener('change', () => {
+            updateWeatherCard();
+            eventBus.emit('eventTypeChanged', { type: eventTypeSelect.value });
+        });
     }
     
     const businessModelSelect = document.getElementById('businessModel');
     if (businessModelSelect) {
-        businessModelSelect.addEventListener('change', updateBusinessInfo);
+        businessModelSelect.addEventListener('change', () => {
+            updateBusinessInfo();
+            eventBus.emit('businessModelChanged', { model: businessModelSelect.value });
+        });
     }
     
     const rentTypeSelect = document.getElementById('rentType');
     if (rentTypeSelect) {
-        rentTypeSelect.addEventListener('change', updateRentFields);
+        rentTypeSelect.addEventListener('change', () => {
+            updateRentFields();
+            eventBus.emit('rentTypeChanged', { type: rentTypeSelect.value });
+        });
     }
     
     const cityInput = document.getElementById('city');
     if (cityInput) {
         cityInput.addEventListener('change', () => {
-            updateDistance();
-            updateWeather();
+            // Trigger distance calculation a weather - bude v part2
+            eventBus.emit('cityChanged', { city: cityInput.value });
         });
     }
     
-    const eventDateInput = document.getElementById('eventDate');
-    if (eventDateInput) {
-        eventDateInput.addEventListener('change', updateWeather);
+    // Auto-copy datum od do datum do
+    const dateFromInput = document.getElementById('eventDateFrom');
+    const dateToInput = document.getElementById('eventDateTo');
+    
+    if (dateFromInput && dateToInput) {
+        dateFromInput.addEventListener('change', () => {
+            if (!dateToInput.value || dateToInput.value < dateFromInput.value) {
+                dateToInput.value = dateFromInput.value; // Auto-nastavit stejné datum
+            }
+            eventBus.emit('dateChanged');
+        });
     }
 }
 
@@ -479,7 +918,7 @@ function handleKeyboardShortcuts(e) {
     if ((e.ctrlKey || e.metaKey) && e.key === 's') {
         e.preventDefault();
         if (globalState.currentSection === 'prediction' && globalState.lastPrediction) {
-            savePrediction();
+            eventBus.emit('savePredictionRequested');
         }
     }
     
@@ -487,7 +926,7 @@ function handleKeyboardShortcuts(e) {
     if ((e.ctrlKey || e.metaKey) && e.key === 'e') {
         e.preventDefault();
         if (globalState.currentSection === 'prediction' && globalState.lastPrediction) {
-            exportPrediction();
+            eventBus.emit('exportPredictionRequested');
         }
     }
     
@@ -499,7 +938,7 @@ function handleKeyboardShortcuts(e) {
     // Ctrl/Cmd + R - Reload data
     if ((e.ctrlKey || e.metaKey) && e.key === 'r') {
         e.preventDefault();
-        loadData();
+        eventBus.emit('dataReloadRequested');
     }
 }
 
@@ -511,7 +950,9 @@ function handleOnlineStatus() {
     
     // Zkusit znovu načíst data pokud se nezdařilo offline
     if (globalState.historicalData.length === 0) {
-        setTimeout(() => loadData(), 1000);
+        setTimeout(() => {
+            eventBus.emit('dataReloadRequested');
+        }, 1000);
     }
 }
 
@@ -533,7 +974,7 @@ function handleVisibilityChange() {
             const hourAgo = Date.now() - (60 * 60 * 1000);
             if (globalState.lastDataLoad < hourAgo) {
                 console.log('📊 Data are old, refreshing...');
-                loadData();
+                eventBus.emit('dataReloadRequested');
             }
         }
     }
@@ -589,520 +1030,12 @@ function handleUnhandledRejection(e) {
 function handleWindowResize() {
     // Aktualizace layoutu pro kalendář a grafy
     if (globalState.currentSection === 'calendar') {
-        // Přepočítat kalendář pro novou velikost
-        updateCalendarLayout();
+        eventBus.emit('calendarResizeRequested');
     }
     
     if (globalState.currentSection === 'analytics') {
-        // Přepočítat grafy
-        updateChartsLayout();
+        eventBus.emit('analyticsResizeRequested');
     }
-}
-
-// ========================================
-// LOADING SEKVENCE
-// ========================================
-
-// Spuštění loading sekvence
-function startLoadingSequence() {
-    console.log('⏳ Starting loading sequence...');
-    
-    // Zobrazení loading screen na 3 sekundy
-    setTimeout(() => {
-        hideLoadingScreen();
-        
-        // Po skrytí loading screen automaticky načíst data
-        setTimeout(() => {
-            if (globalState.historicalData.length === 0) {
-                loadData().catch(error => {
-                    console.warn('⚠️ Automatic data loading failed:', error);
-                    showNotification('Automatické načtení dat selhalo. Zkuste tlačítko "Načíst data".', 'warning', 8000);
-                });
-            }
-        }, 1500);
-        
-    }, 3000);
-}
-
-// Skrytí loading screen
-function hideLoadingScreen() {
-    console.log('🎬 Hiding loading screen...');
-    
-    const loadingScreen = document.getElementById('loadingScreen');
-    const mainApp = document.getElementById('mainApp');
-    
-    if (loadingScreen && mainApp) {
-        // Fade out loading screen
-        loadingScreen.style.opacity = '0';
-        
-        setTimeout(() => {
-            loadingScreen.style.display = 'none';
-            mainApp.style.display = 'block';
-            mainApp.classList.add('fade-in');
-            
-            // Emit event o dokončení načtení
-            eventBus.emit('appLoaded', { timestamp: Date.now() });
-            
-            console.log('✅ App is now visible and ready');
-        }, 500);
-    }
-}
-
-// ========================================
-// HELPER FUNKCE
-// ========================================
-
-// Debounce funkce pro omezení počtu volání
-function debounce(func, wait) {
-    let timeout;
-    return function executedFunction(...args) {
-        const later = () => {
-            clearTimeout(timeout);
-            func(...args);
-        };
-        clearTimeout(timeout);
-        timeout = setTimeout(later, wait);
-    };
-}
-
-// Throttle funkce pro omezení frekvence volání
-function throttle(func, wait) {
-    let inThrottle;
-    return function(...args) {
-        if (!inThrottle) {
-            func.apply(this, args);
-            inThrottle = true;
-            setTimeout(() => inThrottle = false, wait);
-        }
-    };
-}
-
-// Validace povinných polí
-function validateRequiredFields() {
-    const requiredFields = [
-        'eventName', 'category', 'city', 'eventDate', 'visitors',
-        'competition', 'eventType', 'businessModel', 'rentType'
-    ];
-    
-    let allValid = true;
-    
-    requiredFields.forEach(fieldId => {
-        const element = document.getElementById(fieldId);
-        if (element) {
-            const value = element.value.trim();
-            
-            if (!value) {
-                allValid = false;
-                element.classList.add('error');
-            } else {
-                element.classList.remove('error');
-            }
-        }
-    });
-    
-    return allValid;
-}
-
-// Formátování čísel pro české prostředí
-function formatNumber(number) {
-    if (number === null || number === undefined || isNaN(number)) {
-        return '0';
-    }
-    return new Intl.NumberFormat('cs-CZ').format(Math.round(number));
-}
-
-// Formátování měny
-function formatCurrency(amount) {
-    if (amount === null || amount === undefined || isNaN(amount)) {
-        return '0 Kč';
-    }
-    return new Intl.NumberFormat('cs-CZ', {
-        style: 'currency',
-        currency: 'CZK',
-        minimumFractionDigits: 0,
-        maximumFractionDigits: 0
-    }).format(Math.round(amount));
-}
-
-// Formátování data
-function formatDate(date) {
-    if (!date) return '';
-    
-    if (typeof date === 'string') {
-        date = new Date(date);
-    }
-    
-    if (isNaN(date.getTime())) {
-        return '';
-    }
-    
-    return date.toLocaleDateString('cs-CZ');
-}
-
-// Formátování času
-function formatTime(date) {
-    if (!date) return '';
-    
-    if (typeof date === 'string') {
-        date = new Date(date);
-    }
-    
-    if (isNaN(date.getTime())) {
-        return '';
-    }
-    
-    return date.toLocaleTimeString('cs-CZ', { 
-        hour: '2-digit', 
-        minute: '2-digit' 
-    });
-}
-
-// Escape HTML pro bezpečnost
-function escapeHtml(text) {
-    if (!text) return '';
-    const div = document.createElement('div');
-    div.textContent = text;
-    return div.innerHTML;
-}
-
-// Odstranění diakritiky pro porovnávání
-function removeDiacritics(str) {
-    if (!str) return '';
-    return str.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-}
-
-// Generování unikátního ID
-function generateId() {
-    return Date.now().toString(36) + Math.random().toString(36).substr(2);
-}
-
-// Deep clone objektu
-function deepClone(obj) {
-    if (obj === null || typeof obj !== 'object') return obj;
-    if (obj instanceof Date) return new Date(obj);
-    if (obj instanceof Array) return obj.map(item => deepClone(item));
-    if (typeof obj === 'object') {
-        const cloned = {};
-        for (const key in obj) {
-            if (obj.hasOwnProperty(key)) {
-                cloned[key] = deepClone(obj[key]);
-            }
-        }
-        return cloned;
-    }
-}
-
-// ========================================
-// DEBUG A MONITORING
-// ========================================
-
-// Debug informace pro vývojáře
-if (typeof window !== 'undefined') {
-    window.donulandDebug = {
-        // Přístup ke globálnímu stavu
-        getState: () => globalState,
-        getConfig: () => CONFIG,
-        
-        // Cache management
-        clearCache: () => {
-            globalState.weatherCache.clear();
-            globalState.distanceCache.clear();
-            console.log('🧹 All cache cleared');
-        },
-        
-        // Logs
-        getErrors: () => globalState.errors,
-        clearErrors: () => {
-            globalState.errors = [];
-            console.log('🗑️ Error log cleared');
-        },
-        
-        // Force reload
-        forceReload: () => {
-            globalState.historicalData = [];
-            globalState.lastDataLoad = null;
-            loadData();
-        },
-        
-        // Export debug info
-        exportDebugInfo: () => {
-            const debugInfo = {
-                state: globalState,
-                config: CONFIG,
-                timestamp: new Date().toISOString(),
-                userAgent: navigator.userAgent,
-                url: window.location.href
-            };
-            
-            const blob = new Blob([JSON.stringify(debugInfo, null, 2)], {
-                type: 'application/json'
-            });
-            
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `donuland-debug-${Date.now()}.json`;
-            a.click();
-            URL.revokeObjectURL(url);
-        }
-    };
-}
-
-// Performance monitoring
-const performanceMonitor = {
-    marks: new Map(),
-    
-    start(name) {
-        this.marks.set(name, performance.now());
-    },
-    
-    end(name) {
-        const start = this.marks.get(name);
-        if (start) {
-            const duration = performance.now() - start;
-            console.log(`⏱️ ${name}: ${duration.toFixed(2)}ms`);
-            this.marks.delete(name);
-            return duration;
-        }
-        return null;
-    }
-};
-
-// ========================================
-// INICIALIZACE A EXPORT
-// ========================================
-
-// Event listener pro inicializaci error handlingu
-console.log('✅ Donuland Management System - Core initialized');
-console.log('📚 Available debug commands: window.donulandDebug');
-
-// Export funkcí pro použití v dalších částech
-if (typeof module !== 'undefined' && module.exports) {
-    module.exports = {
-        CONFIG,
-        globalState,
-        eventBus,
-        formatNumber,
-        formatCurrency,
-        formatDate,
-        escapeHtml,
-        removeDiacritics,
-        debounce,
-        throttle
-    };
-}
-
-// ========================================
-// STATUS A NOTIFIKACE SYSTÉM
-// ========================================
-
-// Aktualizace status indikátoru
-function updateStatus(status, message) {
-    const statusEl = document.getElementById('status');
-    if (!statusEl) return;
-    
-    // Odstranění všech status tříd
-    statusEl.className = 'status';
-    statusEl.classList.add(status);
-    
-    // Aktualizace obsahu
-    statusEl.innerHTML = `
-        <span class="status-dot"></span>
-        <span>${escapeHtml(message)}</span>
-    `;
-    
-    console.log(`📊 Status updated: ${status} - ${message}`);
-    
-    // Emit event pro jiné komponenty
-    eventBus.emit('statusChanged', { status, message, timestamp: Date.now() });
-}
-
-// Systém notifikací
-let notificationCounter = 0;
-
-function showNotification(message, type = 'info', duration = 5000) {
-    const container = document.getElementById('notifications') || createNotificationContainer();
-    
-    const notificationId = `notification-${++notificationCounter}`;
-    const notification = document.createElement('div');
-    notification.className = `notification ${type}`;
-    notification.id = notificationId;
-    
-    // Ikony podle typu
-    const icons = {
-        success: '✅',
-        error: '❌',
-        warning: '⚠️',
-        info: 'ℹ️'
-    };
-    
-    const icon = icons[type] || icons.info;
-    
-    notification.innerHTML = `
-        <div class="notification-icon">${icon}</div>
-        <div class="notification-content">
-            <div class="notification-title">${type.toUpperCase()}</div>
-            <div class="notification-message">${escapeHtml(message)}</div>
-        </div>
-        <button class="notification-close" onclick="closeNotification('${notificationId}')">&times;</button>
-    `;
-    
-    container.appendChild(notification);
-    
-    // Animace zobrazení
-    requestAnimationFrame(() => {
-        notification.classList.add('show');
-    });
-    
-    // Automatické zavření
-    if (duration > 0) {
-        setTimeout(() => {
-            closeNotification(notificationId);
-        }, duration);
-    }
-    
-    console.log(`📢 Notification: ${type} - ${message}`);
-    
-    // Emit event
-    eventBus.emit('notificationShown', { type, message, duration });
-    
-    return notificationId;
-}
-
-// Vytvoření kontejneru pro notifikace
-function createNotificationContainer() {
-    const container = document.createElement('div');
-    container.id = 'notifications';
-    container.className = 'notifications-container';
-    document.body.appendChild(container);
-    return container;
-}
-
-// Zavření notifikace
-function closeNotification(notificationId) {
-    const notification = document.getElementById(notificationId);
-    if (notification) {
-        notification.classList.remove('show');
-        setTimeout(() => {
-            if (notification.parentElement) {
-                notification.remove();
-            }
-        }, 300);
-    }
-}
-
-// ========================================
-// LOAD BUTTON MANAGEMENT
-// ========================================
-
-// Aktualizace load tlačítka
-function updateLoadButton(state, customText = null) {
-    const loadBtn = document.getElementById('loadBtn');
-    const parentButton = loadBtn ? loadBtn.parentElement : null;
-    
-    if (!loadBtn || !parentButton) return;
-    
-    switch (state) {
-        case 'loading':
-            loadBtn.innerHTML = '⏳ Načítám...';
-            parentButton.disabled = true;
-            parentButton.classList.add('loading');
-            break;
-            
-        case 'success':
-            loadBtn.innerHTML = '✅ Data načtena';
-            parentButton.disabled = false;
-            parentButton.classList.remove('loading');
-            
-            // Návrat na původní text po 3 sekundách
-            setTimeout(() => {
-                if (loadBtn.innerHTML === '✅ Data načtena') {
-                    loadBtn.innerHTML = '🔄 Načíst data';
-                }
-            }, 3000);
-            break;
-            
-        case 'error':
-            loadBtn.innerHTML = '❌ Chyba při načítání';
-            parentButton.disabled = false;
-            parentButton.classList.remove('loading');
-            
-            // Návrat na původní text po 4 sekundách
-            setTimeout(() => {
-                if (loadBtn.innerHTML === '❌ Chyba při načítání') {
-                    loadBtn.innerHTML = '🔄 Načíst data';
-                }
-            }, 4000);
-            break;
-            
-        case 'custom':
-            if (customText) {
-                loadBtn.innerHTML = customText;
-                parentButton.disabled = false;
-                parentButton.classList.remove('loading');
-            }
-            break;
-            
-        default:
-            loadBtn.innerHTML = '🔄 Načíst data';
-            parentButton.disabled = false;
-            parentButton.classList.remove('loading');
-    }
-}
-
-// ========================================
-// KALENDÁŘ FUNKCE (ZÁKLADNÍ)
-// ========================================
-
-// Aktualizace zobrazení aktuálního měsíce
-function updateCurrentMonthDisplay() {
-    const currentMonthElement = document.getElementById('currentMonth');
-    if (currentMonthElement) {
-        const monthNames = [
-            'Leden', 'Únor', 'Březen', 'Duben', 'Květen', 'Červen',
-            'Červenec', 'Srpen', 'Září', 'Říjen', 'Listopad', 'Prosinec'
-        ];
-        
-        const monthName = monthNames[globalState.currentMonth];
-        currentMonthElement.textContent = `${monthName} ${globalState.currentYear}`;
-    }
-}
-
-// Změna měsíce v kalendáři
-function changeMonth(direction) {
-    globalState.currentMonth += direction;
-    
-    if (globalState.currentMonth > 11) {
-        globalState.currentMonth = 0;
-        globalState.currentYear++;
-    } else if (globalState.currentMonth < 0) {
-        globalState.currentMonth = 11;
-        globalState.currentYear--;
-    }
-    
-    updateCurrentMonthDisplay();
-    
-    // Aktualizace kalendáře pokud je aktivní
-    if (globalState.currentSection === 'calendar') {
-        updateCalendarGrid();
-    }
-    
-    console.log(`📅 Calendar changed to: ${globalState.currentMonth + 1}/${globalState.currentYear}`);
-}
-
-// Přechod na dnešní měsíc
-function goToToday() {
-    const today = new Date();
-    globalState.currentMonth = today.getMonth();
-    globalState.currentYear = today.getFullYear();
-    
-    updateCurrentMonthDisplay();
-    
-    if (globalState.currentSection === 'calendar') {
-        updateCalendarGrid();
-    }
-    
-    showNotification('📅 Přešli jste na aktuální měsíc', 'info', 2000);
 }
 
 // ========================================
@@ -1162,9 +1095,7 @@ function updateBusinessInfo() {
     }
     
     businessInfo.innerHTML = html;
-    
-    // Emit event pro aktualizaci predikce
-    eventBus.emit('businessModelChanged', { model: businessModel });
+    console.log(`💼 Business model updated: ${businessModel}`);
 }
 
 // Aktualizace polí nájmu podle typu
@@ -1209,9 +1140,6 @@ function updateRentFields() {
     }
     
     console.log(`💰 Rent type changed to: ${rentType}`);
-    
-    // Emit event pro aktualizaci predikce
-    eventBus.emit('rentTypeChanged', { type: rentType });
 }
 
 // Aktualizace weather karty podle typu akce
@@ -1226,102 +1154,348 @@ function updateWeatherCard() {
         
         // Zkusit načíst počasí pokud jsou vyplněny city a date
         const city = document.getElementById('city').value;
-        const date = document.getElementById('eventDate').value;
+        const dateFrom = document.getElementById('eventDateFrom').value;
         
-        if (city && date) {
-            updateWeather();
+        if (city && dateFrom) {
+            eventBus.emit('weatherUpdateRequested', { city, date: dateFrom });
         }
     } else {
         weatherCard.style.display = 'none';
     }
     
     console.log(`🌤️ Event type changed to: ${eventType}`);
-    
-    // Emit event pro aktualizaci predikce
-    eventBus.emit('eventTypeChanged', { type: eventType });
 }
+
+// ========================================
+// KALENDÁŘ FUNKCE (ZÁKLADNÍ)
+// ========================================
+
+// Aktualizace zobrazení aktuálního měsíce
+function updateCurrentMonthDisplay() {
+    const currentMonthElement = document.getElementById('currentMonth');
+    if (currentMonthElement) {
+        const monthNames = [
+            'Leden', 'Únor', 'Březen', 'Duben', 'Květen', 'Červen',
+            'Červenec', 'Srpen', 'Září', 'Říjen', 'Listopad', 'Prosinec'
+        ];
+        
+        const monthName = monthNames[globalState.currentMonth];
+        currentMonthElement.textContent = `${monthName} ${globalState.currentYear}`;
+    }
+}
+
+// Změna měsíce v kalendáři
+function changeMonth(direction) {
+    globalState.currentMonth += direction;
+    
+    if (globalState.currentMonth > 11) {
+        globalState.currentMonth = 0;
+        globalState.currentYear++;
+    } else if (globalState.currentMonth < 0) {
+        globalState.currentMonth = 11;
+        globalState.currentYear--;
+    }
+    
+    updateCurrentMonthDisplay();
+    
+    // Aktualizace kalendáře pokud je aktivní
+    if (globalState.currentSection === 'calendar') {
+        eventBus.emit('calendarMonthChanged', { 
+            month: globalState.currentMonth, 
+            year: globalState.currentYear 
+        });
+    }
+    
+    console.log(`📅 Calendar changed to: ${globalState.currentMonth + 1}/${globalState.currentYear}`);
+}
+
+// Přechod na dnešní měsíc
+function goToToday() {
+    const today = new Date();
+    globalState.currentMonth = today.getMonth();
+    globalState.currentYear = today.getFullYear();
+    
+    updateCurrentMonthDisplay();
+    
+    if (globalState.currentSection === 'calendar') {
+        eventBus.emit('calendarTodayRequested');
+    }
+    
+    showNotification('📅 Přešli jste na aktuální měsíc', 'info', 2000);
+}
+
+// ========================================
+// MODAL MANAGEMENT
+// ========================================
+
+// Zavření modalu
+function closeModal() {
+    const modal = document.getElementById('eventModal');
+    if (modal) {
+        modal.style.display = 'none';
+        eventBus.emit('modalClosed');
+    }
+}
+
+// Otevření modalu
+function openModal(eventData = null) {
+    const modal = document.getElementById('eventModal');
+    if (modal) {
+        modal.style.display = 'flex';
+        
+        if (eventData) {
+            // Naplnění dat do modalu
+            const nameInput = document.getElementById('modalEventName');
+            const dateFromInput = document.getElementById('modalEventDateFrom');
+            const dateToInput = document.getElementById('modalEventDateTo');
+            const cityInput = document.getElementById('modalEventCity');
+            
+            if (nameInput) nameInput.value = eventData.eventName || '';
+            if (dateFromInput) dateFromInput.value = eventData.dateFrom || '';
+            if (dateToInput) dateToInput.value = eventData.dateTo || '';
+            if (cityInput) cityInput.value = eventData.city || '';
+        }
+        
+        eventBus.emit('modalOpened', eventData);
+    }
+}
+
+// ========================================
+// LOADING SEKVENCE
+// ========================================
+
+// Spuštění loading sekvence
+function startLoadingSequence() {
+    console.log('⏳ Starting loading sequence...');
+    
+    // Zobrazení loading screen na 3 sekundy
+    setTimeout(() => {
+        hideLoadingScreen();
+        
+        // Po skrytí loading screen automaticky načíst data
+        setTimeout(() => {
+            if (globalState.historicalData.length === 0) {
+                eventBus.emit('autoDataLoadRequested');
+            }
+        }, 1500);
+        
+    }, 3000);
+}
+
+// ========================================
+// SETTINGS MANAGEMENT
+// ========================================
+
+// Načtení nastavení z localStorage
+function loadSettings() {
+    try {
+        const saved = localStorage.getItem('donuland_settings');
+        if (!saved) {
+            console.log('📝 No saved settings found, using defaults');
+            return;
+        }
+        
+        const settings = JSON.parse(saved);
+        
+        // Aktualizace globální konfigurace
+        if (settings.donutCost) CONFIG.DONUT_COST = settings.donutCost;
+        if (settings.franchisePrice) CONFIG.FRANCHISE_PRICE = settings.franchisePrice;
+        if (settings.hourlyWage) CONFIG.HOURLY_WAGE = settings.hourlyWage;
+        if (settings.workHours) CONFIG.WORK_HOURS = settings.workHours;
+        if (settings.fuelCost) CONFIG.FUEL_COST = settings.fuelCost;
+        
+        if (settings.categoryFactors) {
+            Object.assign(CONFIG.CATEGORY_FACTORS, settings.categoryFactors);
+        }
+        
+        if (settings.cityFactors) {
+            Object.assign(CONFIG.CITY_FACTORS, settings.cityFactors);
+        }
+        
+        console.log('✅ Settings loaded from localStorage');
+        eventBus.emit('settingsLoaded', settings);
+        
+    } catch (error) {
+        console.error('❌ Error loading settings:', error);
+        globalState.errors.push({
+            type: 'settings',
+            message: 'Failed to load settings: ' + error.message,
+            timestamp: new Date().toISOString()
+        });
+    }
+}
+
+// ========================================
+// GOOGLE MAPS CALLBACK
+// ========================================
+
+// Callback funkce pro Google Maps API
+window.initGoogleMaps = function() {
+    console.log('🗺️ Google Maps API loaded');
+    globalState.googleMapsLoaded = true;
+    
+    try {
+        // Inicializace autocomplete
+        const cityInput = document.getElementById('city');
+        if (cityInput && window.google && window.google.maps) {
+            globalState.autocomplete = new google.maps.places.Autocomplete(cityInput, {
+                types: ['(cities)'],
+                componentRestrictions: { country: 'CZ' }
+            });
+            
+            // Event listener pro výběr místa
+            globalState.autocomplete.addListener('place_changed', () => {
+                const place = globalState.autocomplete.getPlace();
+                if (place.geometry) {
+                    console.log('📍 Place selected:', place.name);
+                    eventBus.emit('placeSelected', {
+                        name: place.name,
+                        location: place.geometry.location,
+                        formattedAddress: place.formatted_address
+                    });
+                }
+            });
+            
+            // Inicializace Distance Service
+            globalState.distanceService = new google.maps.DistanceMatrixService();
+            
+            console.log('✅ Google Maps autocomplete initialized');
+            showNotification('🗺️ Google Maps připojeny', 'success', 3000);
+        }
+        
+    } catch (error) {
+        console.error('❌ Error initializing Google Maps:', error);
+        showNotification('❌ Chyba při inicializaci Google Maps', 'error');
+        globalState.errors.push({
+            type: 'google_maps',
+            message: error.message,
+            timestamp: new Date().toISOString()
+        });
+    }
+    
+    eventBus.emit('googleMapsLoaded');
+};
+
+// ========================================
+// DEBUG A MONITORING
+// ========================================
+
+// Debug informace pro vývojáře
+if (typeof window !== 'undefined') {
+    window.donulandDebug = {
+        // Přístup ke globálnímu stavu
+        getState: () => globalState,
+        getConfig: () => CONFIG,
+        
+        // Cache management
+        clearCache: () => {
+            globalState.weatherCache.clear();
+            globalState.distanceCache.clear();
+            console.log('🧹 All cache cleared');
+            showNotification('🧹 Cache vymazána', 'info', 2000);
+        },
+        
+        // Logs
+        getErrors: () => globalState.errors,
+        clearErrors: () => {
+            globalState.errors = [];
+            console.log('🗑️ Error log cleared');
+        },
+        
+        // Force reload
+        forceReload: () => {
+            globalState.historicalData = [];
+            globalState.lastDataLoad = null;
+            eventBus.emit('dataReloadRequested');
+        },
+        
+        // Event bus testing
+        testEvent: (eventName, data) => {
+            eventBus.emit(eventName, data);
+        },
+        
+        // Export debug info
+        exportDebugInfo: () => {
+            const debugInfo = {
+                state: globalState,
+                config: CONFIG,
+                timestamp: new Date().toISOString(),
+                userAgent: navigator.userAgent,
+                url: window.location.href
+            };
+            
+            const blob = new Blob([JSON.stringify(debugInfo, null, 2)], {
+                type: 'application/json'
+            });
+            
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `donuland-debug-${Date.now()}.json`;
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+    };
+}
+
+// Performance monitoring
+const performanceMonitor = {
+    marks: new Map(),
+    
+    start(name) {
+        this.marks.set(name, performance.now());
+    },
+    
+    end(name) {
+        const start = this.marks.get(name);
+        if (start) {
+            const duration = performance.now() - start;
+            console.log(`⏱️ ${name}: ${duration.toFixed(2)}ms`);
+            this.marks.delete(name);
+            return duration;
+        }
+        return null;
+    }
+};
 
 // ========================================
 // PLACEHOLDER FUNKCE PRO DALŠÍ ČÁSTI
 // ========================================
 
-// Tyto funkce budou implementovány v dalších částech app.js
+// Tyto funkce budou implementovány v dalších částech
 
-// Placeholder pro loadData - bude v části 2
+// Data loading - part2.js
 function loadData() {
-    console.log('📊 loadData() - will be implemented in part 2');
+    console.log('📊 loadData() - will be implemented in part2');
+    eventBus.emit('dataLoadRequested');
     return Promise.resolve();
 }
 
-// Placeholder pro updatePrediction - bude v části 2  
-function updatePrediction() {
-    console.log('🤖 updatePrediction() - will be implemented in part 2');
-}
+// ========================================
+// FINALIZACE
+// ========================================
 
-// Placeholder pro updateWeather - bude v části 2
-function updateWeather() {
-    console.log('🌤️ updateWeather() - will be implemented in part 2');
-}
-
-// Placeholder pro updateDistance - bude v části 3
-function updateDistance() {
-    console.log('📍 updateDistance() - will be implemented in part 3');
-}
-
-// Placeholder pro savePrediction - bude v části 3
-function savePrediction() {
-    console.log('💾 savePrediction() - will be implemented in part 3');
-}
-
-// Placeholder pro exportPrediction - bude v části 3
-function exportPrediction() {
-    console.log('📄 exportPrediction() - will be implemented in part 3');
-}
-
-// Placeholder pro modal funkce - budou v části 3
-function closeModal() {
-    const modal = document.getElementById('eventModal');
-    if (modal) {
-        modal.style.display = 'none';
+// Event listener pro dokončení načtení
+eventBus.on('appLoaded', () => {
+    console.log('🎉 Donuland app fully loaded');
+    
+    // Nastavení network status
+    if (navigator.onLine) {
+        updateStatus('online', 'Online - připojeno');
+    } else {
+        updateStatus('offline', 'Offline - bez připojení');
     }
-}
+});
 
-// Placeholder pro inicializaci ostatních sekcí
-function initializeCalendar() {
-    console.log('📅 initializeCalendar() - will be implemented in part 3');
-}
-
-function initializeAnalytics() {
-    console.log('📊 initializeAnalytics() - will be implemented in part 3');
-}
-
-function updateDataStatistics() {
-    console.log('📊 updateDataStatistics() - will be implemented in part 3');
-}
-
-function updateCalendarLayout() {
-    console.log('📅 updateCalendarLayout() - will be implemented in part 3');
-}
-
-function updateChartsLayout() {
-    console.log('📊 updateChartsLayout() - will be implemented in part 3');
-}
-
-function updateCalendarGrid() {
-    console.log('📅 updateCalendarGrid() - will be implemented in part 3');
-}
-
-// ========================================
-// FINÁLNÍ LOG
-// ========================================
-
-console.log('✅ Donuland Management System - Part 1 loaded successfully');
+// Log dokončení části 1
+console.log('✅ Donuland Part 1 loaded successfully');
 console.log('🔧 Core systems: ✅ Config ✅ State ✅ Events ✅ UI ✅ Navigation');
-console.log('⏳ Ready for Part 2: Data loading, AI prediction, Weather API');
+console.log('📚 Debug: window.donulandDebug available');
+console.log('⏳ Ready for Part 2: Data loading + API integration');
 
 // Event pro signalizaci dokončení části 1
 eventBus.emit('part1Loaded', { 
     timestamp: Date.now(),
     version: '1.0.0',
-    features: ['core', 'ui', 'navigation', 'events', 'notifications']
+    features: ['core', 'ui', 'navigation', 'events', 'notifications', 'google-maps']
 });
