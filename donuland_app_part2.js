@@ -1,9 +1,9 @@
 /* ========================================
-   DONULAND MANAGEMENT SYSTEM - PART 2A
-   Data loading ze Google Sheets + Google Maps Distance
+   DONULAND MANAGEMENT SYSTEM - PART 2
+   Data loading, Google Maps Distance, Weather API, AI Prediction
    ======================================== */
 
-console.log('🍩 Donuland Part 2A loading...');
+console.log('🍩 Donuland Part 2 loading...');
 
 // ========================================
 // GOOGLE SHEETS DATA LOADING
@@ -86,7 +86,7 @@ async function loadData() {
     }
 }
 
-// Načtení dat z Google Sheets
+// Načtení dat z Google Sheets s lepším error handling
 async function fetchSheetsData() {
     const sheetsUrl = document.getElementById('sheetsUrl')?.value || CONFIG.SHEETS_URL;
     
@@ -104,6 +104,7 @@ async function fetchSheetsData() {
     console.log('📡 Fetching data from:', csvUrl);
     
     try {
+        // Přímé načtení s CORS
         const response = await fetchWithTimeout(csvUrl, {
             headers: {
                 'Accept': 'text/csv',
@@ -121,12 +122,13 @@ async function fetchSheetsData() {
             throw new Error('Prázdná nebo neplatná odpověď ze Sheets');
         }
         
-        console.log('✅ CSV data fetched, length:', csvText.length);
+        console.log('✅ CSV data fetched directly, length:', csvText.length);
         return csvText;
         
     } catch (error) {
         console.log('⚠️ Direct fetch failed, trying with CORS proxy...');
         
+        // Fallback na CORS proxy
         const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(csvUrl)}`;
         
         try {
@@ -148,6 +150,24 @@ async function fetchSheetsData() {
             console.error('❌ Proxy fetch also failed:', proxyError);
             throw new Error(`Nepodařilo se načíst data ani přímo ani přes proxy: ${error.message}`);
         }
+    }
+}
+
+// Fetch s timeout
+async function fetchWithTimeout(url, options = {}, timeout = 10000) {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), timeout);
+    
+    try {
+        const response = await fetch(url, {
+            ...options,
+            signal: controller.signal
+        });
+        clearTimeout(timeoutId);
+        return response;
+    } catch (error) {
+        clearTimeout(timeoutId);
+        throw error;
     }
 }
 
@@ -324,6 +344,134 @@ function validateAndCleanData(rawData) {
     return cleanData;
 }
 
+// Normalizace dat
+function normalizeDateString(dateStr) {
+    if (!dateStr) return null;
+    
+    const formats = [
+        /(\d{1,2})\.(\d{1,2})\.(\d{4})/,  // DD.MM.YYYY
+        /(\d{1,2})\/(\d{1,2})\/(\d{4})/,  // DD/MM/YYYY  
+        /(\d{4})-(\d{1,2})-(\d{1,2})/,    // YYYY-MM-DD
+        /(\d{1,2})-(\d{1,2})-(\d{4})/,    // DD-MM-YYYY
+    ];
+    
+    for (const format of formats) {
+        const match = dateStr.match(format);
+        if (match) {
+            if (format.source.includes('\\d{4}-')) {
+                return `${match[1]}-${match[2].padStart(2, '0')}-${match[3].padStart(2, '0')}`;
+            } else {
+                return `${match[3]}-${match[2].padStart(2, '0')}-${match[1].padStart(2, '0')}`;
+            }
+        }
+    }
+    
+    const date = new Date(dateStr);
+    if (!isNaN(date.getTime())) {
+        return date.toISOString().split('T')[0];
+    }
+    
+    console.warn('⚠️ Could not parse date:', dateStr);
+    return null;
+}
+
+function normalizeCity(city) {
+    if (!city) return '';
+    
+    return city
+        .trim()
+        .replace(/\s+/g, ' ')
+        .toLowerCase()
+        .replace(/^./, c => c.toUpperCase());
+}
+
+function normalizeCategory(category) {
+    if (!category) return 'ostatní';
+    
+    const normalized = category.toLowerCase().trim();
+    
+    const categoryMap = {
+        'food': 'food festival',
+        'food festival': 'food festival',
+        'foodfestival': 'food festival',
+        'festival': 'food festival',
+        'food fest': 'food festival',
+        
+        'veletrh': 'veletrh',
+        'cokofest': 'veletrh',
+        'čokofest': 'veletrh',
+        'trh': 'veletrh',
+        'výstava': 'veletrh',
+        
+        'koncert': 'koncert',
+        'hudba': 'koncert',
+        'festival hudby': 'koncert',
+        'hudební': 'koncert',
+        
+        'kultura': 'kulturní akce',
+        'kulturní': 'kulturní akce',
+        'kulturní akce': 'kulturní akce',
+        'divadlo': 'kulturní akce',
+        'galerie': 'kulturní akce',
+        
+        'sport': 'sportovní',
+        'sportovní': 'sportovní',
+        'sportovní akce': 'sportovní',
+        'maraton': 'sportovní',
+        'běh': 'sportovní',
+        
+        'ostatní': 'ostatní',
+        'jiné': 'ostatní',
+        'other': 'ostatní'
+    };
+    
+    return categoryMap[normalized] || 'ostatní';
+}
+
+// Autocomplete pro názvy akcí
+function populateAutocompleteOptions() {
+    console.log('📝 Populating autocomplete options...');
+    
+    if (!globalState.historicalData || globalState.historicalData.length === 0) {
+        return;
+    }
+    
+    const eventNames = new Set();
+    
+    globalState.historicalData.forEach(record => {
+        if (record.eventName) {
+            eventNames.add(record.eventName);
+        }
+    });
+    
+    const eventNamesDatalist = document.getElementById('eventNames');
+    if (eventNamesDatalist) {
+        eventNamesDatalist.innerHTML = '';
+        
+        Array.from(eventNames).sort().forEach(name => {
+            const option = document.createElement('option');
+            option.value = name;
+            eventNamesDatalist.appendChild(option);
+        });
+        
+        console.log(`✅ Populated ${eventNames.size} event names`);
+    }
+}
+
+function updateDataStats() {
+    const dataCountEl = document.getElementById('dataCount');
+    const lastLoadEl = document.getElementById('lastLoad');
+    
+    if (dataCountEl) {
+        dataCountEl.textContent = globalState.historicalData.length.toString();
+    }
+    
+    if (lastLoadEl && globalState.lastDataLoad) {
+        const lastLoadDate = new Date(globalState.lastDataLoad);
+        lastLoadEl.textContent = lastLoadDate.toLocaleString('cs-CZ');
+    }
+}
+
 // ========================================
 // GOOGLE MAPS DISTANCE CALCULATION
 // ========================================
@@ -490,212 +638,7 @@ function getOfflineFallbackDistance(city) {
 }
 
 // ========================================
-// NORMALIZACE A UTILITY
-// ========================================
-
-function normalizeDateString(dateStr) {
-    if (!dateStr) return null;
-    
-    const formats = [
-        /(\d{1,2})\.(\d{1,2})\.(\d{4})/,  // DD.MM.YYYY
-        /(\d{1,2})\/(\d{1,2})\/(\d{4})/,  // DD/MM/YYYY  
-        /(\d{4})-(\d{1,2})-(\d{1,2})/,    // YYYY-MM-DD
-        /(\d{1,2})-(\d{1,2})-(\d{4})/,    // DD-MM-YYYY
-    ];
-    
-    for (const format of formats) {
-        const match = dateStr.match(format);
-        if (match) {
-            if (format.source.includes('\\d{4}-')) {
-                return `${match[1]}-${match[2].padStart(2, '0')}-${match[3].padStart(2, '0')}`;
-            } else {
-                return `${match[3]}-${match[2].padStart(2, '0')}-${match[1].padStart(2, '0')}`;
-            }
-        }
-    }
-    
-    const date = new Date(dateStr);
-    if (!isNaN(date.getTime())) {
-        return date.toISOString().split('T')[0];
-    }
-    
-    console.warn('⚠️ Could not parse date:', dateStr);
-    return null;
-}
-
-function normalizeCity(city) {
-    if (!city) return '';
-    
-    return city
-        .trim()
-        .replace(/\s+/g, ' ')
-        .toLowerCase()
-        .replace(/^./, c => c.toUpperCase());
-}
-
-function normalizeCategory(category) {
-    if (!category) return 'ostatní';
-    
-    const normalized = category.toLowerCase().trim();
-    
-    const categoryMap = {
-        'food': 'food festival',
-        'food festival': 'food festival',
-        'foodfestival': 'food festival',
-        'festival': 'food festival',
-        'food fest': 'food festival',
-        
-        'veletrh': 'veletrh',
-        'cokofest': 'veletrh',
-        'čokofest': 'veletrh',
-        'trh': 'veletrh',
-        'výstava': 'veletrh',
-        
-        'koncert': 'koncert',
-        'hudba': 'koncert',
-        'festival hudby': 'koncert',
-        'hudební': 'koncert',
-        
-        'kultura': 'kulturní akce',
-        'kulturní': 'kulturní akce',
-        'kulturní akce': 'kulturní akce',
-        'divadlo': 'kulturní akce',
-        'galerie': 'kulturní akce',
-        
-        'sport': 'sportovní',
-        'sportovní': 'sportovní',
-        'sportovní akce': 'sportovní',
-        'maraton': 'sportovní',
-        'běh': 'sportovní',
-        
-        'ostatní': 'ostatní',
-        'jiné': 'ostatní',
-        'other': 'ostatní'
-    };
-    
-    return categoryMap[normalized] || 'ostatní';
-}
-
-// ========================================
-// AUTOCOMPLETE A OSTATNÍ
-// ========================================
-
-function populateAutocompleteOptions() {
-    console.log('📝 Populating autocomplete options...');
-    
-    if (!globalState.historicalData || globalState.historicalData.length === 0) {
-        return;
-    }
-    
-    const eventNames = new Set();
-    
-    globalState.historicalData.forEach(record => {
-        if (record.eventName) {
-            eventNames.add(record.eventName);
-        }
-    });
-    
-    const eventNamesDatalist = document.getElementById('eventNames');
-    if (eventNamesDatalist) {
-        eventNamesDatalist.innerHTML = '';
-        
-        Array.from(eventNames).sort().forEach(name => {
-            const option = document.createElement('option');
-            option.value = name;
-            eventNamesDatalist.appendChild(option);
-        });
-        
-        console.log(`✅ Populated ${eventNames.size} event names`);
-    }
-}
-
-function updateDataStats() {
-    const dataCountEl = document.getElementById('dataCount');
-    const lastLoadEl = document.getElementById('lastLoad');
-    
-    if (dataCountEl) {
-        dataCountEl.textContent = globalState.historicalData.length.toString();
-    }
-    
-    if (lastLoadEl && globalState.lastDataLoad) {
-        const lastLoadDate = new Date(globalState.lastDataLoad);
-        lastLoadEl.textContent = lastLoadDate.toLocaleString('cs-CZ');
-    }
-}
-
-// ========================================
-// EVENT LISTENERS
-// ========================================
-
-eventBus.on('cityChanged', (data) => {
-    console.log('🏙️ City changed, updating distance');
-    updateDistance();
-});
-
-eventBus.on('placeSelected', (place) => {
-    console.log('📍 Place selected from Google Maps:', place.name);
-    setTimeout(() => {
-        updateDistance();
-    }, 500);
-});
-
-eventBus.on('dataLoadRequested', () => {
-    loadData();
-});
-
-eventBus.on('dataReloadRequested', () => {
-    loadData();
-});
-
-eventBus.on('autoDataLoadRequested', () => {
-    loadData().catch(error => {
-        console.warn('⚠️ Automatic data loading failed:', error);
-        showNotification('Automatické načtení dat selhalo. Zkuste tlačítko "Načíst data".', 'warning', 8000);
-    });
-});
-
-// ========================================
-// INICIALIZACE A FINALIZACE
-// ========================================
-
-document.addEventListener('DOMContentLoaded', function() {
-    if (globalState.googleMapsLoaded && window.google && window.google.maps) {
-        globalState.distanceService = new google.maps.DistanceMatrixService();
-        console.log('🗺️ Distance service initialized');
-    }
-});
-
-const originalInitGoogleMaps = window.initGoogleMaps;
-window.initGoogleMaps = function() {
-    if (originalInitGoogleMaps) {
-        originalInitGoogleMaps();
-    }
-    
-    if (window.google && window.google.maps) {
-        globalState.distanceService = new google.maps.DistanceMatrixService();
-        console.log('🗺️ Distance service initialized in Part 2A');
-    }
-};
-
-console.log('✅ Donuland Part 2A loaded successfully');
-console.log('📊 Features: ✅ Data Loading ✅ Google Maps Distance (priority) ✅ Offline Fallback (minimal)');
-console.log('🗺️ Distance: Google Maps API > Offline fallback pro základní města');
-console.log('⏳ Ready for Part 2B: Weather API');
-
-eventBus.emit('part2aLoaded', { 
-    timestamp: Date.now(),
-    version: '1.0.0',
-    features: ['data-loading', 'google-maps-distance', 'offline-fallback-minimal']
-});
-/* ========================================
-   DONULAND MANAGEMENT SYSTEM - PART 2B
-   Weather API pro vícedenní akce (čokoláda faktory)
-   ======================================== */
-
-console.log('🍩 Donuland Part 2B loading...');
-
-// ========================================
-// WEATHER API PRO VÍCEDENNÍ AKCE
+// WEATHER API
 // ========================================
 
 // Hlavní funkce pro aktualizaci počasí
@@ -920,10 +863,6 @@ function generateSeasonalWeather(city, date) {
     };
 }
 
-// ========================================
-// AGREGACE POČASÍ PRO VÍCEDENNÍ AKCE
-// ========================================
-
 // Agregace počasí pro celou akci
 function aggregateWeatherData(dailyWeather) {
     if (!dailyWeather || dailyWeather.length === 0) {
@@ -983,11 +922,7 @@ function aggregateWeatherData(dailyWeather) {
     };
 }
 
-// ========================================
 // 🍫 ČOKOLÁDOVÉ DONUTY - WEATHER FAKTORY
-// ========================================
-
-// OPRAVENÝ výpočet vlivu počasí na prodej čokoládových donutů
 function getChocolateWeatherImpactFactor(weather) {
     let factor = 1.0;
     
@@ -1231,89 +1166,6 @@ function displayFallbackWeather(city, dateFrom, dateTo) {
 }
 
 // ========================================
-// EVENT LISTENERS PRO PART 2B
-// ========================================
-
-eventBus.on('cityChanged', (data) => {
-    console.log('🏙️ City changed, updating weather');
-    updateWeather();
-});
-
-eventBus.on('dateChanged', () => {
-    console.log('📅 Date changed, updating weather');
-    updateWeather();
-});
-
-eventBus.on('eventTypeChanged', (data) => {
-    console.log('🏢 Event type changed:', data.type);
-    
-    if (data.type === 'outdoor') {
-        const city = document.getElementById('city').value;
-        const dateFrom = document.getElementById('eventDateFrom').value;
-        
-        if (city && dateFrom) {
-            updateWeather();
-        }
-    } else {
-        hideWeatherCard();
-        globalState.lastWeatherData = null;
-    }
-});
-
-eventBus.on('placeSelected', (place) => {
-    console.log('📍 Place selected, updating weather');
-    setTimeout(() => {
-        updateWeather();
-    }, 500);
-});
-
-eventBus.on('weatherUpdateRequested', (data) => {
-    updateWeather();
-});
-
-// Override updateWeatherCard z part1
-function updateWeatherCard() {
-    const eventType = document.getElementById('eventType').value;
-    
-    if (eventType === 'outdoor') {
-        showWeatherCard();
-        const city = document.getElementById('city').value;
-        const dateFrom = document.getElementById('eventDateFrom').value;
-        
-        if (city && dateFrom) {
-            updateWeather();
-        }
-    } else {
-        hideWeatherCard();
-        globalState.lastWeatherData = null;
-    }
-    
-    console.log(`🌤️ Event type changed to: ${eventType}`);
-}
-
-// ========================================
-// FINALIZACE PART 2B
-// ========================================
-
-console.log('✅ Donuland Part 2B loaded successfully');
-console.log('🌤️ Features: ✅ Multi-day Weather ✅ Weather Aggregation ✅ Chocolate Temperature Logic');
-console.log('🍫 Chocolate factors: 18-24°C = ✅ ideal, >24°C = 🔥 melting problem, >30°C = 🚨 critical');
-console.log('📅 Weather aggregation: Average temp + Worst weather wins + Bad days count');
-console.log('⏳ Ready for Part 2C: AI Prediction Algorithm');
-
-eventBus.emit('part2bLoaded', { 
-    timestamp: Date.now(),
-    version: '1.1.0',
-    features: ['multi-day-weather', 'weather-aggregation', 'chocolate-temperature-logic', 'bad-weather-detection']
-});
-/* ========================================
-   DONULAND MANAGEMENT SYSTEM - PART 2C
-   AI Prediction Algorithm + Historical Analysis + Business Metrics
-   ======================================== */
-
-console.log('🍩 Donuland Part 2C loading...');
-
-// ========================================
 // AI PREDIKČNÍ ALGORITMUS
 // ========================================
 
@@ -1431,10 +1283,6 @@ function calculatePrediction(formData) {
         };
     }
 }
-
-// ========================================
-// PREDIKČNÍ FAKTORY
-// ========================================
 
 // Získání základního faktoru kategorie
 function getBaseCategoryFactor(category) {
@@ -2090,10 +1938,10 @@ function generateRecommendations(formData, prediction, businessResults) {
 }
 
 // ========================================
-// EVENT LISTENERS PRO PART 2C
+// EVENT LISTENERS 
 // ========================================
 
-// Event listenery pro predikci
+// Event listeners pro predikci a data loading
 eventBus.on('formChanged', (formData) => {
     console.log('📝 Form changed, updating prediction and historical data');
     
@@ -2141,7 +1989,6 @@ eventBus.on('dataLoaded', (data) => {
     }, 500);
 });
 
-// Event pro změnu business modelu
 eventBus.on('businessModelChanged', (data) => {
     console.log('💼 Business model changed, updating prediction');
     
@@ -2150,7 +1997,6 @@ eventBus.on('businessModelChanged', (data) => {
     }
 });
 
-// Event pro změnu rent type
 eventBus.on('rentTypeChanged', (data) => {
     console.log('💰 Rent type changed, updating prediction');
     
@@ -2159,7 +2005,6 @@ eventBus.on('rentTypeChanged', (data) => {
     }
 });
 
-// Event pro distance calculation dokončení
 eventBus.on('distanceCalculated', (data) => {
     console.log('📏 Distance calculated, updating prediction');
     
@@ -2168,8 +2013,87 @@ eventBus.on('distanceCalculated', (data) => {
     }
 });
 
+eventBus.on('cityChanged', (data) => {
+    console.log('🏙️ City changed, updating distance and weather');
+    updateDistance();
+    updateWeather();
+});
+
+eventBus.on('dateChanged', () => {
+    console.log('📅 Date changed, updating weather');
+    updateWeather();
+});
+
+eventBus.on('eventTypeChanged', (data) => {
+    console.log('🏢 Event type changed:', data.type);
+    
+    if (data.type === 'outdoor') {
+        const city = document.getElementById('city').value;
+        const dateFrom = document.getElementById('eventDateFrom').value;
+        
+        if (city && dateFrom) {
+            updateWeather();
+        }
+    } else {
+        hideWeatherCard();
+        globalState.lastWeatherData = null;
+    }
+});
+
+eventBus.on('placeSelected', (place) => {
+    console.log('📍 Place selected, updating distance and weather');
+    setTimeout(() => {
+        updateDistance();
+        updateWeather();
+    }, 500);
+});
+
+eventBus.on('weatherUpdateRequested', (data) => {
+    updateWeather();
+});
+
+eventBus.on('dataLoadRequested', () => {
+    loadData();
+});
+
+eventBus.on('dataReloadRequested', () => {
+    loadData();
+});
+
+eventBus.on('autoDataLoadRequested', () => {
+    loadData().catch(error => {
+        console.warn('⚠️ Automatic data loading failed:', error);
+        showNotification('Automatické načtení dat selhalo. Zkuste tlačítko "Načíst data".', 'warning', 8000);
+    });
+});
+
 // ========================================
-// EXPORTNÍ FUNKCE
+// INICIALIZACE GOOGLE MAPS INTEGRATION
+// ========================================
+
+// Rozšíření původní Google Maps callback
+const originalInitGoogleMaps = window.initGoogleMaps;
+window.initGoogleMaps = function() {
+    if (originalInitGoogleMaps) {
+        originalInitGoogleMaps();
+    }
+    
+    if (window.google && window.google.maps) {
+        globalState.distanceService = new google.maps.DistanceMatrixService();
+        console.log('🗺️ Distance service initialized in Part 2');
+    }
+};
+
+// Inicializace při DOM ready
+document.addEventListener('DOMContentLoaded', function() {
+    if (globalState.googleMapsLoaded && window.google && window.google.maps) {
+        globalState.distanceService = new google.maps.DistanceMatrixService();
+        console.log('🗺️ Distance service initialized');
+    }
+});
+
+// ========================================
+// PLACEHOLDER FUNKCE PRO KOMPATIBILITU
 // ========================================
 
 // Export predikce do CSV
@@ -2283,10 +2207,6 @@ function savePredictionToStorage() {
     }
 }
 
-// ========================================
-// PLACEHOLDER FUNKCE PRO KOMPATIBILITU
-// ========================================
-
 // Placeholder funkce pro savePrediction (volané z HTML)
 function savePrediction() {
     console.log('💾 Save prediction requested');
@@ -2299,160 +2219,48 @@ function exportPrediction() {
     exportPredictionToCSV();
 }
 
-// ========================================
-// POMOCNÉ FUNKCE
-// ========================================
-
-// Získání posledního weather faktoru pro predikci
-function getLastWeatherFactor() {
-    if (globalState.lastWeatherData && globalState.lastWeatherData.aggregated) {
-        return getChocolateWeatherImpactFactor(globalState.lastWeatherData.aggregated);
-    }
-    return 1.0; // Neutrální pokud není počasí
-}
-
-// Kontrola zda jsou potřeba počasí data
-function needsWeatherData() {
+// Override updateWeatherCard z part1 pro lepší integraci
+function updateWeatherCard() {
     const eventType = document.getElementById('eventType').value;
-    const city = document.getElementById('city').value;
-    const dateFrom = document.getElementById('eventDateFrom').value;
     
-    return eventType === 'outdoor' && city && dateFrom;
-}
-
-// Debug funkce pro testování predikcí
-function debugPredictionFactors(formData) {
-    if (!globalState.debugMode) return;
-    
-    console.log('🐛 Debug Prediction Factors:');
-    console.log('- Base category factor:', getBaseCategoryFactor(formData.category));
-    console.log('- Historical factor:', getHistoricalFactor(formData));
-    console.log('- City factor:', getCityFactor(formData.city));
-    console.log('- Competition factor:', getCompetitionFactor(formData.competition));
-    console.log('- Seasonal factor:', getSeasonalFactor(formData.eventDateFrom));
-    console.log('- Size factor:', getSizeFactor(formData.visitors));
-    console.log('- Weather factor:', getLastWeatherFactor());
-    console.log('- Duration factor:', getDurationFactor(formData.durationDays || 1));
-}
-
-// Získání všech uložených predikcí
-function getSavedPredictions() {
-    try {
-        return JSON.parse(localStorage.getItem('donuland_predictions') || '[]');
-    } catch (error) {
-        console.error('❌ Error loading saved predictions:', error);
-        return [];
-    }
-}
-
-// Smazání uložené predikce
-function deleteSavedPrediction(predictionId) {
-    try {
-        const savedPredictions = getSavedPredictions();
-        const filteredPredictions = savedPredictions.filter(p => p.id !== predictionId);
+    if (eventType === 'outdoor') {
+        showWeatherCard();
+        const city = document.getElementById('city').value;
+        const dateFrom = document.getElementById('eventDateFrom').value;
         
-        localStorage.setItem('donuland_predictions', JSON.stringify(filteredPredictions));
-        
-        showNotification('🗑️ Predikce smazána', 'info');
-        eventBus.emit('predictionDeleted', predictionId);
-        
-    } catch (error) {
-        console.error('❌ Error deleting prediction:', error);
-        showNotification('❌ Chyba při mazání predikce', 'error');
-    }
-}
-
-// Načtení uložené predikce do formuláře
-function loadSavedPrediction(predictionId) {
-    try {
-        const savedPredictions = getSavedPredictions();
-        const prediction = savedPredictions.find(p => p.id === predictionId);
-        
-        if (!prediction) {
-            showNotification('❌ Predikce nenalezena', 'error');
-            return;
+        if (city && dateFrom) {
+            updateWeather();
         }
-        
-        const formData = prediction.formData;
-        
-        // Naplnění formuláře
-        document.getElementById('eventName').value = formData.eventName || '';
-        document.getElementById('category').value = formData.category || '';
-        document.getElementById('city').value = formData.city || '';
-        document.getElementById('eventDateFrom').value = formData.eventDateFrom || '';
-        document.getElementById('eventDateTo').value = formData.eventDateTo || '';
-        document.getElementById('visitors').value = formData.visitors || '';
-        document.getElementById('competition').value = formData.competition || '';
-        document.getElementById('eventType').value = formData.eventType || '';
-        document.getElementById('businessModel').value = formData.businessModel || '';
-        document.getElementById('rentType').value = formData.rentType || '';
-        document.getElementById('price').value = formData.price || '';
-        
-        // Trigger aktualizace
-        eventBus.emit('formChanged', formData);
-        
-        showNotification('📋 Predikce načtena do formuláře', 'success');
-        console.log('✅ Saved prediction loaded to form');
-        
-    } catch (error) {
-        console.error('❌ Error loading saved prediction:', error);
-        showNotification('❌ Chyba při načítání predikce', 'error');
-    }
-}
-
-// Vyčištění všech cache
-function clearAllCache() {
-    globalState.weatherCache.clear();
-    globalState.distanceCache.clear();
-    
-    console.log('🧹 All cache cleared');
-    showNotification('🧹 Cache vymazána', 'info', 2000);
-    
-    eventBus.emit('cacheCleared');
-}
-
-// Získání statistik predikcí
-function getPredictionStats() {
-    const savedPredictions = getSavedPredictions();
-    
-    if (savedPredictions.length === 0) {
-        return null;
+    } else {
+        hideWeatherCard();
+        globalState.lastWeatherData = null;
     }
     
-    const sales = savedPredictions.map(p => p.prediction.predictedSales);
-    const confidences = savedPredictions.map(p => p.prediction.confidence);
-    const profits = savedPredictions.map(p => p.businessResults.profit);
-    
-    return {
-        totalPredictions: savedPredictions.length,
-        avgSales: sales.reduce((sum, s) => sum + s, 0) / sales.length,
-        avgConfidence: confidences.reduce((sum, c) => sum + c, 0) / confidences.length,
-        avgProfit: profits.reduce((sum, p) => sum + p, 0) / profits.length,
-        lastPrediction: savedPredictions[savedPredictions.length - 1]
-    };
+    console.log(`🌤️ Event type changed to: ${eventType}`);
 }
 
 // ========================================
-// FINALIZACE PART 2C
+// FINALIZACE
 // ========================================
 
-console.log('✅ Donuland Part 2C loaded successfully');
-console.log('🤖 Features: ✅ AI Prediction Algorithm ✅ Historical Analysis ✅ Business Metrics ✅ Recommendations');
-console.log('📊 Prediction factors: Base + Historical + City + Competition + Seasonal + Size + Weather + Duration');
+console.log('✅ Donuland Part 2 loaded successfully');
+console.log('📊 Features: ✅ Data Loading ✅ Google Maps Distance ✅ Multi-day Weather ✅ AI Prediction ✅ Historical Analysis ✅ Business Metrics');
+console.log('🍫 Special: Chocolate temperature logic for weather impact on sales');
+console.log('🤖 AI Algorithm: Base + Historical + City + Competition + Seasonal + Size + Weather + Duration');
 console.log('🎯 Confidence: 20-95% based on data availability and factor stability');
-console.log('💾 Export: CSV export + localStorage save/load');
-console.log('🔍 Recommendations: Weather + Business + Competition + Seasonal advice');
 console.log('⏳ Ready for Part 3: UI Display & Results Visualization');
 
-// Event pro signalizaci dokončení části 2C
-eventBus.emit('part2cLoaded', { 
+eventBus.emit('part2Loaded', { 
     timestamp: Date.now(),
-    version: '1.0.0',
+    version: '2.0.0',
     features: [
+        'data-loading', 
+        'google-maps-distance', 
+        'multi-day-weather', 
+        'chocolate-weather-logic',
         'ai-prediction-algorithm', 
         'historical-analysis', 
-        'business-metrics', 
-        'confidence-calculation',
+        'business-metrics',
         'recommendations-engine',
         'csv-export',
         'localstorage-save-load'
