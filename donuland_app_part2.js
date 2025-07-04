@@ -1,15 +1,15 @@
 /* ========================================
    DONULAND MANAGEMENT SYSTEM - PART 2A
-   Data loading ze Sheets a Distance calculation
+   Data loading ze Google Sheets + Google Maps Distance
    ======================================== */
 
 console.log('🍩 Donuland Part 2A loading...');
 
 // ========================================
-// DATA LOADING ZE SHEETS
+// GOOGLE SHEETS DATA LOADING
 // ========================================
 
-// Hlavní funkce pro načtení dat
+// Hlavní funkce pro načtení dat z Google Sheets
 async function loadData() {
     console.log('📊 Starting data loading...');
     
@@ -28,51 +28,57 @@ async function loadData() {
     try {
         performanceMonitor.start('dataLoading');
         
-        // Pokus o načtení dat
-        const data = await fetchSheetsData();
-        const parsedData = parseSheetData(data);
+        const csvData = await fetchSheetsData();
+        const parsedData = parseSheetData(csvData);
+        const cleanData = validateAndCleanData(parsedData);
         
-        globalState.historicalData = parsedData;
+        globalState.historicalData = cleanData;
         globalState.lastDataLoad = Date.now();
         
-        // Aktualizace UI
-        updateStatus('online', `Načteno ${parsedData.length} záznamů`);
+        populateAutocompleteOptions();
+        updateStatus('online', `Načteno ${cleanData.length} záznamů`);
         updateLoadButton('success');
         
-        // Naplnění autocomplete seznamů
-        populateAutocompleteOptions();
-        
-        // Zobrazení historických dat pokud je formulář vyplněn
-        if (validateRequiredFields().valid) {
-            updateHistoricalDisplay();
+        const historicalCard = document.getElementById('historicalCard');
+        if (historicalCard && cleanData.length > 0) {
+            historicalCard.style.display = 'block';
         }
         
-        showNotification(`✅ Úspěšně načteno ${parsedData.length} historických záznamů`, 'success');
+        updateDataStats();
+        showNotification(`✅ Úspěšně načteno ${cleanData.length} historických záznamů`, 'success', 4000);
         
-        console.log(`✅ Data loaded successfully: ${parsedData.length} records`);
+        console.log(`✅ Data loaded successfully: ${cleanData.length} records`);
         performanceMonitor.end('dataLoading');
         
         eventBus.emit('dataLoaded', { 
-            count: parsedData.length, 
-            data: parsedData 
+            count: cleanData.length, 
+            data: cleanData,
+            timestamp: globalState.lastDataLoad
         });
+        
+        if (validateRequiredFields().valid) {
+            eventBus.emit('triggerPrediction');
+        }
         
     } catch (error) {
         console.error('❌ Error loading data:', error);
         
-        updateStatus('offline', 'Chyba při načítání dat');
+        updateStatus('offline', `Chyba: ${error.message}`);
         updateLoadButton('error');
-        
-        showNotification(`❌ Chyba při načítání dat: ${error.message}`, 'error');
+        showNotification(`❌ Nepodařilo se načíst data: ${error.message}`, 'error', 8000);
         
         globalState.errors.push({
             type: 'data_loading',
             message: error.message,
+            stack: error.stack,
             timestamp: new Date().toISOString(),
             attempt: globalState.dataLoadAttempts
         });
         
-        eventBus.emit('dataLoadError', error);
+        eventBus.emit('dataLoadError', {
+            error: error.message,
+            attempt: globalState.dataLoadAttempts
+        });
         
     } finally {
         globalState.isLoading = false;
@@ -88,20 +94,22 @@ async function fetchSheetsData() {
         throw new Error('Google Sheets URL není nastavena');
     }
     
-    // Extrakce Sheet ID z URL
     const sheetId = extractSheetId(sheetsUrl);
     if (!sheetId) {
         throw new Error('Neplatná Google Sheets URL');
     }
     
-    // Sestavení CSV export URL
     const csvUrl = `https://docs.google.com/spreadsheets/d/${sheetId}/export?format=csv&gid=0`;
     
     console.log('📡 Fetching data from:', csvUrl);
     
     try {
-        // Pokus o přímý fetch
-        const response = await fetch(csvUrl);
+        const response = await fetchWithTimeout(csvUrl, {
+            headers: {
+                'Accept': 'text/csv',
+                'User-Agent': 'Donuland-System/1.0'
+            }
+        }, 15000);
         
         if (!response.ok) {
             throw new Error(`HTTP ${response.status}: ${response.statusText}`);
@@ -113,33 +121,51 @@ async function fetchSheetsData() {
             throw new Error('Prázdná nebo neplatná odpověď ze Sheets');
         }
         
+        console.log('✅ CSV data fetched, length:', csvText.length);
         return csvText;
         
     } catch (error) {
         console.log('⚠️ Direct fetch failed, trying with CORS proxy...');
         
-        // Fallback přes CORS proxy
         const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(csvUrl)}`;
         
-        const proxyResponse = await fetch(proxyUrl);
-        if (!proxyResponse.ok) {
-            throw new Error(`Proxy request failed: ${proxyResponse.status}`);
+        try {
+            const proxyResponse = await fetchWithTimeout(proxyUrl, {}, 20000);
+            if (!proxyResponse.ok) {
+                throw new Error(`Proxy request failed: ${proxyResponse.status}`);
+            }
+            
+            const proxyData = await proxyResponse.json();
+            
+            if (!proxyData.contents) {
+                throw new Error('Proxy vrátil prázdná data');
+            }
+            
+            console.log('✅ Data fetched via proxy');
+            return proxyData.contents;
+            
+        } catch (proxyError) {
+            console.error('❌ Proxy fetch also failed:', proxyError);
+            throw new Error(`Nepodařilo se načíst data ani přímo ani přes proxy: ${error.message}`);
         }
-        
-        const proxyData = await proxyResponse.json();
-        
-        if (!proxyData.contents) {
-            throw new Error('Proxy vrátil prázdná data');
-        }
-        
-        return proxyData.contents;
     }
 }
 
 // Extrakce Sheet ID z URL
 function extractSheetId(url) {
-    const match = url.match(/\/spreadsheets\/d\/([a-zA-Z0-9-_]+)/);
-    return match ? match[1] : null;
+    const patterns = [
+        /\/spreadsheets\/d\/([a-zA-Z0-9-_]+)/,
+        /^([a-zA-Z0-9-_]+)$/
+    ];
+    
+    for (const pattern of patterns) {
+        const match = url.match(pattern);
+        if (match) {
+            return match[1];
+        }
+    }
+    
+    return null;
 }
 
 // Parsování CSV dat ze Sheets
@@ -147,138 +173,174 @@ function parseSheetData(csvText) {
     console.log('📝 Parsing CSV data...');
     
     const lines = csvText.split('\n');
-    const data = [];
+    if (lines.length < 2) {
+        throw new Error('CSV neobsahuje dostatečná data');
+    }
     
-    // První řádek je header
-    const headers = lines[0].split(',').map(h => h.trim().replace(/"/g, ''));
+    const data = [];
     
     for (let i = 1; i < lines.length; i++) {
         const line = lines[i].trim();
         if (!line) continue;
         
-        // Jednoduchý CSV parser (může být vylepšen pro složitější data)
         const values = parseCSVLine(line);
         
-        if (values.length >= headers.length) {
+        if (values.length < 10) continue;
+        
+        try {
             const record = {};
             
-            // Mapování podle sloupců (A=0, B=1, C=2, atd.)
-            headers.forEach((header, index) => {
-                record[String.fromCharCode(65 + index)] = values[index] ? values[index].trim().replace(/"/g, '') : '';
-            });
+            // Mapování podle CONFIG.SHEETS_COLUMNS (A=0, B=1, C=2, ...)
+            record.dateFrom = getColumnValue(values, 'B');
+            record.dateTo = getColumnValue(values, 'C');
+            record.city = getColumnValue(values, 'D');
+            record.eventName = getColumnValue(values, 'E');
+            record.category = getColumnValue(values, 'F');
+            record.sales = parseFloat(getColumnValue(values, 'M')) || 0;
+            record.visitors = parseFloat(getColumnValue(values, 'Q')) || 0;
+            record.weather = getColumnValue(values, 'R') || '';
+            record.competition = parseInt(getColumnValue(values, 'W')) || 2;
+            record.rating = parseFloat(getColumnValue(values, 'X')) || 0;
+            record.notes = getColumnValue(values, 'Y') || '';
             
-            // Pouze záznamy s validními daty
-            if (record.B && record.C && record.D && record.E && record.M) {
-                // Validace a čištění dat
-                record.dateFrom = parseDate(record.B);
-                record.dateTo = parseDate(record.C);
-                record.city = record.D;
-                record.eventName = record.E;
-                record.category = record.F || 'ostatní';
-                record.sales = parseFloat(record.M) || 0;
-                record.visitors = parseFloat(record.Q) || 0;
-                record.weather = record.R || '';
-                record.competition = parseInt(record.W) || 2;
-                record.rating = parseFloat(record.X) || 0;
-                record.notes = record.Y || '';
-                
-                // Pouze záznamy s pozitivním prodejem
-                if (record.sales > 0) {
-                    data.push(record);
-                }
+            if (record.eventName && record.city && record.dateFrom) {
+                record.rowIndex = i;
+                record.originalData = values;
+                data.push(record);
             }
+            
+        } catch (error) {
+            console.warn(`⚠️ Error parsing row ${i}:`, error);
+            continue;
         }
     }
     
-    console.log(`📊 Parsed ${data.length} valid records`);
+    console.log(`📊 Parsed ${data.length} records from ${lines.length - 1} lines`);
     return data;
 }
 
-// Jednoduchý CSV line parser
+// CSV line parser s podporou quoted values
 function parseCSVLine(line) {
     const result = [];
     let current = '';
     let inQuotes = false;
+    let i = 0;
     
-    for (let i = 0; i < line.length; i++) {
+    while (i < line.length) {
         const char = line[i];
         
-        if (char === '"') {
-            inQuotes = !inQuotes;
+        if (char === '"' && !inQuotes) {
+            inQuotes = true;
+        } else if (char === '"' && inQuotes) {
+            if (line[i + 1] === '"') {
+                current += '"';
+                i++;
+            } else {
+                inQuotes = false;
+            }
         } else if (char === ',' && !inQuotes) {
             result.push(current);
             current = '';
         } else {
             current += char;
         }
+        
+        i++;
     }
     
     result.push(current);
     return result;
 }
 
-// Parsování data z různých formátů
-function parseDate(dateStr) {
-    if (!dateStr) return null;
+// Získání hodnoty ze sloupce podle písmene
+function getColumnValue(values, columnLetter) {
+    const columnIndex = columnLetterToIndex(columnLetter);
     
-    // Čeští formáty: 15.6.2025, 15/6/2025
-    const czechMatch = dateStr.match(/(\d{1,2})[\./](\d{1,2})[\./](\d{4})/);
-    if (czechMatch) {
-        const [, day, month, year] = czechMatch;
-        return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+    if (columnIndex < values.length) {
+        let value = values[columnIndex];
+        value = value.replace(/^"|"$/g, '').trim();
+        return value;
     }
     
-    // ISO formát: 2025-06-15
-    const isoMatch = dateStr.match(/(\d{4})-(\d{1,2})-(\d{1,2})/);
-    if (isoMatch) {
-        return dateStr;
-    }
-    
-    return null;
+    return '';
 }
 
-// ========================================
-// AUTOCOMPLETE NAPLNĚNÍ
-// ========================================
+// Převod písmene sloupce na index (A=0, B=1, etc.)
+function columnLetterToIndex(letter) {
+    let index = 0;
+    for (let i = 0; i < letter.length; i++) {
+        index = index * 26 + (letter.charCodeAt(i) - 65 + 1);
+    }
+    return index - 1;
+}
 
-// Naplnění autocomplete seznamů z historických dat
-function populateAutocompleteOptions() {
-    console.log('📝 Populating autocomplete options...');
+// Validace a čištění dat
+function validateAndCleanData(rawData) {
+    console.log('🧹 Validating and cleaning data...');
     
-    const eventNames = new Set();
+    const cleanData = [];
     
-    globalState.historicalData.forEach(record => {
-        if (record.eventName) {
-            eventNames.add(record.eventName);
+    for (const row of rawData) {
+        try {
+            if (!row.eventName || !row.city || !row.dateFrom) {
+                continue;
+            }
+            
+            const cleanRow = {
+                ...row,
+                dateFrom: normalizeDateString(row.dateFrom),
+                dateTo: normalizeDateString(row.dateTo) || normalizeDateString(row.dateFrom),
+                city: normalizeCity(row.city),
+                eventName: row.eventName.trim(),
+                category: normalizeCategory(row.category),
+                sales: Math.max(0, row.sales || 0),
+                visitors: Math.max(0, row.visitors || 0),
+                competition: Math.min(3, Math.max(1, row.competition || 2)),
+                rating: Math.min(5, Math.max(0, row.rating || 0)),
+                isValid: true,
+                loadedAt: new Date().toISOString()
+            };
+            
+            if (cleanRow.dateFrom && cleanRow.dateTo) {
+                const daysDiff = Math.ceil((new Date(cleanRow.dateTo) - new Date(cleanRow.dateFrom)) / (1000 * 60 * 60 * 24));
+                cleanRow.multiDay = daysDiff > 0;
+                cleanRow.durationDays = daysDiff + 1;
+            } else {
+                cleanRow.multiDay = false;
+                cleanRow.durationDays = 1;
+            }
+            
+            if (cleanRow.dateFrom && cleanRow.eventName && cleanRow.city) {
+                cleanData.push(cleanRow);
+            }
+            
+        } catch (error) {
+            console.warn('⚠️ Error cleaning row:', error, row);
+            continue;
         }
-    });
-    
-    // Naplnění event names datalist
-    const eventNamesDatalist = document.getElementById('eventNames');
-    if (eventNamesDatalist) {
-        eventNamesDatalist.innerHTML = '';
-        
-        Array.from(eventNames).sort().forEach(name => {
-            const option = document.createElement('option');
-            option.value = name;
-            eventNamesDatalist.appendChild(option);
-        });
     }
     
-    console.log(`✅ Populated ${eventNames.size} event names`);
+    console.log(`✅ Cleaned data: ${cleanData.length} valid rows from ${rawData.length} total`);
+    return cleanData;
 }
 
 // ========================================
-// DISTANCE CALCULATION
+// GOOGLE MAPS DISTANCE CALCULATION
 // ========================================
 
-// Aktualizace vzdálenosti
+// Aktualizace vzdálenosti při změně města
 async function updateDistance() {
-    const city = document.getElementById('city').value.trim();
+    const cityInput = document.getElementById('city');
     const distanceInput = document.getElementById('distance');
     
-    if (!city || !distanceInput) {
+    if (!cityInput || !distanceInput) {
         console.log('⚠️ City or distance input missing');
+        return;
+    }
+    
+    const city = cityInput.value.trim();
+    if (!city) {
+        distanceInput.value = '';
         return;
     }
     
@@ -293,14 +355,26 @@ async function updateDistance() {
         distanceInput.value = 'Počítám...';
         distanceInput.classList.add('calculating');
         
-        const distance = await calculateDistance('Praha', city);
-        distanceInput.value = distance ? `${distance} km` : 'Neznámá';
+        // PRIORITA: Google Maps API
+        const distanceData = await calculateDistanceFromGoogleMaps(city);
         
-        eventBus.emit('distanceCalculated', { distance, city });
+        if (distanceData && distanceData.distance) {
+            distanceInput.value = distanceData.distance;
+        } else {
+            // Fallback pouze pokud Google Maps nefunguje
+            distanceInput.value = getOfflineFallbackDistance(city);
+        }
+        
+        eventBus.emit('distanceCalculated', { 
+            distance: distanceInput.value,
+            city: city 
+        });
+        
+        console.log(`📏 Distance updated: ${distanceInput.value}`);
         
     } catch (error) {
         console.warn('⚠️ Distance calculation failed:', error);
-        distanceInput.value = getFallbackDistance(city);
+        distanceInput.value = getOfflineFallbackDistance(city);
         
     } finally {
         distanceInput.classList.remove('calculating');
@@ -308,290 +382,258 @@ async function updateDistance() {
     }
 }
 
-// Výpočet vzdálenosti mezi městy
-async function calculateDistance(from, to) {
-    const cacheKey = `${from}-${to}`;
+// HLAVNÍ: Výpočet vzdálenosti pomocí Google Maps
+async function calculateDistanceFromGoogleMaps(cityName) {
+    const cacheKey = `praha-${cityName.toLowerCase().trim()}`;
     
     // Kontrola cache
     const cached = globalState.distanceCache.get(cacheKey);
     if (cached && (Date.now() - cached.timestamp) < CONFIG.DISTANCE_CACHE_TIME) {
         console.log('📦 Using cached distance');
-        return cached.distance;
+        return cached.data;
+    }
+    
+    // Kontrola dostupnosti Google Maps API
+    if (!globalState.googleMapsLoaded || !window.google || !globalState.distanceService) {
+        console.log('⚠️ Google Maps not available, using offline fallback');
+        throw new Error('Google Maps API not available');
     }
     
     try {
-        // Pokus o Google Maps Distance Matrix API
-        if (globalState.googleMapsLoaded && globalState.distanceService) {
-            const distance = await getDistanceFromMapsAPI(from, to);
-            if (distance) {
-                globalState.distanceCache.set(cacheKey, {
-                    distance: distance,
-                    timestamp: Date.now()
-                });
-                return distance;
-            }
+        const distanceData = await getDistanceFromMapsAPI('Praha', cityName);
+        
+        if (distanceData) {
+            // Cache result
+            globalState.distanceCache.set(cacheKey, {
+                data: distanceData,
+                timestamp: Date.now()
+            });
+            
+            return distanceData;
         }
         
-        // Fallback na předdefinované vzdálenosti
-        const fallbackDistance = getFallbackDistanceNumber(to);
-        
-        globalState.distanceCache.set(cacheKey, {
-            distance: fallbackDistance,
-            timestamp: Date.now()
-        });
-        
-        return fallbackDistance;
+        throw new Error('No distance data from Google Maps');
         
     } catch (error) {
-        console.error('Distance calculation error:', error);
-        return getFallbackDistanceNumber(to);
+        console.error('❌ Google Maps distance calculation error:', error);
+        throw error;
     }
 }
 
 // Google Maps Distance Matrix API
-async function getDistanceFromMapsAPI(from, to) {
+async function getDistanceFromMapsAPI(fromCity, toCity) {
     return new Promise((resolve, reject) => {
         if (!globalState.distanceService) {
             reject(new Error('Distance service not initialized'));
             return;
         }
         
-        globalState.distanceService.getDistanceMatrix({
-            origins: [from + ', Czech Republic'],
-            destinations: [to + ', Czech Republic'],
+        const service = globalState.distanceService;
+        
+        service.getDistanceMatrix({
+            origins: [`${fromCity}, Česká republika`],
+            destinations: [`${toCity}, Česká republika`],
             travelMode: google.maps.TravelMode.DRIVING,
             unitSystem: google.maps.UnitSystem.METRIC,
             avoidHighways: false,
             avoidTolls: false
         }, (response, status) => {
+            
             if (status === google.maps.DistanceMatrixStatus.OK) {
-                const element = response.rows[0].elements[0];
+                const element = response.rows[0]?.elements[0];
                 
-                if (element.status === 'OK') {
-                    const distanceKm = Math.round(element.distance.value / 1000);
-                    console.log(`🗺️ Distance from Maps API: ${distanceKm} km`);
-                    resolve(distanceKm);
+                if (element && element.status === 'OK') {
+                    const distanceData = {
+                        distance: element.distance.text,
+                        duration: element.duration.text,
+                        distanceValue: element.distance.value, // meters
+                        durationValue: element.duration.value, // seconds
+                        status: 'success',
+                        method: 'google_maps'
+                    };
+                    
+                    console.log('🗺️ Distance from Google Maps:', distanceData);
+                    resolve(distanceData);
                 } else {
-                    reject(new Error(`Distance element status: ${element.status}`));
+                    console.log(`⚠️ Distance element status: ${element?.status}`);
+                    reject(new Error(`Distance element status: ${element?.status || 'unknown'}`));
                 }
             } else {
+                console.log(`⚠️ Distance matrix status: ${status}`);
                 reject(new Error(`Distance matrix status: ${status}`));
             }
         });
     });
 }
 
-// Fallback vzdálenosti pro česká města
-function getFallbackDistanceNumber(city) {
-    const cityNormalized = removeDiacritics(city.toLowerCase());
+// FALLBACK: Pouze pro offline režim (minimální seznam)
+function getOfflineFallbackDistance(city) {
+    const cityNormalized = removeDiacritics(city.toLowerCase().trim());
     
-    const fallbackDistances = {
-        'praha': 0,
-        'brno': 195,
-        'ostrava': 350,
-        'plzen': 90,
-        'liberec': 100,
-        'olomouc': 280,
-        'hradec kralove': 110,
-        'pardubice': 100,
-        'ceske budejovice': 150,
-        'usti nad labem': 75,
-        'karlovy vary': 130,
-        'jihlava': 125,
-        'havirov': 365,
-        'kladno': 25,
-        'most': 80,
-        'opava': 340,
-        'frydek mistek': 330,
-        'karvina': 370,
-        'teplice': 85,
-        'decin': 100
+    // POUZE základní česká města - zbytek se spočítá přes Google Maps
+    const basicDistances = {
+        'praha': '0 km',
+        'brno': '195 km',
+        'ostrava': '350 km', 
+        'plzen': '90 km',
+        'liberec': '100 km',
+        'olomouc': '280 km'
     };
     
-    // Hledání nejpodobnějšího města
-    for (const [knownCity, distance] of Object.entries(fallbackDistances)) {
-        if (cityNormalized.includes(knownCity) || knownCity.includes(cityNormalized)) {
-            return distance;
+    if (basicDistances[cityNormalized]) {
+        return basicDistances[cityNormalized];
+    }
+    
+    // Default pokud Google Maps nefunguje a město není v základním seznamu
+    console.log(`⚠️ Using default distance for unknown city: ${city}`);
+    return '150 km'; // Průměr ČR
+}
+
+// ========================================
+// NORMALIZACE A UTILITY
+// ========================================
+
+function normalizeDateString(dateStr) {
+    if (!dateStr) return null;
+    
+    const formats = [
+        /(\d{1,2})\.(\d{1,2})\.(\d{4})/,  // DD.MM.YYYY
+        /(\d{1,2})\/(\d{1,2})\/(\d{4})/,  // DD/MM/YYYY  
+        /(\d{4})-(\d{1,2})-(\d{1,2})/,    // YYYY-MM-DD
+        /(\d{1,2})-(\d{1,2})-(\d{4})/,    // DD-MM-YYYY
+    ];
+    
+    for (const format of formats) {
+        const match = dateStr.match(format);
+        if (match) {
+            if (format.source.includes('\\d{4}-')) {
+                return `${match[1]}-${match[2].padStart(2, '0')}-${match[3].padStart(2, '0')}`;
+            } else {
+                return `${match[3]}-${match[2].padStart(2, '0')}-${match[1].padStart(2, '0')}`;
+            }
         }
     }
     
-    // Default pro neznámá města
-    return 150;
-}
-
-// Fallback vzdálenost s jednotkami
-function getFallbackDistance(city) {
-    const distance = getFallbackDistanceNumber(city);
-    return `${distance} km`;
-}
-
-// ========================================
-// HISTORICKÁ DATA ZOBRAZENÍ
-// ========================================
-
-// Aktualizace historických dat v UI
-function updateHistoricalDisplay() {
-    const formData = gatherFormData();
-    
-    if (!formData.eventName && !formData.city && !formData.category) {
-        console.log('⚠️ Insufficient data for historical display');
-        return;
+    const date = new Date(dateStr);
+    if (!isNaN(date.getTime())) {
+        return date.toISOString().split('T')[0];
     }
     
-    const historicalData = getHistoricalData(formData.eventName, formData.city, formData.category);
-    displayHistoricalData(historicalData, formData);
+    console.warn('⚠️ Could not parse date:', dateStr);
+    return null;
 }
 
-// Získání relevantních historických dat
-function getHistoricalData(eventName, city, category) {
+function normalizeCity(city) {
+    if (!city) return '';
+    
+    return city
+        .trim()
+        .replace(/\s+/g, ' ')
+        .toLowerCase()
+        .replace(/^./, c => c.toUpperCase());
+}
+
+function normalizeCategory(category) {
+    if (!category) return 'ostatní';
+    
+    const normalized = category.toLowerCase().trim();
+    
+    const categoryMap = {
+        'food': 'food festival',
+        'food festival': 'food festival',
+        'foodfestival': 'food festival',
+        'festival': 'food festival',
+        'food fest': 'food festival',
+        
+        'veletrh': 'veletrh',
+        'cokofest': 'veletrh',
+        'čokofest': 'veletrh',
+        'trh': 'veletrh',
+        'výstava': 'veletrh',
+        
+        'koncert': 'koncert',
+        'hudba': 'koncert',
+        'festival hudby': 'koncert',
+        'hudební': 'koncert',
+        
+        'kultura': 'kulturní akce',
+        'kulturní': 'kulturní akce',
+        'kulturní akce': 'kulturní akce',
+        'divadlo': 'kulturní akce',
+        'galerie': 'kulturní akce',
+        
+        'sport': 'sportovní',
+        'sportovní': 'sportovní',
+        'sportovní akce': 'sportovní',
+        'maraton': 'sportovní',
+        'běh': 'sportovní',
+        
+        'ostatní': 'ostatní',
+        'jiné': 'ostatní',
+        'other': 'ostatní'
+    };
+    
+    return categoryMap[normalized] || 'ostatní';
+}
+
+// ========================================
+// AUTOCOMPLETE A OSTATNÍ
+// ========================================
+
+function populateAutocompleteOptions() {
+    console.log('📝 Populating autocomplete options...');
+    
     if (!globalState.historicalData || globalState.historicalData.length === 0) {
-        return { matches: [], summary: null };
-    }
-    
-    // Najít podobné akce s váženým skóre
-    const matches = globalState.historicalData.map(record => {
-        let score = 0;
-        
-        // Název akce (40%)
-        if (eventName && record.eventName) {
-            if (record.eventName.toLowerCase().includes(eventName.toLowerCase()) || 
-                eventName.toLowerCase().includes(record.eventName.toLowerCase())) {
-                score += 40;
-            }
-        }
-        
-        // Město (30%)
-        if (city && record.city) {
-            if (removeDiacritics(record.city.toLowerCase()) === removeDiacritics(city.toLowerCase())) {
-                score += 30;
-            } else if (record.city.toLowerCase().includes(city.toLowerCase()) || 
-                       city.toLowerCase().includes(record.city.toLowerCase())) {
-                score += 15;
-            }
-        }
-        
-        // Kategorie (30%)
-        if (category && record.category) {
-            if (record.category === category) {
-                score += 30;
-            }
-        }
-        
-        return {
-            ...record,
-            similarityScore: score
-        };
-    })
-    .filter(record => record.similarityScore > 20) // Minimální podobnost
-    .sort((a, b) => b.similarityScore - a.similarityScore);
-    
-    // Summary statistiky
-    let summary = null;
-    if (matches.length > 0) {
-        const sales = matches.map(m => m.sales);
-        summary = {
-            count: matches.length,
-            avgSales: sales.reduce((sum, s) => sum + s, 0) / sales.length,
-            maxSales: Math.max(...sales),
-            minSales: Math.min(...sales)
-        };
-    }
-    
-    return {
-        matches: matches.slice(0, 10), // Top 10 matches
-        summary: summary
-    };
-}
-
-// Zobrazení historických dat v UI
-function displayHistoricalData(historicalData, formData) {
-    const historicalCard = document.getElementById('historicalCard');
-    const historicalDiv = document.getElementById('historicalData');
-    
-    if (!historicalData.matches || historicalData.matches.length === 0) {
-        if (historicalCard) historicalCard.style.display = 'none';
         return;
     }
     
-    if (historicalCard) historicalCard.style.display = 'block';
+    const eventNames = new Set();
     
-    const topMatches = historicalData.matches.slice(0, 5);
-    
-    let html = '';
-    
-    if (historicalData.summary) {
-        html += `
-            <div class="historical-summary" style="background: #e3f2fd; padding: 15px; border-radius: 8px; margin-bottom: 20px;">
-                <h4>📊 Shrnutí podobných akcí (${historicalData.summary.count} akcí)</h4>
-                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 15px; margin-top: 10px;">
-                    <div style="text-align: center;">
-                        <div style="font-size: 1.3em; font-weight: bold; color: #1976d2;">${Math.round(historicalData.summary.avgSales)}</div>
-                        <div style="font-size: 0.9em; color: #666;">Průměrný prodej</div>
-                    </div>
-                    <div style="text-align: center;">
-                        <div style="font-size: 1.3em; font-weight: bold; color: #388e3c;">${historicalData.summary.maxSales}</div>
-                        <div style="font-size: 0.9em; color: #666;">Nejlepší výsledek</div>
-                    </div>
-                    <div style="text-align: center;">
-                        <div style="font-size: 1.3em; font-weight: bold; color: #f57c00;">${historicalData.summary.minSales}</div>
-                        <div style="font-size: 0.9em; color: #666;">Nejhorší výsledek</div>
-                    </div>
-                </div>
-            </div>
-        `;
-    }
-    
-    html += '<h4>🔍 Nejpodobnější akce:</h4>';
-    
-    topMatches.forEach((match, index) => {
-        const sales = match.sales || 0;
-        const eventName = match.eventName || 'Neznámá akce';
-        const city = match.city || 'Neznámé město';
-        const date = match.dateTo || match.dateFrom || 'Neznámé datum';
-        const visitors = match.visitors || 0;
-        const conversion = visitors > 0 ? ((sales / visitors) * 100).toFixed(1) : '0';
-        
-        html += `
-            <div class="historical-item">
-                <div class="historical-info">
-                    <h4>${escapeHtml(eventName)}</h4>
-                    <p>${escapeHtml(city)} • ${formatDate(date)} • ${formatNumber(visitors)} návštěvníků</p>
-                    <p style="color: #666; font-size: 0.8em;">Podobnost: ${'★'.repeat(Math.min(5, Math.max(1, Math.round(match.similarityScore / 20))))}${'☆'.repeat(5 - Math.min(5, Math.max(1, Math.round(match.similarityScore / 20))))}</p>
-                </div>
-                <div class="historical-stats">
-                    <div class="historical-sales">${formatNumber(sales)} ks</div>
-                    <div style="font-size: 0.9em; color: #666;">${conversion}% konverze</div>
-                </div>
-            </div>
-        `;
+    globalState.historicalData.forEach(record => {
+        if (record.eventName) {
+            eventNames.add(record.eventName);
+        }
     });
     
-    if (historicalDiv) {
-        historicalDiv.innerHTML = html;
+    const eventNamesDatalist = document.getElementById('eventNames');
+    if (eventNamesDatalist) {
+        eventNamesDatalist.innerHTML = '';
+        
+        Array.from(eventNames).sort().forEach(name => {
+            const option = document.createElement('option');
+            option.value = name;
+            eventNamesDatalist.appendChild(option);
+        });
+        
+        console.log(`✅ Populated ${eventNames.size} event names`);
+    }
+}
+
+function updateDataStats() {
+    const dataCountEl = document.getElementById('dataCount');
+    const lastLoadEl = document.getElementById('lastLoad');
+    
+    if (dataCountEl) {
+        dataCountEl.textContent = globalState.historicalData.length.toString();
     }
     
-    console.log(`📈 Historical data displayed: ${topMatches.length} matches`);
+    if (lastLoadEl && globalState.lastDataLoad) {
+        const lastLoadDate = new Date(globalState.lastDataLoad);
+        lastLoadEl.textContent = lastLoadDate.toLocaleString('cs-CZ');
+    }
 }
 
 // ========================================
-// EVENT LISTENERS PRO PART 2A
+// EVENT LISTENERS
 // ========================================
 
-// Event listenery pro automatické spouštění funkcí
 eventBus.on('cityChanged', (data) => {
     console.log('🏙️ City changed, updating distance');
     updateDistance();
 });
 
-eventBus.on('formChanged', (formData) => {
-    console.log('📝 Form changed, updating historical data');
-    updateHistoricalDisplay();
-});
-
 eventBus.on('placeSelected', (place) => {
     console.log('📍 Place selected from Google Maps:', place.name);
-    
-    // Auto-trigger distance calculation
     setTimeout(() => {
         updateDistance();
     }, 500);
@@ -613,22 +655,41 @@ eventBus.on('autoDataLoadRequested', () => {
 });
 
 // ========================================
-// FINALIZACE PART 2A
+// INICIALIZACE A FINALIZACE
 // ========================================
 
-console.log('✅ Donuland Part 2A loaded successfully');
-console.log('📊 Features: ✅ Data Loading ✅ Distance Calculation ✅ Historical Analysis');
-console.log('⏳ Ready for Part 2B: Weather API + AI Prediction');
+document.addEventListener('DOMContentLoaded', function() {
+    if (globalState.googleMapsLoaded && window.google && window.google.maps) {
+        globalState.distanceService = new google.maps.DistanceMatrixService();
+        console.log('🗺️ Distance service initialized');
+    }
+});
 
-// Event pro signalizaci dokončení části 2A
+const originalInitGoogleMaps = window.initGoogleMaps;
+window.initGoogleMaps = function() {
+    if (originalInitGoogleMaps) {
+        originalInitGoogleMaps();
+    }
+    
+    if (window.google && window.google.maps) {
+        globalState.distanceService = new google.maps.DistanceMatrixService();
+        console.log('🗺️ Distance service initialized in Part 2A');
+    }
+};
+
+console.log('✅ Donuland Part 2A loaded successfully');
+console.log('📊 Features: ✅ Data Loading ✅ Google Maps Distance (priority) ✅ Offline Fallback (minimal)');
+console.log('🗺️ Distance: Google Maps API > Offline fallback pro základní města');
+console.log('⏳ Ready for Part 2B: Weather API');
+
 eventBus.emit('part2aLoaded', { 
     timestamp: Date.now(),
     version: '1.0.0',
-    features: ['data-loading', 'distance-calculation', 'historical-analysis']
+    features: ['data-loading', 'google-maps-distance', 'offline-fallback-minimal']
 });
 /* ========================================
    DONULAND MANAGEMENT SYSTEM - PART 2B
-   Weather API pro vícedenní akce + AI Prediction
+   Weather API pro vícedenní akce (čokoláda faktory)
    ======================================== */
 
 console.log('🍩 Donuland Part 2B loading...');
@@ -637,21 +698,24 @@ console.log('🍩 Donuland Part 2B loading...');
 // WEATHER API PRO VÍCEDENNÍ AKCE
 // ========================================
 
-// Hlavní funkce pro aktualizace počasí
+// Hlavní funkce pro aktualizaci počasí
 async function updateWeather() {
     const city = document.getElementById('city').value.trim();
     const dateFrom = document.getElementById('eventDateFrom').value;
     const dateTo = document.getElementById('eventDateTo').value;
+    const eventType = document.getElementById('eventType').value;
     
     if (!city || !dateFrom || !dateTo) {
         console.log('⚠️ City or dates missing for weather update');
+        hideWeatherCard();
         return;
     }
     
     // Pouze pro outdoor akce
-    const eventType = document.getElementById('eventType').value;
     if (eventType !== 'outdoor') {
         console.log('📍 Indoor event, skipping weather');
+        hideWeatherCard();
+        globalState.lastWeatherData = null;
         return;
     }
     
@@ -665,10 +729,13 @@ async function updateWeather() {
     try {
         console.log(`🌤️ Loading weather for ${city} from ${dateFrom} to ${dateTo}`);
         
-        // Načtení počasí pro celou dobu akce
+        showWeatherCard();
+        displayWeatherLoading();
+        
+        // Načtení počasí pro všechny dny akce
         const weatherData = await fetchMultiDayWeatherData(city, dateFrom, dateTo);
         
-        // Agregace počasí pro celou akce
+        // Agregace pro celou akci
         const aggregatedWeather = aggregateWeatherData(weatherData);
         
         // Zobrazení v UI
@@ -681,16 +748,16 @@ async function updateWeather() {
             timestamp: Date.now()
         };
         
-        // Emit event pro predikci
-        eventBus.emit('weatherLoaded', aggregatedWeather);
+        eventBus.emit('weatherLoaded', {
+            aggregated: aggregatedWeather,
+            daily: weatherData
+        });
         
         console.log('✅ Multi-day weather loaded successfully');
         
     } catch (error) {
         console.error('❌ Weather loading failed:', error);
         showNotification(`⚠️ Nepodařilo se načíst počasí: ${error.message}`, 'warning');
-        
-        // Zobrazit fallback počasí
         displayFallbackWeather(city, dateFrom, dateTo);
         
     } finally {
@@ -706,7 +773,6 @@ async function fetchMultiDayWeatherData(city, dateFrom, dateTo) {
         throw new Error('Weather API klíč není nastaven');
     }
     
-    // Vytvoření seznamu dnů
     const days = getDateRange(dateFrom, dateTo);
     console.log(`📅 Fetching weather for ${days.length} days:`, days);
     
@@ -728,7 +794,7 @@ async function fetchMultiDayWeatherData(city, dateFrom, dateTo) {
             let weather;
             
             if (daysDiff > 5) {
-                // Pro vzdálené budoucí akce použijeme sezónní odhad
+                // Vzdálené budoucí akce - sezónní odhad
                 weather = generateSeasonalWeather(city, eventDate);
             } else if (daysDiff >= 0) {
                 // Předpověď pro následujících 5 dní
@@ -774,11 +840,11 @@ function getDateRange(startDate, endDate) {
 // Načtení předpovědi počasí pro konkrétní den
 async function fetchWeatherForecast(city, apiKey, daysAhead) {
     const url = daysAhead === 0 
-        ? `https://api.openweathermap.org/data/2.5/weather?q=${encodeURIComponent(city)}&appid=${apiKey}&units=metric&lang=cs`
-        : `https://api.openweathermap.org/data/2.5/forecast?q=${encodeURIComponent(city)}&appid=${apiKey}&units=metric&lang=cs`;
+        ? `https://api.openweathermap.org/data/2.5/weather?q=${encodeURIComponent(city)},CZ&appid=${apiKey}&units=metric&lang=cs`
+        : `https://api.openweathermap.org/data/2.5/forecast?q=${encodeURIComponent(city)},CZ&appid=${apiKey}&units=metric&lang=cs`;
     
     try {
-        const response = await fetch(url);
+        const response = await fetchWithTimeout(url, {}, 10000);
         
         if (!response.ok) {
             throw new Error(`Weather API error: ${response.status}`);
@@ -836,21 +902,27 @@ function generateSeasonalWeather(city, date) {
     
     // Sezónní průměry pro ČR
     const seasonalData = {
-        temp: [0, 2, 7, 13, 18, 21, 23, 22, 18, 12, 6, 2][month],
-        weather: month >= 5 && month <= 8 ? 'Clear' : month >= 11 || month <= 2 ? 'Clouds' : 'Clouds'
+        temp: [1, 3, 8, 13, 18, 21, 23, 22, 18, 12, 6, 2][month],
+        weather: month >= 5 && month <= 8 ? 'Clear' : month >= 11 || month <= 2 ? 'Clouds' : 'Clouds',
+        humidity: [85, 80, 70, 65, 60, 65, 70, 70, 75, 80, 85, 85][month],
+        wind: [4.2, 4.0, 4.5, 3.8, 3.5, 3.2, 3.0, 3.1, 3.4, 3.8, 4.1, 4.3][month]
     };
     
     return {
         main: seasonalData.weather,
         description: seasonalData.weather === 'Clear' ? 'jasno' : 'oblačno',
         temp: seasonalData.temp + Math.round((Math.random() - 0.5) * 8), // ±4°C variace
-        humidity: 60 + Math.round((Math.random() - 0.5) * 30),
+        humidity: seasonalData.humidity + Math.round((Math.random() - 0.5) * 20),
         pressure: 1013 + Math.round((Math.random() - 0.5) * 40),
-        windSpeed: 2 + Math.random() * 4,
+        windSpeed: seasonalData.wind + (Math.random() - 0.5) * 2,
         icon: seasonalData.weather === 'Clear' ? '01d' : '03d',
         isFallback: true
     };
 }
+
+// ========================================
+// AGREGACE POČASÍ PRO VÍCEDENNÍ AKCE
+// ========================================
 
 // Agregace počasí pro celou akci
 function aggregateWeatherData(dailyWeather) {
@@ -891,9 +963,10 @@ function aggregateWeatherData(dailyWeather) {
     // Nejvyšší rychlost větru
     const maxWindSpeed = Math.max(...dailyWeather.map(day => day.windSpeed));
     
-    // Počet problematických dnů pro čokoládové donuty
+    // 🍫 KLÍČOVÉ: Počet problematických dnů pro čokoládové donuty
     const badWeatherDays = dailyWeather.filter(day => 
-        day.main === 'Rain' || day.main === 'Thunderstorm' || day.temp < 5 || day.temp > 24
+        day.main === 'Rain' || day.main === 'Thunderstorm' || 
+        day.temp < 5 || day.temp > 24  // Čokoláda se začíná tavit nad 24°C
     ).length;
     
     return {
@@ -910,23 +983,105 @@ function aggregateWeatherData(dailyWeather) {
     };
 }
 
+// ========================================
+// 🍫 ČOKOLÁDOVÉ DONUTY - WEATHER FAKTORY
+// ========================================
+
+// OPRAVENÝ výpočet vlivu počasí na prodej čokoládových donutů
+function getChocolateWeatherImpactFactor(weather) {
+    let factor = 1.0;
+    
+    // 🔥 KRITICKÉ: Vliv teploty na čokoládové donuty
+    if (weather.avgTemp >= 18 && weather.avgTemp <= 24) {
+        factor *= 1.20; // ✅ IDEÁLNÍ teplota pro čokoládu (18-24°C)
+    } else if (weather.avgTemp >= 15 && weather.avgTemp < 18) {
+        factor *= 1.05; // Chladnější, ale ok
+    } else if (weather.avgTemp > 24 && weather.avgTemp <= 27) {
+        factor *= 0.85; // ⚠️ Začíná být problém s čokoládou
+    } else if (weather.avgTemp > 27 && weather.avgTemp <= 30) {
+        factor *= 0.60; // 🔥 PROBLÉM: Čokoláda se začíná tavit
+    } else if (weather.avgTemp > 30) {
+        factor *= 0.40; // 🚨 KRITICKÉ: Čokoláda se taje, rychlá zkáza
+    } else if (weather.avgTemp < 5) {
+        factor *= 0.75; // ❄️ Studeno - lidé nechtějí sladké
+    } else {
+        factor *= 0.90; // Chladnější, ale přijatelné
+    }
+    
+    // Vliv počasí na návštěvnost
+    switch (weather.main) {
+        case 'Clear':
+            factor *= 1.15; // ☀️ Krásné počasí
+            break;
+        case 'Clouds':
+            factor *= 0.95; // ☁️ Oblačno - mírně horší
+            break;
+        case 'Rain':
+        case 'Drizzle':
+            factor *= 0.55; // 🌧️ Déšť - významně méně lidí
+            break;
+        case 'Thunderstorm':
+            factor *= 0.35; // ⛈️ Bouřka - velmi málo lidí
+            break;
+        case 'Snow':
+            factor *= 0.50; // ❄️ Sníh - málo lidí venku
+            break;
+    }
+    
+    // Vliv větru
+    if (weather.windSpeed > 8) {
+        factor *= 0.80; // 💨 Silný vítr - nepříjemné pro venkovní akce
+    }
+    
+    // Penalizace za více špatných dnů
+    if (weather.badWeatherDays > 0) {
+        const badDaysRatio = weather.badWeatherDays / weather.totalDays;
+        factor *= (1 - badDaysRatio * 0.3); // Až -30% za 100% špatných dnů
+    }
+    
+    return Math.max(0.2, Math.min(1.5, factor)); // Omezení na 20%-150%
+}
+
+// ========================================
+// WEATHER UI ZOBRAZENÍ
+// ========================================
+
+// Zobrazení weather karty
+function showWeatherCard() {
+    const weatherCard = document.getElementById('weatherCard');
+    if (weatherCard) {
+        weatherCard.style.display = 'block';
+    }
+}
+
+// Skrytí weather karty
+function hideWeatherCard() {
+    const weatherCard = document.getElementById('weatherCard');
+    if (weatherCard) {
+        weatherCard.style.display = 'none';
+    }
+    globalState.lastWeatherData = null;
+}
+
+// Zobrazení loading stavu
+function displayWeatherLoading() {
+    const weatherDisplay = document.getElementById('weatherDisplay');
+    if (!weatherDisplay) return;
+    
+    weatherDisplay.innerHTML = `
+        <div style="text-align: center; padding: 30px;">
+            <div class="spinner" style="margin: 0 auto 15px;"></div>
+            <p>Načítám předpověď počasí...</p>
+        </div>
+    `;
+}
+
 // Zobrazení vícedenního počasí v UI
 function displayMultiDayWeather(dailyWeather, aggregatedWeather) {
     const weatherDisplay = document.getElementById('weatherDisplay');
-    const weatherCard = document.getElementById('weatherCard');
+    if (!weatherDisplay) return;
     
-    if (!weatherDisplay || !weatherCard) return;
-    
-    weatherCard.style.display = 'block';
-    
-    // Ikona podle agregovaného počasí
-    let icon = '☀️';
-    if (aggregatedWeather.main === 'Clouds') icon = '☁️';
-    else if (aggregatedWeather.main === 'Rain') icon = '🌧️';
-    else if (aggregatedWeather.main === 'Drizzle') icon = '🌦️';
-    else if (aggregatedWeather.main === 'Snow') icon = '❄️';
-    else if (aggregatedWeather.main === 'Thunderstorm') icon = '⛈️';
-    else if (aggregatedWeather.main === 'Clear') icon = '☀️';
+    const icon = getWeatherIcon(aggregatedWeather.main);
     
     // Výpočet weather faktoru pro čokoládové donuty
     const impact = getChocolateWeatherImpactFactor(aggregatedWeather);
@@ -934,14 +1089,14 @@ function displayMultiDayWeather(dailyWeather, aggregatedWeather) {
     let impactColor = '#666';
     
     if (impact > 1.05) {
-        impactText = 'Pozitivní vliv na prodej';
+        impactText = '✅ Pozitivní vliv na prodej';
         impactColor = '#28a745';
     } else if (impact < 0.85) {
-        impactText = 'Negativní vliv na prodej';
+        impactText = '❌ Negativní vliv na prodej';
         impactColor = '#dc3545';
     }
     
-    // Varování před problematickým počasím
+    // 🍫 Varování před problematickým počasím pro čokoládu
     let warningHtml = '';
     if (aggregatedWeather.badWeatherDays > 0) {
         const badDaysText = aggregatedWeather.badWeatherDays === 1 ? 'den' : 
@@ -949,10 +1104,10 @@ function displayMultiDayWeather(dailyWeather, aggregatedWeather) {
         
         warningHtml = `
             <div class="weather-warning">
-                ⚠️ <strong>Varování:</strong> ${aggregatedWeather.badWeatherDays} ${badDaysText} z ${aggregatedWeather.totalDays} 
-                má nepříznivé počasí pro prodej čokoládových donutů. 
-                ${aggregatedWeather.avgTemp > 24 ? 'Vysoké teploty způsobí tání čokolády!' : ''}
-                ${aggregatedWeather.main === 'Rain' || aggregatedWeather.main === 'Thunderstorm' ? 'Déšť sníží návštěvnost!' : ''}
+                ⚠️ <strong>Varování pro čokoládové donuty:</strong> ${aggregatedWeather.badWeatherDays} ${badDaysText} z ${aggregatedWeather.totalDays} 
+                má nepříznivé podmínky.
+                ${aggregatedWeather.avgTemp > 24 ? '<br>🔥 <strong>POZOR:</strong> Vysoké teploty způsobí tání čokolády!' : ''}
+                ${aggregatedWeather.main === 'Rain' || aggregatedWeather.main === 'Thunderstorm' ? '<br>🌧️ Déšť sníží návštěvnost!' : ''}
             </div>
         `;
     }
@@ -965,19 +1120,31 @@ function displayMultiDayWeather(dailyWeather, aggregatedWeather) {
     dailyWeather.forEach(day => {
         const dayDate = new Date(day.date);
         const dayName = dayDate.toLocaleDateString('cs-CZ', { weekday: 'short' });
+        const dayNumber = dayDate.getDate();
         const dayIcon = getWeatherIcon(day.main);
         
-        // Barevné označení podle teploty pro čokoládu
+        // 🍫 Barevné označení podle teploty pro čokoládu
         let tempColor = '#333';
-        if (day.temp < 5) tempColor = '#3498db'; // Modrá - studeno
-        else if (day.temp >= 18 && day.temp <= 24) tempColor = '#27ae60'; // Zelená - ideální
-        else if (day.temp > 24) tempColor = '#e74c3c'; // Červená - horko (taje čokoláda)
+        let tempWarning = '';
+        if (day.temp < 5) {
+            tempColor = '#3498db'; // Modrá - studeno
+        } else if (day.temp >= 18 && day.temp <= 24) {
+            tempColor = '#27ae60'; // Zelená - ideální pro čokoládu
+            tempWarning = '✅';
+        } else if (day.temp > 24 && day.temp <= 27) {
+            tempColor = '#f39c12'; // Oranžová - začíná být problém
+            tempWarning = '⚠️';
+        } else if (day.temp > 27) {
+            tempColor = '#e74c3c'; // Červená - čokoláda se taje
+            tempWarning = '🔥';
+        }
         
         dailyHtml += `
             <div style="text-align: center; min-width: 80px; padding: 10px; background: rgba(255,255,255,0.1); border-radius: 8px;">
                 <div style="font-weight: bold; font-size: 0.9em;">${dayName}</div>
+                <div style="font-size: 0.8em; opacity: 0.8;">${dayNumber}.</div>
                 <div style="font-size: 1.5em; margin: 5px 0;">${dayIcon}</div>
-                <div style="font-weight: bold; color: ${tempColor};">${day.temp}°C</div>
+                <div style="font-weight: bold; color: ${tempColor};">${tempWarning}${day.temp}°C</div>
                 <div style="font-size: 0.8em; opacity: 0.8;">${day.description}</div>
                 ${day.isFallback ? '<div style="font-size: 0.7em; opacity: 0.6;">*odhad</div>' : ''}
             </div>
@@ -1041,61 +1208,6 @@ function getWeatherIcon(main) {
     }
 }
 
-// OPRAVENÝ výpočet vlivu počasí na prodej čokoládových donutů
-function getChocolateWeatherImpactFactor(weather) {
-    let factor = 1.0;
-    
-    // KRITICKÉ: Vliv teploty na čokoládové donuty
-    if (weather.avgTemp >= 18 && weather.avgTemp <= 24) {
-        factor *= 1.20; // IDEÁLNÍ teplota pro čokoládu (18-24°C)
-    } else if (weather.avgTemp >= 15 && weather.avgTemp <= 27) {
-        factor *= 1.05; // Přijatelná teplota
-    } else if (weather.avgTemp > 24 && weather.avgTemp <= 27) {
-        factor *= 0.85; // Začíná být problém s čokoládou
-    } else if (weather.avgTemp > 27) {
-        factor *= 0.60; // PROBLÉM: Čokoláda se začíná tavit
-    } else if (weather.avgTemp > 30) {
-        factor *= 0.40; // KRITICKÉ: Čokoláda se taje, rychlá zkáza
-    } else if (weather.avgTemp < 5) {
-        factor *= 0.75; // Studeno - lidé nechtějí sladké
-    } else {
-        factor *= 0.90; // Chladnější, ale ok
-    }
-    
-    // Vliv počasí na návštěvnost
-    switch (weather.main) {
-        case 'Clear':
-            factor *= 1.15; // Krásné počasí
-            break;
-        case 'Clouds':
-            factor *= 0.95; // Oblačno - mírně horší
-            break;
-        case 'Rain':
-        case 'Drizzle':
-            factor *= 0.55; // Déšť - významně méně lidí
-            break;
-        case 'Thunderstorm':
-            factor *= 0.35; // Bouřka - velmi málo lidí
-            break;
-        case 'Snow':
-            factor *= 0.50; // Sníh - málo lidí venku
-            break;
-    }
-    
-    // Vliv větru
-    if (weather.windSpeed > 8) {
-        factor *= 0.80; // Silný vítr - nepříjemné pro venkovní akce
-    }
-    
-    // Penalizace za více špatných dnů
-    if (weather.badWeatherDays > 0) {
-        const badDaysRatio = weather.badWeatherDays / weather.totalDays;
-        factor *= (1 - badDaysRatio * 0.3); // Až -30% za 100% špatných dnů
-    }
-    
-    return Math.max(0.2, Math.min(1.5, factor)); // Omezení na 20%-150%
-}
-
 // Zobrazení fallback počasí pro vícedenní akci
 function displayFallbackWeather(city, dateFrom, dateTo) {
     const days = getDateRange(dateFrom, dateTo);
@@ -1108,29 +1220,114 @@ function displayFallbackWeather(city, dateFrom, dateTo) {
     const aggregated = aggregateWeatherData(fallbackDaily);
     displayMultiDayWeather(fallbackDaily, aggregated);
     
-    // Uložení fallback dat
+    // Uložení fallback dat pro predikci
     globalState.lastWeatherData = {
         daily: fallbackDaily,
         aggregated: aggregated,
         timestamp: Date.now()
     };
+    
+    showNotification('⚠️ Použity sezónní odhady počasí', 'warning', 3000);
 }
+
+// ========================================
+// EVENT LISTENERS PRO PART 2B
+// ========================================
+
+eventBus.on('cityChanged', (data) => {
+    console.log('🏙️ City changed, updating weather');
+    updateWeather();
+});
+
+eventBus.on('dateChanged', () => {
+    console.log('📅 Date changed, updating weather');
+    updateWeather();
+});
+
+eventBus.on('eventTypeChanged', (data) => {
+    console.log('🏢 Event type changed:', data.type);
+    
+    if (data.type === 'outdoor') {
+        const city = document.getElementById('city').value;
+        const dateFrom = document.getElementById('eventDateFrom').value;
+        
+        if (city && dateFrom) {
+            updateWeather();
+        }
+    } else {
+        hideWeatherCard();
+        globalState.lastWeatherData = null;
+    }
+});
+
+eventBus.on('placeSelected', (place) => {
+    console.log('📍 Place selected, updating weather');
+    setTimeout(() => {
+        updateWeather();
+    }, 500);
+});
+
+eventBus.on('weatherUpdateRequested', (data) => {
+    updateWeather();
+});
+
+// Override updateWeatherCard z part1
+function updateWeatherCard() {
+    const eventType = document.getElementById('eventType').value;
+    
+    if (eventType === 'outdoor') {
+        showWeatherCard();
+        const city = document.getElementById('city').value;
+        const dateFrom = document.getElementById('eventDateFrom').value;
+        
+        if (city && dateFrom) {
+            updateWeather();
+        }
+    } else {
+        hideWeatherCard();
+        globalState.lastWeatherData = null;
+    }
+    
+    console.log(`🌤️ Event type changed to: ${eventType}`);
+}
+
+// ========================================
+// FINALIZACE PART 2B
+// ========================================
+
+console.log('✅ Donuland Part 2B loaded successfully');
+console.log('🌤️ Features: ✅ Multi-day Weather ✅ Weather Aggregation ✅ Chocolate Temperature Logic');
+console.log('🍫 Chocolate factors: 18-24°C = ✅ ideal, >24°C = 🔥 melting problem, >30°C = 🚨 critical');
+console.log('📅 Weather aggregation: Average temp + Worst weather wins + Bad days count');
+console.log('⏳ Ready for Part 2C: AI Prediction Algorithm');
+
+eventBus.emit('part2bLoaded', { 
+    timestamp: Date.now(),
+    version: '1.1.0',
+    features: ['multi-day-weather', 'weather-aggregation', 'chocolate-temperature-logic', 'bad-weather-detection']
+});
+/* ========================================
+   DONULAND MANAGEMENT SYSTEM - PART 2C
+   AI Prediction Algorithm + Historical Analysis + Business Metrics
+   ======================================== */
+
+console.log('🍩 Donuland Part 2C loading...');
 
 // ========================================
 // AI PREDIKČNÍ ALGORITMUS
 // ========================================
 
-// Hlavní funkce pro predikci
+// Hlavní funkce pro výpočet predikce
 function calculatePrediction(formData) {
     console.log('🤖 Calculating AI prediction...');
     
     performanceMonitor.start('prediction');
     
     try {
-        // 1. Základní faktory
+        // 1. Základní faktory kategorie
         const baseConversion = getBaseCategoryFactor(formData.category);
         
-        // 2. Historické faktory
+        // 2. Historické faktory z podobných akcí
         const historicalFactor = getHistoricalFactor(formData);
         
         // 3. Městský faktor
@@ -1145,7 +1342,7 @@ function calculatePrediction(formData) {
         // 6. Faktor velikosti akce
         const sizeFactor = getSizeFactor(formData.visitors);
         
-        // 7. Weather faktor (pokud je outdoor) - OPRAVENÝ pro čokoládu
+        // 7. Weather faktor (pokud je outdoor) - s čokoládovými faktory
         let weatherFactor = 1.0;
         if (formData.eventType === 'outdoor' && globalState.lastWeatherData) {
             weatherFactor = getChocolateWeatherImpactFactor(globalState.lastWeatherData.aggregated);
@@ -1154,7 +1351,7 @@ function calculatePrediction(formData) {
         // 8. Faktor délky akce
         const durationFactor = getDurationFactor(formData.durationDays || 1);
         
-        // Finální výpočet
+        // Finální výpočet konverze
         const finalConversion = Math.min(CONFIG.MAX_CONVERSION, 
             Math.max(CONFIG.MIN_CONVERSION, 
                 baseConversion * historicalFactor * cityFactor * competitionFactor * 
@@ -1162,6 +1359,7 @@ function calculatePrediction(formData) {
             )
         );
         
+        // Predikovaný prodej
         const predictedSales = Math.max(CONFIG.MIN_SALES, 
             Math.round(formData.visitors * finalConversion)
         );
@@ -1234,6 +1432,10 @@ function calculatePrediction(formData) {
     }
 }
 
+// ========================================
+// PREDIKČNÍ FAKTORY
+// ========================================
+
 // Získání základního faktoru kategorie
 function getBaseCategoryFactor(category) {
     return CONFIG.CATEGORY_FACTORS[category] || CONFIG.CATEGORY_FACTORS['ostatní'];
@@ -1252,15 +1454,28 @@ function getHistoricalFactor(formData) {
         return 1.0;
     }
     
-    // Vypočítat průměrnou konverzi podobných akcí
-    const avgConversion = similarEvents.reduce((sum, event) => {
-        return sum + (event.sales / event.visitors);
-    }, 0) / similarEvents.length;
+    console.log(`📊 Found ${similarEvents.length} similar events for historical factor`);
     
+    // Vypočítat průměrnou konverzi podobných akcí
+    const conversions = [];
+    similarEvents.forEach(event => {
+        if (event.sales > 0 && event.visitors > 0) {
+            conversions.push(event.sales / event.visitors);
+        }
+    });
+    
+    if (conversions.length === 0) {
+        return 1.0;
+    }
+    
+    const avgConversion = conversions.reduce((sum, conv) => sum + conv, 0) / conversions.length;
     const baseConversion = getBaseCategoryFactor(formData.category);
     
     // Poměr skutečné vs očekávané konverze
-    return Math.max(0.5, Math.min(2.0, avgConversion / baseConversion));
+    const factor = Math.max(0.5, Math.min(2.0, avgConversion / baseConversion));
+    
+    console.log(`📈 Historical factor: ${factor.toFixed(2)} (avg conversion: ${(avgConversion * 100).toFixed(1)}%)`);
+    return factor;
 }
 
 // Najít podobné akce v historických datech
@@ -1274,21 +1489,25 @@ function findSimilarEvents(formData) {
         // Město
         if (removeDiacritics(event.city.toLowerCase()) === removeDiacritics(formData.city.toLowerCase())) {
             score += 30;
+        } else if (event.city.toLowerCase().includes(formData.city.toLowerCase()) || 
+                   formData.city.toLowerCase().includes(event.city.toLowerCase())) {
+            score += 15;
         }
         
         // Podobná velikost (±50%)
-        if (event.visitors > 0) {
+        if (event.visitors > 0 && formData.visitors > 0) {
             const sizeDiff = Math.abs(event.visitors - formData.visitors) / formData.visitors;
             if (sizeDiff <= 0.5) score += 20;
             else if (sizeDiff <= 1.0) score += 10;
         }
         
         // Podobná sezóna (±2 měsíce)
-        if (event.dateFrom) {
+        if (event.dateFrom && formData.eventDateFrom) {
             const eventMonth = new Date(event.dateFrom).getMonth();
             const formMonth = new Date(formData.eventDateFrom).getMonth();
-            const monthDiff = Math.abs(eventMonth - formMonth);
-            if (monthDiff <= 2 || monthDiff >= 10) score += 10; // 10 = 12-2 pro December-February
+            let monthDiff = Math.abs(eventMonth - formMonth);
+            if (monthDiff > 6) monthDiff = 12 - monthDiff; // Handle year wrap
+            if (monthDiff <= 2) score += 10;
         }
         
         return score >= 50; // Minimální podobnost 50%
@@ -1494,6 +1713,206 @@ function extractDistanceNumber(distanceText) {
 }
 
 // ========================================
+// HISTORICKÁ DATA ANALÝZA
+// ========================================
+
+// Aktualizace historických dat v UI
+function updateHistoricalDisplay() {
+    const formData = gatherFormData();
+    
+    if (!formData.eventName && !formData.city && !formData.category) {
+        console.log('⚠️ Insufficient data for historical display');
+        hideHistoricalCard();
+        return;
+    }
+    
+    const historicalResults = getHistoricalData(formData);
+    displayHistoricalData(historicalResults, formData);
+}
+
+// Získání relevantních historických dat
+function getHistoricalData(formData) {
+    if (!globalState.historicalData || globalState.historicalData.length === 0) {
+        return { matches: [], summary: null };
+    }
+    
+    // Najít podobné akce s váženým skóre
+    const matches = globalState.historicalData.map(record => {
+        let score = 0;
+        let matchReasons = [];
+        
+        // Název akce (40%)
+        if (formData.eventName && record.eventName) {
+            const eventNameNorm = formData.eventName.toLowerCase();
+            const recordNameNorm = record.eventName.toLowerCase();
+            
+            if (recordNameNorm.includes(eventNameNorm) || eventNameNorm.includes(recordNameNorm)) {
+                score += 40;
+                matchReasons.push('název akce');
+            }
+        }
+        
+        // Město (30%)
+        if (formData.city && record.city) {
+            const cityNorm = removeDiacritics(formData.city.toLowerCase());
+            const recordCityNorm = removeDiacritics(record.city.toLowerCase());
+            
+            if (recordCityNorm === cityNorm) {
+                score += 30;
+                matchReasons.push('stejné město');
+            } else if (recordCityNorm.includes(cityNorm) || cityNorm.includes(recordCityNorm)) {
+                score += 15;
+                matchReasons.push('podobné město');
+            }
+        }
+        
+        // Kategorie (30%)
+        if (formData.category && record.category) {
+            if (record.category === formData.category) {
+                score += 30;
+                matchReasons.push('stejná kategorie');
+            }
+        }
+        
+        // Podobná velikost (bonus 10%)
+        if (formData.visitors && record.visitors) {
+            const sizeDiff = Math.abs(record.visitors - formData.visitors) / formData.visitors;
+            if (sizeDiff <= 0.3) {
+                score += 10;
+                matchReasons.push('podobná velikost');
+            }
+        }
+        
+        return {
+            ...record,
+            similarityScore: score,
+            matchReasons: matchReasons
+        };
+    })
+    .filter(record => record.similarityScore >= 20) // Minimální podobnost 20%
+    .sort((a, b) => b.similarityScore - a.similarityScore);
+    
+    // Summary statistiky
+    let summary = null;
+    if (matches.length > 0) {
+        const sales = matches.map(m => m.sales).filter(s => s > 0);
+        const visitors = matches.map(m => m.visitors).filter(v => v > 0);
+        
+        if (sales.length > 0) {
+            summary = {
+                count: matches.length,
+                avgSales: sales.reduce((sum, s) => sum + s, 0) / sales.length,
+                maxSales: Math.max(...sales),
+                minSales: Math.min(...sales),
+                avgVisitors: visitors.length > 0 ? visitors.reduce((sum, v) => sum + v, 0) / visitors.length : 0,
+                avgConversion: visitors.length > 0 && sales.length > 0 ? 
+                    (sales.reduce((sum, s) => sum + s, 0) / visitors.reduce((sum, v) => sum + v, 0)) * 100 : 0
+            };
+        }
+    }
+    
+    return {
+        matches: matches.slice(0, 10), // Top 10 matches
+        summary: summary
+    };
+}
+
+// Zobrazení historických dat v UI
+function displayHistoricalData(historicalResults, formData) {
+    const historicalCard = document.getElementById('historicalCard');
+    const historicalDiv = document.getElementById('historicalData');
+    
+    if (!historicalResults.matches || historicalResults.matches.length === 0) {
+        hideHistoricalCard();
+        return;
+    }
+    
+    if (historicalCard) historicalCard.style.display = 'block';
+    
+    const topMatches = historicalResults.matches.slice(0, 5);
+    
+    let html = '';
+    
+    // Summary sekce
+    if (historicalResults.summary) {
+        const summary = historicalResults.summary;
+        html += `
+            <div class="historical-summary">
+                <h4>📊 Shrnutí podobných akcí (${summary.count} akcí)</h4>
+                <div class="stats-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 15px; margin-top: 10px;">
+                    <div style="text-align: center;">
+                        <div style="font-size: 1.3em; font-weight: bold; color: #1976d2;">${Math.round(summary.avgSales)}</div>
+                        <div style="font-size: 0.9em; color: #666;">Průměrný prodej</div>
+                    </div>
+                    <div style="text-align: center;">
+                        <div style="font-size: 1.3em; font-weight: bold; color: #388e3c;">${summary.maxSales}</div>
+                        <div style="font-size: 0.9em; color: #666;">Nejlepší výsledek</div>
+                    </div>
+                    <div style="text-align: center;">
+                        <div style="font-size: 1.3em; font-weight: bold; color: #f57c00;">${summary.minSales}</div>
+                        <div style="font-size: 0.9em; color: #666;">Nejhorší výsledek</div>
+                    </div>
+                    <div style="text-align: center;">
+                        <div style="font-size: 1.3em; font-weight: bold; color: #9c27b0;">${summary.avgConversion.toFixed(1)}%</div>
+                        <div style="font-size: 0.9em; color: #666;">Průměrná konverze</div>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+    
+    html += '<h4>🔍 Nejpodobnější akce:</h4>';
+    
+    topMatches.forEach((match, index) => {
+        const sales = match.sales || 0;
+        const eventName = match.eventName || 'Neznámá akce';
+        const city = match.city || 'Neznámé město';
+        const date = match.dateTo || match.dateFrom || 'Neznámé datum';
+        const visitors = match.visitors || 0;
+        const conversion = visitors > 0 ? ((sales / visitors) * 100).toFixed(1) : '0';
+        const similarityStars = Math.min(5, Math.max(1, Math.round(match.similarityScore / 20)));
+        
+        // Barevné označení podle výkonu
+        let performanceColor = '#666';
+        if (conversion > 15) performanceColor = '#28a745'; // Zelená - výborné
+        else if (conversion > 10) performanceColor = '#17a2b8'; // Modrá - dobré
+        else if (conversion > 5) performanceColor = '#ffc107'; // Žlutá - průměrné
+        else performanceColor = '#dc3545'; // Červená - špatné
+        
+        html += `
+            <div class="historical-item">
+                <div class="historical-info">
+                    <h4>${escapeHtml(eventName)}</h4>
+                    <p><strong>${escapeHtml(city)}</strong> • ${formatDate(date)} • ${formatNumber(visitors)} návštěvníků</p>
+                    <p style="color: #666; font-size: 0.8em;">
+                        Podobnost: ${'★'.repeat(similarityStars)}${'☆'.repeat(5 - similarityStars)} 
+                        (${match.matchReasons.join(', ')})
+                    </p>
+                </div>
+                <div class="historical-stats">
+                    <div class="historical-sales" style="color: ${performanceColor};">${formatNumber(sales)} ks</div>
+                    <div style="font-size: 0.9em; color: ${performanceColor};">${conversion}% konverze</div>
+                </div>
+            </div>
+        `;
+    });
+    
+    if (historicalDiv) {
+        historicalDiv.innerHTML = html;
+    }
+    
+    console.log(`📈 Historical data displayed: ${topMatches.length} matches`);
+}
+
+// Skrytí historical karty
+function hideHistoricalCard() {
+    const historicalCard = document.getElementById('historicalCard');
+    if (historicalCard) {
+        historicalCard.style.display = 'none';
+    }
+}
+
+// ========================================
 // MAIN PREDICTION FUNCTION
 // ========================================
 
@@ -1557,40 +1976,136 @@ function updatePrediction() {
 }
 
 // ========================================
-// EVENT LISTENERS PRO PART 2B
+// GENEROVÁNÍ DOPORUČENÍ
 // ========================================
 
-// Event listenery pro weather a predikci
-eventBus.on('cityChanged', (data) => {
-    console.log('🏙️ City changed, updating weather');
-    updateWeather();
-});
-
-eventBus.on('dateChanged', () => {
-    console.log('📅 Date changed, updating weather');
-    updateWeather();
-});
-
-eventBus.on('formChanged', (formData) => {
-    console.log('📝 Form changed, updating prediction');
+// Generování doporučení na základě predikce
+function generateRecommendations(formData, prediction, businessResults) {
+    const recommendations = [];
     
-    // Trigger predikce
-    if (validateRequiredFields().valid) {
-        updatePrediction();
+    // Weather doporučení pro čokoládu
+    if (formData.eventType === 'outdoor' && globalState.lastWeatherData) {
+        const weather = globalState.lastWeatherData.aggregated;
+        
+        if (weather.avgTemp > 24) {
+            recommendations.push({
+                type: 'warning',
+                icon: '🔥',
+                title: 'Vysoká teplota - riziko tání čokolády',
+                text: `Průměrná teplota ${weather.avgTemp}°C může způsobit tání čokolády. Doporučujeme chladící boxy nebo stín.`
+            });
+        }
+        
+        if (weather.main === 'Rain' || weather.main === 'Thunderstorm') {
+            recommendations.push({
+                type: 'warning',
+                icon: '🌧️',
+                title: 'Riziko deště',
+                text: 'Připravte krytí pro stánek a záložní plán pro špatné počasí.'
+            });
+        }
+        
+        if (weather.badWeatherDays > weather.totalDays / 2) {
+            recommendations.push({
+                type: 'warning',
+                icon: '⚠️',
+                title: 'Více než polovina dnů s nepříznivým počasím',
+                text: 'Zvažte přesunutí akce nebo dodatečné marketingové aktivity.'
+            });
+        }
     }
-});
-
-eventBus.on('placeSelected', (place) => {
-    console.log('📍 Place selected, updating weather');
     
-    // Auto-trigger weather loading
-    setTimeout(() => {
-        updateWeather();
-    }, 500);
-});
+    // Business doporučení
+    if (businessResults.roi < 20) {
+        recommendations.push({
+            type: 'warning',
+            icon: '📉',
+            title: 'Nízká návratnost investice',
+            text: `ROI ${businessResults.roi.toFixed(1)}% je pod doporučenou hranicí 20%. Zvažte snížení nákladů nebo zvýšení ceny.`
+        });
+    }
+    
+    if (businessResults.margin < 30) {
+        recommendations.push({
+            type: 'info',
+            icon: '💰',
+            title: 'Optimalizace marže',
+            text: `Marže ${businessResults.margin.toFixed(1)}% by mohla být vyšší. Zvažte optimalizaci nákladů.`
+        });
+    }
+    
+    // Predikční doporučení
+    if (prediction.confidence < 60) {
+        recommendations.push({
+            type: 'info',
+            icon: '🎯',
+            title: 'Nízká confidence predikce',
+            text: `Confidence ${prediction.confidence}% - málo historických dat. Výsledek může být méně přesný.`
+        });
+    }
+    
+    // Konkurence doporučení
+    if (formData.competition === 3) {
+        recommendations.push({
+            type: 'warning',
+            icon: '🏪',
+            title: 'Vysoká konkurence',
+            text: 'Připravte unikátní nabídku nebo speciální akce pro vyčnění mezi konkurencí.'
+        });
+    }
+    
+    // Sezónní doporučení
+    const seasonalFactor = getSeasonalFactor(formData.eventDateFrom);
+    if (seasonalFactor < 0.9) {
+        recommendations.push({
+            type: 'info',
+            icon: '📅',
+            title: 'Mimo sezónu',
+            text: 'Akce je mimo hlavní sezónu. Zvažte dodatečné marketingové aktivity.'
+        });
+    }
+    
+    // Velikost akce doporučení
+    if (formData.visitors > 20000) {
+        recommendations.push({
+            type: 'success',
+            icon: '🎉',
+            title: 'Velká akce - vysoký potenciál',
+            text: 'Zvažte navýšení zásob a dodatečný personál pro zvládnutí velkého množství zákazníků.'
+        });
+    }
+    
+    // Vzdálenost doporučení
+    const distance = extractDistanceNumber(formData.distance);
+    if (distance > 200) {
+        recommendations.push({
+            type: 'warning',
+            icon: '🚗',
+            title: 'Dlouhá vzdálenost',
+            text: `Vzdálenost ${distance} km znamená vysoké dopravní náklady. Zvažte vícedenní pobyt nebo kombinaci více akcí.`
+        });
+    }
+    
+    return recommendations;
+}
 
-eventBus.on('weatherUpdateRequested', (data) => {
-    updateWeather();
+// ========================================
+// EVENT LISTENERS PRO PART 2C
+// ========================================
+
+// Event listenery pro predikci
+eventBus.on('formChanged', (formData) => {
+    console.log('📝 Form changed, updating prediction and historical data');
+    
+    // Update historical display
+    updateHistoricalDisplay();
+    
+    // Trigger predikce pokud je formulář validní
+    if (validateRequiredFields().valid) {
+        setTimeout(() => {
+            updatePrediction();
+        }, 300); // Malé zpoždění pro lepší UX
+    }
 });
 
 eventBus.on('weatherLoaded', (weatherData) => {
@@ -1602,30 +2117,190 @@ eventBus.on('weatherLoaded', (weatherData) => {
     }
 });
 
-eventBus.on('eventTypeChanged', (data) => {
-    console.log('🏢 Event type changed:', data.type);
+eventBus.on('triggerPrediction', () => {
+    console.log('🤖 Manual prediction trigger');
+    updatePrediction();
+});
+
+eventBus.on('predictionUpdateRequested', () => {
+    console.log('🔄 Prediction update requested');
+    updatePrediction();
+});
+
+eventBus.on('dataLoaded', (data) => {
+    console.log('📊 Data loaded, updating historical display');
     
-    if (data.type === 'outdoor') {
-        // Načtení počasí pro outdoor akce
-        const city = document.getElementById('city').value;
-        const dateFrom = document.getElementById('eventDateFrom').value;
+    // Aktualizace historical display po načtení dat
+    setTimeout(() => {
+        updateHistoricalDisplay();
         
-        if (city && dateFrom) {
-            updateWeather();
-        }
-    } else {
-        // Vymazání weather dat pro indoor akce
-        globalState.lastWeatherData = null;
-        
-        // Aktualizace predikce bez weather faktoru
+        // Trigger predikce pokud je formulář vyplněn
         if (validateRequiredFields().valid) {
             updatePrediction();
         }
+    }, 500);
+});
+
+// Event pro změnu business modelu
+eventBus.on('businessModelChanged', (data) => {
+    console.log('💼 Business model changed, updating prediction');
+    
+    if (validateRequiredFields().valid) {
+        updatePrediction();
+    }
+});
+
+// Event pro změnu rent type
+eventBus.on('rentTypeChanged', (data) => {
+    console.log('💰 Rent type changed, updating prediction');
+    
+    if (validateRequiredFields().valid) {
+        updatePrediction();
+    }
+});
+
+// Event pro distance calculation dokončení
+eventBus.on('distanceCalculated', (data) => {
+    console.log('📏 Distance calculated, updating prediction');
+    
+    if (validateRequiredFields().valid) {
+        updatePrediction();
     }
 });
 
 // ========================================
-// POMOCNÉ FUNKCE PRO BUSINESS LOGIC
+// EXPORTNÍ FUNKCE
+// ========================================
+
+// Export predikce do CSV
+function exportPredictionToCSV() {
+    if (!globalState.lastPrediction) {
+        showNotification('❌ Žádná predikce k exportu', 'error');
+        return;
+    }
+    
+    const { formData, prediction, businessResults } = globalState.lastPrediction;
+    
+    // CSV header
+    const csvData = [
+        'Datum_exportu,Nazev_akce,Kategorie,Mesto,Datum_od,Datum_do,Navstevnost,Konkurence,Typ_akce,Business_model,Typ_najmu',
+        'Predikce_prodej,Confidence,Obrat,Naklady_celkem,Zisk,ROI,Marze,Breakeven',
+        'Faktor_zakladni,Faktor_historicky,Faktor_mesto,Faktor_konkurence,Faktor_sezonna,Faktor_velikost,Faktor_pocasi,Faktor_delka,Faktor_finalni'
+    ];
+    
+    // Data řádky
+    const row1 = [
+        new Date().toLocaleDateString('cs-CZ'),
+        formData.eventName,
+        formData.category,
+        formData.city,
+        formData.eventDateFrom,
+        formData.eventDateTo,
+        formData.visitors,
+        formData.competition,
+        formData.eventType,
+        formData.businessModel,
+        formData.rentType
+    ].join(',');
+    
+    const row2 = [
+        prediction.predictedSales,
+        prediction.confidence,
+        businessResults.revenue,
+        businessResults.totalCosts,
+        businessResults.profit,
+        businessResults.roi.toFixed(1),
+        businessResults.margin.toFixed(1),
+        businessResults.breakeven
+    ].join(',');
+    
+    const row3 = [
+        prediction.factors.base,
+        prediction.factors.historical,
+        prediction.factors.city,
+        prediction.factors.competition,
+        prediction.factors.seasonal,
+        prediction.factors.size,
+        prediction.factors.weather,
+        prediction.factors.duration,
+        prediction.factors.final
+    ].join(',');
+    
+    csvData.push(row1, row2, row3);
+    
+    // Download
+    const csvContent = csvData.join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    
+    const filename = `donuland_predikce_${formData.eventName.replace(/[^a-z0-9]/gi, '_')}_${new Date().toISOString().split('T')[0]}.csv`;
+    
+    link.href = URL.createObjectURL(blob);
+    link.download = filename;
+    link.click();
+    
+    showNotification('📄 Predikce exportována do CSV', 'success');
+    console.log('✅ Prediction exported to CSV:', filename);
+}
+
+// Uložení predikce do localStorage
+function savePredictionToStorage() {
+    if (!globalState.lastPrediction) {
+        showNotification('❌ Žádná predikce k uložení', 'error');
+        return;
+    }
+    
+    try {
+        const savedPredictions = JSON.parse(localStorage.getItem('donuland_predictions') || '[]');
+        
+        const predictionToSave = {
+            ...globalState.lastPrediction,
+            id: generateId(),
+            saved: true,
+            savedAt: new Date().toISOString()
+        };
+        
+        savedPredictions.push(predictionToSave);
+        
+        // Keep only last 50 predictions
+        if (savedPredictions.length > 50) {
+            savedPredictions.splice(0, savedPredictions.length - 50);
+        }
+        
+        localStorage.setItem('donuland_predictions', JSON.stringify(savedPredictions));
+        
+        // Mark current prediction as saved
+        globalState.lastPrediction.saved = true;
+        
+        showNotification('💾 Predikce uložena', 'success');
+        console.log('✅ Prediction saved to localStorage');
+        
+        eventBus.emit('predictionSaved', predictionToSave);
+        
+    } catch (error) {
+        console.error('❌ Error saving prediction:', error);
+        showNotification('❌ Chyba při ukládání predikce', 'error');
+    }
+}
+
+// ========================================
+// PLACEHOLDER FUNKCE PRO KOMPATIBILITU
+// ========================================
+
+// Placeholder funkce pro savePrediction (volané z HTML)
+function savePrediction() {
+    console.log('💾 Save prediction requested');
+    savePredictionToStorage();
+}
+
+// Placeholder funkce pro exportPrediction (volané z HTML)
+function exportPrediction() {
+    console.log('📄 Export prediction requested');
+    exportPredictionToCSV();
+}
+
+// ========================================
+// POMOCNÉ FUNKCE
 // ========================================
 
 // Získání posledního weather faktoru pro predikci
@@ -1645,64 +2320,141 @@ function needsWeatherData() {
     return eventType === 'outdoor' && city && dateFrom;
 }
 
-// Automatická aktualizace při změně event type
-function updateWeatherCard() {
-    const eventType = document.getElementById('eventType').value;
-    const weatherCard = document.getElementById('weatherCard');
+// Debug funkce pro testování predikcí
+function debugPredictionFactors(formData) {
+    if (!globalState.debugMode) return;
     
-    if (!weatherCard) return;
-    
-    if (eventType === 'outdoor') {
-        weatherCard.style.display = 'block';
+    console.log('🐛 Debug Prediction Factors:');
+    console.log('- Base category factor:', getBaseCategoryFactor(formData.category));
+    console.log('- Historical factor:', getHistoricalFactor(formData));
+    console.log('- City factor:', getCityFactor(formData.city));
+    console.log('- Competition factor:', getCompetitionFactor(formData.competition));
+    console.log('- Seasonal factor:', getSeasonalFactor(formData.eventDateFrom));
+    console.log('- Size factor:', getSizeFactor(formData.visitors));
+    console.log('- Weather factor:', getLastWeatherFactor());
+    console.log('- Duration factor:', getDurationFactor(formData.durationDays || 1));
+}
+
+// Získání všech uložených predikcí
+function getSavedPredictions() {
+    try {
+        return JSON.parse(localStorage.getItem('donuland_predictions') || '[]');
+    } catch (error) {
+        console.error('❌ Error loading saved predictions:', error);
+        return [];
+    }
+}
+
+// Smazání uložené predikce
+function deleteSavedPrediction(predictionId) {
+    try {
+        const savedPredictions = getSavedPredictions();
+        const filteredPredictions = savedPredictions.filter(p => p.id !== predictionId);
         
-        // Zkusit načíst počasí pokud jsou vyplněny údaje
-        if (needsWeatherData()) {
-            updateWeather();
+        localStorage.setItem('donuland_predictions', JSON.stringify(filteredPredictions));
+        
+        showNotification('🗑️ Predikce smazána', 'info');
+        eventBus.emit('predictionDeleted', predictionId);
+        
+    } catch (error) {
+        console.error('❌ Error deleting prediction:', error);
+        showNotification('❌ Chyba při mazání predikce', 'error');
+    }
+}
+
+// Načtení uložené predikce do formuláře
+function loadSavedPrediction(predictionId) {
+    try {
+        const savedPredictions = getSavedPredictions();
+        const prediction = savedPredictions.find(p => p.id === predictionId);
+        
+        if (!prediction) {
+            showNotification('❌ Predikce nenalezena', 'error');
+            return;
         }
-    } else {
-        weatherCard.style.display = 'none';
         
-        // Vymazat weather data
-        globalState.lastWeatherData = null;
+        const formData = prediction.formData;
+        
+        // Naplnění formuláře
+        document.getElementById('eventName').value = formData.eventName || '';
+        document.getElementById('category').value = formData.category || '';
+        document.getElementById('city').value = formData.city || '';
+        document.getElementById('eventDateFrom').value = formData.eventDateFrom || '';
+        document.getElementById('eventDateTo').value = formData.eventDateTo || '';
+        document.getElementById('visitors').value = formData.visitors || '';
+        document.getElementById('competition').value = formData.competition || '';
+        document.getElementById('eventType').value = formData.eventType || '';
+        document.getElementById('businessModel').value = formData.businessModel || '';
+        document.getElementById('rentType').value = formData.rentType || '';
+        document.getElementById('price').value = formData.price || '';
+        
+        // Trigger aktualizace
+        eventBus.emit('formChanged', formData);
+        
+        showNotification('📋 Predikce načtena do formuláře', 'success');
+        console.log('✅ Saved prediction loaded to form');
+        
+    } catch (error) {
+        console.error('❌ Error loading saved prediction:', error);
+        showNotification('❌ Chyba při načítání predikce', 'error');
+    }
+}
+
+// Vyčištění všech cache
+function clearAllCache() {
+    globalState.weatherCache.clear();
+    globalState.distanceCache.clear();
+    
+    console.log('🧹 All cache cleared');
+    showNotification('🧹 Cache vymazána', 'info', 2000);
+    
+    eventBus.emit('cacheCleared');
+}
+
+// Získání statistik predikcí
+function getPredictionStats() {
+    const savedPredictions = getSavedPredictions();
+    
+    if (savedPredictions.length === 0) {
+        return null;
     }
     
-    console.log(`🌤️ Event type changed to: ${eventType}`);
-}
-
-// Zobrazení základní předpovědi počasí (fallback)
-function displayFallbackWeather(city, dateFrom, dateTo) {
-    const days = getDateRange(dateFrom, dateTo);
-    const fallbackDaily = days.map(date => ({
-        date,
-        ...generateSeasonalWeather(city, new Date(date)),
-        isFallback: true
-    }));
+    const sales = savedPredictions.map(p => p.prediction.predictedSales);
+    const confidences = savedPredictions.map(p => p.prediction.confidence);
+    const profits = savedPredictions.map(p => p.businessResults.profit);
     
-    const aggregated = aggregateWeatherData(fallbackDaily);
-    displayMultiDayWeather(fallbackDaily, aggregated);
-    
-    // Uložení fallback dat pro predikci
-    globalState.lastWeatherData = {
-        daily: fallbackDaily,
-        aggregated: aggregated,
-        timestamp: Date.now()
+    return {
+        totalPredictions: savedPredictions.length,
+        avgSales: sales.reduce((sum, s) => sum + s, 0) / sales.length,
+        avgConfidence: confidences.reduce((sum, c) => sum + c, 0) / confidences.length,
+        avgProfit: profits.reduce((sum, p) => sum + p, 0) / profits.length,
+        lastPrediction: savedPredictions[savedPredictions.length - 1]
     };
-    
-    showNotification('⚠️ Použity sezónní odhady počasí', 'warning', 3000);
 }
 
 // ========================================
-// FINALIZACE PART 2B
+// FINALIZACE PART 2C
 // ========================================
 
-console.log('✅ Donuland Part 2B loaded successfully');
-console.log('🌤️ Features: ✅ Multi-day Weather ✅ Chocolate Temperature Logic ✅ AI Prediction ✅ Business Metrics');
-console.log('🎯 Weather factors: 18-24°C = ideal, >24°C = chocolate melting problem');
+console.log('✅ Donuland Part 2C loaded successfully');
+console.log('🤖 Features: ✅ AI Prediction Algorithm ✅ Historical Analysis ✅ Business Metrics ✅ Recommendations');
+console.log('📊 Prediction factors: Base + Historical + City + Competition + Seasonal + Size + Weather + Duration');
+console.log('🎯 Confidence: 20-95% based on data availability and factor stability');
+console.log('💾 Export: CSV export + localStorage save/load');
+console.log('🔍 Recommendations: Weather + Business + Competition + Seasonal advice');
 console.log('⏳ Ready for Part 3: UI Display & Results Visualization');
 
-// Event pro signalizaci dokončení části 2B
-eventBus.emit('part2bLoaded', { 
+// Event pro signalizaci dokončení části 2C
+eventBus.emit('part2cLoaded', { 
     timestamp: Date.now(),
-    version: '1.1.0',
-    features: ['multi-day-weather', 'chocolate-temperature-logic', 'ai-prediction-v2', 'business-metrics']
+    version: '1.0.0',
+    features: [
+        'ai-prediction-algorithm', 
+        'historical-analysis', 
+        'business-metrics', 
+        'confidence-calculation',
+        'recommendations-engine',
+        'csv-export',
+        'localstorage-save-load'
+    ]
 });
