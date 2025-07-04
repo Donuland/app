@@ -61,13 +61,13 @@
                         <div class="form-group">
                             <label>Název akce *</label>
                             <input type="text" id="eventName" placeholder="Burger Fest, ČokoFest..." 
-                                   list="eventNames" onchange="updatePrediction()">
+                                   list="eventNames">
                             <datalist id="eventNames"></datalist>
                         </div>
                         
                         <div class="form-group">
                             <label>Kategorie *</label>
-                            <select id="category" onchange="updatePrediction()">
+                            <select id="category">
                                 <option value="">Vyberte kategorii</option>
                                 <option value="food festival">Food festival</option>
                                 <option value="veletrh">Veletrh/ČokoFest</option>
@@ -79,47 +79,25 @@
                         </div>
                         
                         <div class="form-group">
-                            <label>Město *</label>
-                            <input type="text" id="city" placeholder="Praha, Brno, Ostrava..." 
-                                   list="cities" onchange="updateDistance(); updateWeather(); updatePrediction()">
-                            <datalist id="cities">
-                                <option value="Praha">
-                                <option value="Brno">
-                                <option value="Ostrava">
-                                <option value="Plzeň">
-                                <option value="Liberec">
-                                <option value="Olomouc">
-                                <option value="Hradec Králové">
-                                <option value="Pardubice">
-                                <option value="České Budějovice">
-                                <option value="Ústí nad Labem">
-                                <option value="Karlovy Vary">
-                                <option value="Jihlava">
-                                <option value="Zlín">
-                                <option value="Havířov">
-                                <option value="Kladno">
-                                <option value="Most">
-                                <option value="Opava">
-                                <option value="Frýdek-Místek">
-                                <option value="Karviná">
-                                <option value="Teplice">
-                                <option value="Děčín">
-                            </datalist>
+                            <label>Město/Lokalita *</label>
+                            <input type="text" id="city" placeholder="Začněte psát název místa..." 
+                                   autocomplete="off" class="google-autocomplete">
+                            <small>Zadejte jakékoli město nebo vesnici v ČR - Google Maps automaticky doplní</small>
                         </div>
                         
                         <div class="form-group">
                             <label>Datum akce *</label>
-                            <input type="date" id="eventDate" onchange="updateWeather(); updatePrediction()">
+                            <input type="date" id="eventDate">
                         </div>
                         
                         <div class="form-group">
                             <label>Očekávaná návštěvnost *</label>
-                            <input type="number" id="visitors" placeholder="5000" min="50" max="100000" onchange="updatePrediction()">
+                            <input type="number" id="visitors" placeholder="5000" min="50" max="100000">
                         </div>
                         
                         <div class="form-group">
                             <label>Úroveň konkurence *</label>
-                            <select id="competition" onchange="updatePrediction()">
+                            <select id="competition">
                                 <option value="">Vyberte úroveň</option>
                                 <option value="1">1 - Malá konkurence (téměř žádní konkurenti)</option>
                                 <option value="2">2 - Střední konkurence (několik stánků)</option>
@@ -129,7 +107,7 @@
                         
                         <div class="form-group">
                             <label>Typ akce *</label>
-                            <select id="eventType" onchange="updateWeatherCard(); updatePrediction()">
+                            <select id="eventType">
                                 <option value="">Vyberte typ</option>
                                 <option value="outdoor">🌤️ Venkovní akce (počasí ovlivní prodej)</option>
                                 <option value="indoor">🏢 Vnitřní akce (bez vlivu počasí)</option>
@@ -138,7 +116,7 @@
                         
                         <div class="form-group">
                             <label>Business model *</label>
-                            <select id="businessModel" onchange="updateBusinessInfo(); updatePrediction()">
+                            <select id="businessModel">
                                 <option value="">Vyberte model</option>
                                 <option value="owner">🏪 Majitel (vy + brigádníci)</option>
                                 <option value="employee">👨‍💼 Zaměstnanec (+ % z obratu)</option>
@@ -156,7 +134,7 @@
                     <div class="form-grid">
                         <div class="form-group">
                             <label>Typ nájmu *</label>
-                            <select id="rentType" onchange="updateRentFields(); updatePrediction()">
+                            <select id="rentType">
                                 <option value="">Vyberte typ nájmu</option>
                                 <option value="fixed">💰 Fixní nájem (pevná částka)</option>
                                 <option value="percentage">📊 % z obratu</option>
@@ -167,33 +145,34 @@
                         
                         <div class="form-group" id="fixedRentGroup" style="display: none;">
                             <label>Fixní nájem (Kč)</label>
-                            <input type="number" id="fixedRent" placeholder="5000" min="0" onchange="updatePrediction()">
+                            <input type="number" id="fixedRent" placeholder="5000" min="0">
                         </div>
                         
                         <div class="form-group" id="percentageGroup" style="display: none;">
                             <label>Procenta z obratu (%)</label>
-                            <input type="number" id="percentage" placeholder="15" min="0" max="50" onchange="updatePrediction()">
+                            <input type="number" id="percentage" placeholder="15" min="0" max="50">
                         </div>
                         
                         <div class="form-group" id="mixedFixedGroup" style="display: none;">
                             <label>Fixní část (Kč)</label>
-                            <input type="number" id="mixedFixed" placeholder="2000" min="0" onchange="updatePrediction()">
+                            <input type="number" id="mixedFixed" placeholder="2000" min="0">
                         </div>
                         
                         <div class="form-group" id="mixedPercentageGroup" style="display: none;">
                             <label>Procentní část z obratu (%)</label>
-                            <input type="number" id="mixedPercentage" placeholder="10" min="0" max="30" onchange="updatePrediction()">
+                            <input type="number" id="mixedPercentage" placeholder="10" min="0" max="30">
                         </div>
                         
                         <div class="form-group">
                             <label>Vzdálenost od Prahy</label>
-                            <input type="text" id="distance" readonly placeholder="Počítá se automaticky..." 
-                                   title="Vzdálenost se vypočítá automaticky podle města">
+                            <input type="text" id="distance" readonly placeholder="Vzdálenost se vypočítá automaticky..." 
+                                   title="Vzdálenost se vypočítá automaticky podle vybraného místa z Google Maps">
+                            <small>Automatický výpočet pomocí Google Maps Distance Matrix API</small>
                         </div>
                         
                         <div class="form-group">
                             <label>Prodejní cena donut (Kč)</label>
-                            <input type="number" id="price" value="50" min="30" max="100" onchange="updatePrediction()">
+                            <input type="number" id="price" value="50" min="30" max="100">
                         </div>
                     </div>
                 </div>
@@ -601,6 +580,16 @@
     </div>
 
     <!-- JavaScript -->
-    <script src="app.js"></script>
+    <!-- Google Maps API s Places Library -->
+    <script async defer 
+            src="https://maps.googleapis.com/maps/api/js?key=AIzaSyBTTA_MKa6FrxKpkcd7c5-d3FnC6FBLVTc&libraries=places&callback=initGoogleMaps">
+    </script>
+    
+    <!-- Donuland App Scripts -->
+    <script src="donuland_app_part1.js"></script>
+    <script src="donuland_app_part2.js"></script>
+    <script src="donuland_app_part3.js"></script>
+    <script src="donuland_app_part4.js"></script>
+    <script src="donuland_app_part5.js"></script>
 </body>
 </html>
