@@ -67,7 +67,7 @@ const CONFIG = {
         CITY: 'D',              // Lokalita
         EVENT_NAME: 'E',        // Název akce
         CATEGORY: 'F',          // Kategorie
-        SALES: 'M',             // Reálně prodáno (klíčové!)
+        SALES: 'N',             // Reálně prodáno (klíčové!)
         VISITORS: 'Q',          // Návštěvnost
         WEATHER: 'R',           // Počasí
         COMPETITION: 'W',       // Konkurence (1-3)
