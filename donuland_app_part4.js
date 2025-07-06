@@ -4004,3 +4004,214 @@ console.log('✅ Donuland Part 4 COMPLETE loaded successfully');
 console.log('📅 Features: ✅ Calendar State ✅ Calendar Rendering ✅ Modal Management ✅ Analytics Charts');
 console.log('🧪 Debug: window.donulandPart4Debug.testCalendar() to test everything');
 console.log('🎯 Status: Calendar should now render properly with all features working');
+/* ========================================
+   DONULAND RYCHLÉ OPRAVY
+   Oprava: 1) Datum +1 den v kalendáři
+           2) Font velikost v celkových statistikách
+   ======================================== */
+
+console.log('🔧 Applying Donuland quick fixes...');
+
+// ========================================
+// OPRAVA 1: DATUM +1 DEN V KALENDÁŘI
+// ========================================
+
+// NAJDI FUNKCI isDateInRange() a NAHRAĎ JI:
+function isDateInRange(checkDate, fromDate, toDate) {
+    if (!fromDate) {
+        if (globalState.debugMode) {
+            console.warn('⚠️ Missing fromDate for range check:', { checkDate, fromDate, toDate });
+        }
+        return false;
+    }
+    
+    // Pokud není toDate, použij fromDate (jednodenní akce)
+    const actualToDate = toDate && toDate.trim() ? toDate : fromDate;
+    
+    try {
+        // 🔧 KRITICKÁ OPRAVA: Použij pouze datum bez času pro eliminaci timezone problémů
+        const checkDateStr = typeof checkDate === 'string' ? checkDate : checkDate.toISOString().split('T')[0];
+        const fromDateStr = typeof fromDate === 'string' ? fromDate : fromDate.toISOString().split('T')[0];
+        const toDateStr = typeof actualToDate === 'string' ? actualToDate : actualToDate.toISOString().split('T')[0];
+        
+        // Porovnání pouze stringů ve formátu YYYY-MM-DD (bez času!)
+        const inRange = checkDateStr >= fromDateStr && checkDateStr <= toDateStr;
+        
+        if (globalState.debugMode && inRange) {
+            console.log(`📅 FIXED: Date ${checkDateStr} is between ${fromDateStr} and ${toDateStr}`);
+        }
+        
+        return inRange;
+        
+    } catch (error) {
+        console.warn('⚠️ Date parsing error in range check:', { 
+            checkDate, fromDate, actualToDate, error: error.message 
+        });
+        return false;
+    }
+}
+
+// ========================================
+// OPRAVA 2: FONT VELIKOST V CELKOVÝCH STATISTIKÁCH  
+// ========================================
+
+// PŘIDEJ TENTO CSS (najde prvek a přidá styly):
+function fixStatisticsCSS() {
+    const style = document.createElement('style');
+    style.id = 'donuland-statistics-fix';
+    style.textContent = `
+        /* Oprava fontů pro celkové statistiky */
+        #overallStats .stat-value {
+            font-size: 2rem !important; /* Zmenšeno z 3rem */
+            line-height: 1.1 !important;
+        }
+        
+        #overallStats .stat-label {
+            font-size: 0.8rem !important; /* Zmenšeno z 0.875rem */
+            line-height: 1.2 !important;
+            margin-top: 5px;
+        }
+        
+        #overallStats .stat-item {
+            padding: 15px !important; /* Zmenšeno z 25px */
+            min-height: 120px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+        }
+        
+        /* Pro extra dlouhé texty jako "CELKOVÝ OBRAT" */
+        #overallStats .stat-item:nth-child(4) .stat-value {
+            font-size: 1.8rem !important; /* Ještě menší pro obrat */
+        }
+        
+        #overallStats .stat-item:nth-child(4) .stat-label {
+            font-size: 0.75rem !important;
+            line-height: 1.1 !important;
+        }
+        
+        /* Responsive zlepšení */
+        @media (max-width: 768px) {
+            #overallStats .stat-value {
+                font-size: 1.5rem !important;
+            }
+            
+            #overallStats .stat-item:nth-child(4) .stat-value {
+                font-size: 1.3rem !important;
+            }
+            
+            #overallStats .stat-label {
+                font-size: 0.7rem !important;
+            }
+        }
+        
+        @media (max-width: 480px) {
+            #overallStats .stat-value {
+                font-size: 1.2rem !important;
+            }
+            
+            #overallStats .stat-item:nth-child(4) .stat-value {
+                font-size: 1.1rem !important;
+            }
+        }
+    `;
+    
+    // Odstraň starý styl pokud existuje
+    const existingStyle = document.getElementById('donuland-statistics-fix');
+    if (existingStyle) {
+        existingStyle.remove();
+    }
+    
+    document.head.appendChild(style);
+    console.log('✅ Statistics font sizes fixed');
+}
+
+// ========================================
+// OPRAVA 3: PŘEPOČÍTÁNÍ KALENDÁŘE S OPRAVENÝMI DATY
+// ========================================
+
+// NAJDI FUNKCI getDaysInMonth() a přidej debug pro ověření:
+function debugCalendarDates() {
+    console.group('🐛 DEBUG: Calendar date fixing');
+    
+    // Test našeho date range fixu
+    const testCases = [
+        {
+            event: 'Test Event 18.6.',
+            checkDate: '2025-06-18', // Kalendářní den 18.6.
+            fromDate: '2025-06-18',  // Event datum 18.6.
+            toDate: '2025-06-18',
+            expectedResult: true
+        },
+        {
+            event: 'Test Event 19.6.',
+            checkDate: '2025-06-19', // Kalendářní den 19.6.
+            fromDate: '2025-06-18',  // Event datum 18.6.
+            toDate: '2025-06-18',
+            expectedResult: false  // Neměl by se zobrazit na 19.6.!
+        }
+    ];
+    
+    testCases.forEach(test => {
+        const result = isDateInRange(test.checkDate, test.fromDate, test.toDate);
+        const status = result === test.expectedResult ? '✅ PASS' : '❌ FAIL';
+        console.log(`${status} ${test.event}: checkDate=${test.checkDate}, fromDate=${test.fromDate}, result=${result}, expected=${test.expectedResult}`);
+    });
+    
+    console.groupEnd();
+}
+
+// ========================================
+// AUTOMATICKÁ APLIKACE OPRAV
+// ========================================
+
+// Aplikuj opravy okamžitě
+function applyQuickFixes() {
+    console.log('🔧 Applying quick fixes...');
+    
+    // 1. Oprav CSS pro statistiky
+    fixStatisticsCSS();
+    
+    // 2. Test datum opravy
+    debugCalendarDates();
+    
+    // 3. Přerenderuj kalendář s opraveným datem
+    setTimeout(() => {
+        if (typeof renderCalendar === 'function') {
+            console.log('🔄 Re-rendering calendar with date fix...');
+            renderCalendar();
+        }
+    }, 500);
+    
+    console.log('✅ Quick fixes applied');
+}
+
+// Aplikuj opravy při načtení
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', applyQuickFixes);
+} else {
+    applyQuickFixes();
+}
+
+// ========================================
+// RUČNÍ SPUŠTĚNÍ OPRAV
+// ========================================
+
+// Pro ruční spuštění z konzole
+if (typeof window !== 'undefined') {
+    window.donulandQuickFix = {
+        applyAll: applyQuickFixes,
+        fixCSS: fixStatisticsCSS,
+        testDates: debugCalendarDates,
+        refreshCalendar: () => {
+            if (typeof renderCalendar === 'function') {
+                renderCalendar();
+            }
+        }
+    };
+}
+
+console.log('✅ Donuland Quick Fixes loaded');
+console.log('🔧 Manual trigger: window.donulandQuickFix.applyAll()');
+console.log('📅 Date fix: Events should now appear on correct dates');
+console.log('🎨 Font fix: Statistics should have smaller, readable fonts');
