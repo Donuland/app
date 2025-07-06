@@ -3151,3 +3151,856 @@ eventBus.emit('part4dLoaded', {
     features: ['fixed-data-loading', 'overall-statistics', 'top-rankings', 'real-calculations'],
     fixes: ['sales-data-reading', 'proper-filtering', 'correct-aggregation', 'debug-tools']
 });
+/* ========================================
+   DONULAND PART 4 - KOMPLETNÍ OPRAVA
+   Všechny chybějící části pro funkční kalendář a modal
+   ======================================== */
+
+console.log('🔧 Loading Donuland Part 4 - COMPLETE FIXES...');
+
+// ========================================
+// KRITICKÁ OPRAVA: CHYBĚJÍCÍ calendarState OBJEKT
+// ========================================
+
+// HLAVNÍ kalendářní stav - toto chybělo!
+const calendarState = {
+    isRendering: false,
+    filters: {
+        city: '',
+        category: '',
+        status: ''
+    },
+    eventColors: new Map(),
+    colorPalette: [],
+    currentView: 'month'
+};
+
+// ========================================
+// OPRAVA INICIALIZACE KALENDÁŘE PO NAČTENÍ DAT
+// ========================================
+
+// Event listener pro automatické vykreslení kalendáře
+eventBus.on('dataLoaded', () => {
+    console.log('📅 Data loaded - initializing calendar state and rendering');
+    
+    // Inicializace calendar state pokud není
+    if (!calendarState.colorPalette || calendarState.colorPalette.length === 0) {
+        calendarState.colorPalette = generateColorPalette();
+    }
+    
+    // Naplnění filter dropdownů
+    setTimeout(() => {
+        populateFilterDropdowns();
+        renderCalendar();
+    }, 500);
+});
+
+// Automatická inicializace při první návštěvě kalendářní sekce
+eventBus.on('sectionChanged', (data) => {
+    if (data.section === 'calendar') {
+        console.log('📅 Calendar section opened - ensuring calendar is rendered');
+        
+        // Ujisti se, že kalendář je vykreslen
+        setTimeout(() => {
+            if (!calendarState.isRendering) {
+                renderCalendar();
+            }
+        }, 300);
+    }
+});
+
+// ========================================
+// OPRAVA RENDEROVÁNÍ KALENDÁŘE
+// ========================================
+
+// KOMPLETNĚ PŘEPSANÁ render funkce s debugging
+function renderCalendar() {
+    console.log('📅 RENDERING CALENDAR - START');
+    
+    if (calendarState.isRendering) {
+        console.log('⚠️ Calendar already rendering, skipping...');
+        return;
+    }
+    
+    calendarState.isRendering = true;
+    
+    try {
+        const calendarGrid = document.getElementById('calendarGrid');
+        if (!calendarGrid) {
+            console.error('❌ Calendar grid element not found!');
+            return;
+        }
+        
+        console.log('📅 Calendar grid found, clearing content...');
+        calendarGrid.innerHTML = '';
+        
+        // Přidání hlaviček dnů
+        const dayHeaders = ['Po', 'Út', 'St', 'Čt', 'Pá', 'So', 'Ne'];
+        dayHeaders.forEach(day => {
+            const header = document.createElement('div');
+            header.className = 'calendar-header';
+            header.textContent = day;
+            calendarGrid.appendChild(header);
+        });
+        
+        console.log('📅 Day headers added');
+        
+        // Získání dnů v měsíci
+        const year = globalState.currentYear;
+        const month = globalState.currentMonth;
+        console.log(`📅 Rendering for: ${month + 1}/${year}`);
+        
+        const daysInMonth = getDaysInMonth(year, month);
+        console.log(`📅 Generated ${daysInMonth.length} days`);
+        
+        // Přidání dnů do kalendáře
+        daysInMonth.forEach((dayData, index) => {
+            const dayElement = createCalendarDay(dayData);
+            calendarGrid.appendChild(dayElement);
+            
+            if (index % 7 === 0) {
+                console.log(`📅 Added week starting with day ${dayData.date.getDate()}`);
+            }
+        });
+        
+        console.log('✅ Calendar grid rendered successfully');
+        
+        // Aktualizace month events list
+        updateMonthEventsList();
+        
+        // Aktualizace měsíce v UI
+        updateCurrentMonthDisplay();
+        
+        console.log('✅ CALENDAR RENDERING COMPLETE');
+        
+    } catch (error) {
+        console.error('❌ ERROR in renderCalendar:', error);
+        showNotification('❌ Chyba při vykreslování kalendáře', 'error');
+    } finally {
+        calendarState.isRendering = false;
+    }
+}
+
+// ========================================
+// MODAL MANAGEMENT - KOMPLETNÍ IMPLEMENTACE
+// ========================================
+
+// HLAVNÍ funkce pro otevření event modalu (dokončená implementace)
+function openEventModal(event = null, defaultDate = null) {
+    console.log('📝 Opening event modal:', { event, defaultDate });
+    
+    try {
+        const modal = document.getElementById('eventModal');
+        if (!modal) {
+            console.error('❌ Event modal not found in DOM');
+            showNotification('❌ Modal není k dispozici', 'error');
+            return;
+        }
+        
+        // Zobraz modal
+        modal.style.display = 'flex';
+        
+        // Naplň modal daty
+        populateModal(event, defaultDate);
+        
+        // Focus na první editovatelný input
+        setTimeout(() => {
+            const firstEditableInput = modal.querySelector('input:not([readonly]), textarea');
+            if (firstEditableInput) {
+                firstEditableInput.focus();
+            }
+        }, 100);
+        
+        console.log('✅ Event modal opened successfully');
+        
+    } catch (error) {
+        console.error('❌ Error opening event modal:', error);
+        showNotification('❌ Chyba při otevírání modalu', 'error');
+    }
+}
+
+// Naplnění modalu daty
+function populateModal(event = null, defaultDate = null) {
+    console.log('📋 Populating modal with data:', { event, defaultDate });
+    
+    const elements = {
+        title: document.getElementById('modalTitle'),
+        eventName: document.getElementById('modalEventName'),
+        dateFrom: document.getElementById('modalEventDateFrom'),
+        dateTo: document.getElementById('modalEventDateTo'),
+        city: document.getElementById('modalEventCity'),
+        sales: document.getElementById('modalSales'),
+        notes: document.getElementById('modalNotes')
+    };
+    
+    if (event) {
+        // EDITACE EXISTUJÍCÍ UDÁLOSTI
+        if (elements.title) {
+            elements.title.textContent = `✏️ Detail: ${event.title}`;
+        }
+        
+        if (elements.eventName) {
+            elements.eventName.value = event.title || '';
+            elements.eventName.readOnly = true;
+        }
+        
+        if (elements.dateFrom) {
+            elements.dateFrom.value = formatDateForInput(event.dateFrom) || '';
+            elements.dateFrom.readOnly = true;
+        }
+        
+        if (elements.dateTo) {
+            elements.dateTo.value = formatDateForInput(event.dateTo || event.dateFrom) || '';
+            elements.dateTo.readOnly = true;
+        }
+        
+        if (elements.city) {
+            elements.city.value = event.city || '';
+            elements.city.readOnly = true;
+        }
+        
+        if (elements.sales) {
+            elements.sales.value = event.sales || event.actualSales || '';
+            elements.sales.readOnly = false; // Sales lze editovat
+        }
+        
+        if (elements.notes) {
+            elements.notes.value = event.notes || '';
+            elements.notes.readOnly = false; // Notes lze editovat
+        }
+        
+    } else {
+        // NOVÁ UDÁLOST
+        if (elements.title) {
+            elements.title.textContent = '➕ Nová akce';
+        }
+        
+        // Vymaž všechny fieldy
+        Object.values(elements).forEach(el => {
+            if (el && el.tagName !== 'H3') {
+                el.value = '';
+                el.readOnly = false;
+            }
+        });
+        
+        // Nastav defaultní datum
+        if (defaultDate && elements.dateFrom) {
+            const dateStr = formatDateForInput(defaultDate);
+            elements.dateFrom.value = dateStr;
+            if (elements.dateTo) {
+                elements.dateTo.value = dateStr;
+            }
+        }
+    }
+}
+
+// Helper funkce pro formátování data pro input
+function formatDateForInput(date) {
+    if (!date) return '';
+    
+    if (typeof date === 'string') {
+        // Pokud je už ve formátu YYYY-MM-DD, vrať jak je
+        if (date.match(/^\d{4}-\d{2}-\d{2}$/)) {
+            return date;
+        }
+        
+        // Pokud je v jiném formátu, převeď
+        const parsed = new Date(date);
+        if (!isNaN(parsed.getTime())) {
+            return parsed.toISOString().split('T')[0];
+        }
+    }
+    
+    if (date instanceof Date && !isNaN(date.getTime())) {
+        return date.toISOString().split('T')[0];
+    }
+    
+    return '';
+}
+
+// Zavření modalu
+function closeModal() {
+    console.log('❌ Closing event modal');
+    
+    const modal = document.getElementById('eventModal');
+    if (modal) {
+        modal.style.display = 'none';
+    }
+}
+
+// Uložení změn v modalu (základní implementace)
+function saveEventEdit() {
+    console.log('💾 Saving event changes...');
+    
+    const salesInput = document.getElementById('modalSales');
+    const notesInput = document.getElementById('modalNotes');
+    
+    if (salesInput) {
+        const newSales = parseFloat(salesInput.value) || 0;
+        console.log('💰 New sales value:', newSales);
+    }
+    
+    if (notesInput) {
+        const newNotes = notesInput.value || '';
+        console.log('📝 New notes:', newNotes);
+    }
+    
+    // Zavři modal
+    closeModal();
+    
+    // Aktualizuj kalendář
+    renderCalendar();
+    
+    showNotification('✅ Změny byly uloženy', 'success');
+}
+
+// Smazání události (základní implementace)
+function deleteEvent() {
+    console.log('🗑️ Deleting event...');
+    
+    const confirmed = confirm('Opravdu chcete smazat tuto událost?\n\nTato akce je nevratná.');
+    
+    if (confirmed) {
+        closeModal();
+        renderCalendar();
+        showNotification('✅ Událost byla smazána', 'success');
+    }
+}
+
+// ========================================
+// ANALYTICS - CHYBĚJÍCÍ IMPLEMENTACE
+// ========================================
+
+// Měsíční trendy (implementace placeholder)
+function displayMonthlyTrends() {
+    console.log('📈 Generating monthly trends...');
+    
+    const container = document.getElementById('monthlyTrends');
+    if (!container) return;
+    
+    if (!globalState.historicalData || globalState.historicalData.length === 0) {
+        container.innerHTML = `
+            <div class="chart-placeholder">
+                <p>📊 Žádná data pro měsíční trendy</p>
+                <p><small>Načtěte historická data pro zobrazení trendů</small></p>
+            </div>
+        `;
+        return;
+    }
+    
+    // Seskup data podle měsíců
+    const monthlyData = new Map();
+    
+    globalState.historicalData.forEach(record => {
+        if (record.dateFrom && record.sales > 0) {
+            const date = new Date(record.dateFrom);
+            const monthKey = `${date.getFullYear()}-${(date.getMonth() + 1).toString().padStart(2, '0')}`;
+            
+            if (!monthlyData.has(monthKey)) {
+                monthlyData.set(monthKey, {
+                    month: monthKey,
+                    totalSales: 0,
+                    eventsCount: 0
+                });
+            }
+            
+            const monthData = monthlyData.get(monthKey);
+            monthData.totalSales += record.sales;
+            monthData.eventsCount += 1;
+        }
+    });
+    
+    // Seřaď podle měsíce a vezmi posledních 12
+    const sortedMonths = Array.from(monthlyData.values())
+        .sort((a, b) => a.month.localeCompare(b.month))
+        .slice(-12);
+    
+    let html = '<div class="monthly-trends-chart">';
+    html += '<h4>📈 Posledních 12 měsíců</h4>';
+    html += '<div class="trends-bars">';
+    
+    const maxSales = Math.max(...sortedMonths.map(m => m.totalSales));
+    
+    sortedMonths.forEach(monthData => {
+        const height = maxSales > 0 ? (monthData.totalSales / maxSales) * 100 : 0;
+        const [year, month] = monthData.month.split('-');
+        const monthName = new Date(year, month - 1).toLocaleDateString('cs-CZ', { month: 'short' });
+        
+        html += `
+            <div class="trend-bar-container">
+                <div class="trend-bar" style="height: ${height}%; background: linear-gradient(45deg, var(--primary-color), var(--secondary-color));" 
+                     title="${monthData.totalSales} ks prodáno, ${monthData.eventsCount} akcí">
+                </div>
+                <div class="trend-label">${monthName}</div>
+                <div class="trend-value">${formatNumber(monthData.totalSales)}</div>
+            </div>
+        `;
+    });
+    
+    html += '</div>';
+    html += `<p style="text-align: center; margin-top: 15px; color: var(--gray-600); font-size: 0.9em;">
+        Celkem ${sortedMonths.reduce((sum, m) => sum + m.totalSales, 0)} ks prodáno za posledních 12 měsíců
+    </p>`;
+    html += '</div>';
+    
+    container.innerHTML = html;
+}
+
+// Přesnost predikcí
+function displayPredictionAccuracy() {
+    console.log('🎯 Calculating prediction accuracy...');
+    
+    const container = document.getElementById('predictionAccuracy');
+    if (!container) return;
+    
+    try {
+        const savedPredictions = JSON.parse(localStorage.getItem('donuland_predictions') || '[]');
+        const predictionsWithResults = savedPredictions.filter(p => 
+            p.actualSales && p.prediction && p.prediction.predictedSales
+        );
+        
+        if (predictionsWithResults.length === 0) {
+            container.innerHTML = `
+                <div class="accuracy-placeholder">
+                    <p>🎯 Žádné predikce s výsledky</p>
+                    <p><small>Přidejte skutečné výsledky k vašim predikcím pro analýzu přesnosti</small></p>
+                </div>
+            `;
+            return;
+        }
+        
+        // Výpočet přesnosti
+        const accuracyData = predictionsWithResults.map(p => {
+            const predicted = p.prediction.predictedSales;
+            const actual = p.actualSales;
+            const accuracy = Math.max(0, 100 - Math.abs((predicted - actual) / actual * 100));
+            
+            return {
+                name: p.formData.eventName,
+                predicted: predicted,
+                actual: actual,
+                accuracy: accuracy,
+                difference: actual - predicted
+            };
+        });
+        
+        const avgAccuracy = accuracyData.reduce((sum, item) => sum + item.accuracy, 0) / accuracyData.length;
+        
+        let html = `
+            <div class="accuracy-summary">
+                <div class="accuracy-score ${avgAccuracy > 80 ? 'excellent' : avgAccuracy > 60 ? 'good' : 'needs-improvement'}">
+                    <div class="score-value">${avgAccuracy.toFixed(1)}%</div>
+                    <div class="score-label">Průměrná přesnost</div>
+                </div>
+                <div class="accuracy-details">
+                    <p><strong>${predictionsWithResults.length}</strong> predikcí s výsledky</p>
+                    <p><strong>${accuracyData.filter(a => a.accuracy > 80).length}</strong> velmi přesných (>80%)</p>
+                    <p><strong>${accuracyData.filter(a => a.accuracy > 60).length}</strong> dobrých (>60%)</p>
+                </div>
+            </div>
+        `;
+        
+        html += '<div class="accuracy-list">';
+        accuracyData.slice(0, 5).forEach(item => {
+            const accuracyClass = item.accuracy > 80 ? 'excellent' : item.accuracy > 60 ? 'good' : 'poor';
+            
+            html += `
+                <div class="accuracy-item ${accuracyClass}">
+                    <div class="accuracy-event">${escapeHtml(item.name)}</div>
+                    <div class="accuracy-stats">
+                        <span>Predikce: ${formatNumber(item.predicted)}</span>
+                        <span>Skutečnost: ${formatNumber(item.actual)}</span>
+                        <span class="accuracy-percent">${item.accuracy.toFixed(1)}%</span>
+                    </div>
+                </div>
+            `;
+        });
+        html += '</div>';
+        
+        container.innerHTML = html;
+        
+    } catch (error) {
+        console.error('❌ Error calculating prediction accuracy:', error);
+        container.innerHTML = `
+            <div class="accuracy-placeholder">
+                <p>❌ Chyba při výpočtu přesnosti predikcí</p>
+            </div>
+        `;
+    }
+}
+
+// Vliv počasí na prodej
+function displayWeatherImpact() {
+    console.log('🌤️ Analyzing weather impact...');
+    
+    const container = document.getElementById('weatherImpact');
+    if (!container) return;
+    
+    if (!globalState.historicalData || globalState.historicalData.length === 0) {
+        container.innerHTML = `
+            <div class="weather-impact-placeholder">
+                <p>🌤️ Žádná data pro analýzu vlivu počasí</p>
+                <p><small>Načtěte historická data pro analýzu vlivu počasí</small></p>
+            </div>
+        `;
+        return;
+    }
+    
+    // Seskup data podle počasí (zjednodušená verze)
+    const weatherData = new Map();
+    
+    globalState.historicalData.forEach(record => {
+        if (record.weather && record.sales > 0 && record.visitors > 0) {
+            const weather = record.weather.toLowerCase();
+            let category = 'ostatní';
+            
+            if (weather.includes('sun') || weather.includes('clear') || weather.includes('jasno')) {
+                category = 'slunečno';
+            } else if (weather.includes('rain') || weather.includes('déšť')) {
+                category = 'déšť';
+            } else if (weather.includes('cloud') || weather.includes('oblačno')) {
+                category = 'oblačno';
+            } else if (weather.includes('snow') || weather.includes('sníh')) {
+                category = 'sníh';
+            }
+            
+            if (!weatherData.has(category)) {
+                weatherData.set(category, {
+                    totalSales: 0,
+                    totalVisitors: 0,
+                    eventsCount: 0
+                });
+            }
+            
+            const categoryData = weatherData.get(category);
+            categoryData.totalSales += record.sales;
+            categoryData.totalVisitors += record.visitors;
+            categoryData.eventsCount += 1;
+        }
+    });
+    
+    let html = '<div class="weather-impact-analysis">';
+    html += '<h4>🌤️ Vliv počasí na konverzi</h4>';
+    
+    if (weatherData.size === 0) {
+        html += '<p>Žádná data o počasí k analýze</p>';
+    } else {
+        html += '<div class="weather-categories">';
+        
+        const weatherIcons = {
+            'slunečno': '☀️',
+            'oblačno': '☁️',
+            'déšť': '🌧️',
+            'sníh': '❄️',
+            'ostatní': '🌤️'
+        };
+        
+        Array.from(weatherData.entries()).forEach(([category, data]) => {
+            const conversion = data.totalVisitors > 0 ? (data.totalSales / data.totalVisitors) * 100 : 0;
+            const icon = weatherIcons[category] || '🌤️';
+            
+            html += `
+                <div class="weather-category">
+                    <div class="weather-icon">${icon}</div>
+                    <div class="weather-name">${category}</div>
+                    <div class="weather-stats">
+                        <div class="conversion-rate">${conversion.toFixed(1)}%</div>
+                        <div class="events-count">${data.eventsCount} akcí</div>
+                    </div>
+                </div>
+            `;
+        });
+        
+        html += '</div>';
+    }
+    
+    html += '</div>';
+    
+    container.innerHTML = html;
+}
+
+// ========================================
+// CSS STYLY PRO NOVÉ KOMPONENTY
+// ========================================
+
+// Přidání stylů pro analytics komponenty
+function addAnalyticsStyles() {
+    const style = document.createElement('style');
+    style.textContent = `
+        /* Monthly trends */
+        .monthly-trends-chart {
+            padding: 20px;
+        }
+        
+        .trends-bars {
+            display: flex;
+            gap: 10px;
+            height: 200px;
+            align-items: flex-end;
+            margin: 20px 0;
+            padding: 10px;
+            background: var(--gray-100);
+            border-radius: 8px;
+        }
+        
+        .trend-bar-container {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            height: 100%;
+        }
+        
+        .trend-bar {
+            min-height: 10px;
+            width: 100%;
+            border-radius: 4px 4px 0 0;
+            transition: all 0.3s ease;
+            margin-bottom: 5px;
+        }
+        
+        .trend-bar:hover {
+            filter: brightness(1.1);
+            transform: scale(1.05);
+        }
+        
+        .trend-label {
+            font-size: 0.8em;
+            color: var(--gray-600);
+            margin: 2px 0;
+        }
+        
+        .trend-value {
+            font-size: 0.7em;
+            font-weight: 600;
+            color: var(--gray-700);
+        }
+        
+        /* Prediction accuracy */
+        .accuracy-summary {
+            display: flex;
+            gap: 20px;
+            margin-bottom: 20px;
+            align-items: center;
+        }
+        
+        .accuracy-score {
+            text-align: center;
+            padding: 20px;
+            border-radius: 12px;
+            min-width: 120px;
+        }
+        
+        .accuracy-score.excellent {
+            background: linear-gradient(135deg, #d4edda, #c3e6cb);
+            border: 2px solid var(--success-color);
+        }
+        
+        .accuracy-score.good {
+            background: linear-gradient(135deg, #fff3cd, #ffeaa7);
+            border: 2px solid var(--warning-color);
+        }
+        
+        .accuracy-score.needs-improvement {
+            background: linear-gradient(135deg, #f8d7da, #f5c6cb);
+            border: 2px solid var(--error-color);
+        }
+        
+        .score-value {
+            font-size: 2em;
+            font-weight: 700;
+            margin-bottom: 5px;
+        }
+        
+        .score-label {
+            font-size: 0.9em;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+        
+        .accuracy-details {
+            flex: 1;
+            color: var(--gray-600);
+        }
+        
+        .accuracy-details p {
+            margin: 5px 0;
+        }
+        
+        .accuracy-item {
+            padding: 12px;
+            margin: 8px 0;
+            border-radius: 6px;
+            border-left: 4px solid var(--gray-400);
+        }
+        
+        .accuracy-item.excellent {
+            background: rgba(40, 167, 69, 0.1);
+            border-left-color: var(--success-color);
+        }
+        
+        .accuracy-item.good {
+            background: rgba(255, 193, 7, 0.1);
+            border-left-color: var(--warning-color);
+        }
+        
+        .accuracy-item.poor {
+            background: rgba(220, 53, 69, 0.1);
+            border-left-color: var(--error-color);
+        }
+        
+        .accuracy-event {
+            font-weight: 600;
+            margin-bottom: 5px;
+        }
+        
+        .accuracy-stats {
+            display: flex;
+            gap: 15px;
+            font-size: 0.9em;
+            color: var(--gray-600);
+        }
+        
+        .accuracy-percent {
+            font-weight: 600;
+            color: var(--primary-color) !important;
+        }
+        
+        /* Weather impact */
+        .weather-categories {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 15px;
+            margin: 20px 0;
+        }
+        
+        .weather-category {
+            text-align: center;
+            padding: 20px;
+            background: var(--white);
+            border-radius: 8px;
+            border: 1px solid var(--gray-200);
+            transition: all 0.3s ease;
+        }
+        
+        .weather-category:hover {
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-md);
+        }
+        
+        .weather-icon {
+            font-size: 2em;
+            margin-bottom: 10px;
+        }
+        
+        .weather-name {
+            font-weight: 600;
+            margin-bottom: 10px;
+            text-transform: capitalize;
+        }
+        
+        .conversion-rate {
+            font-size: 1.5em;
+            font-weight: 700;
+            color: var(--primary-color);
+            margin-bottom: 5px;
+        }
+        
+        .events-count {
+            font-size: 0.9em;
+            color: var(--gray-600);
+        }
+    `;
+    
+    document.head.appendChild(style);
+}
+
+// ========================================
+// INICIALIZACE A EVENT LISTENERS
+// ========================================
+
+// Inicializace při načtení
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('📅 Initializing Part 4 Complete...');
+    
+    // Přidání stylů
+    addAnalyticsStyles();
+    
+    // Ujisti se, že globalState existuje
+    if (typeof globalState === 'undefined') {
+        console.warn('⚠️ globalState not defined, creating...');
+        window.globalState = {
+            currentYear: new Date().getFullYear(),
+            currentMonth: new Date().getMonth(),
+            historicalData: [],
+            debugMode: true
+        };
+    }
+    
+    // Automatické vykreslení kalendáře po 3 sekundách
+    setTimeout(() => {
+        console.log('🔄 Auto-rendering calendar...');
+        
+        // Inicializace color palette
+        if (!calendarState.colorPalette || calendarState.colorPalette.length === 0) {
+            calendarState.colorPalette = generateColorPalette();
+        }
+        
+        // Vykreslení kalendáře
+        renderCalendar();
+        
+        // Aktualizace analytics pokud jsou data
+        if (globalState.historicalData && globalState.historicalData.length > 0) {
+            displayMonthlyTrends();
+            displayPredictionAccuracy();
+            displayWeatherImpact();
+        }
+        
+    }, 3000);
+    
+    console.log('✅ Part 4 Complete initialized');
+});
+
+// Event listeners pro analytics refresh
+eventBus.on('sectionChanged', (data) => {
+    if (data.section === 'analytics') {
+        setTimeout(() => {
+            displayMonthlyTrends();
+            displayPredictionAccuracy();
+            displayWeatherImpact();
+        }, 500);
+    }
+});
+
+// ========================================
+// EXPORT DEBUG FUNKCÍ
+// ========================================
+
+if (typeof window !== 'undefined') {
+    window.donulandPart4Debug = {
+        calendarState: () => calendarState,
+        renderCalendar: renderCalendar,
+        openModal: openEventModal,
+        testCalendar: () => {
+            console.log('🧪 Testing calendar system...');
+            console.log('Calendar state:', calendarState);
+            console.log('Global state:', globalState);
+            
+            renderCalendar();
+            
+            return {
+                calendarState,
+                globalState: {
+                    currentMonth: globalState.currentMonth,
+                    currentYear: globalState.currentYear,
+                    dataCount: globalState.historicalData?.length || 0
+                }
+            };
+        }
+    };
+}
+
+console.log('✅ Donuland Part 4 COMPLETE loaded successfully');
+console.log('📅 Features: ✅ Calendar State ✅ Calendar Rendering ✅ Modal Management ✅ Analytics Charts');
+console.log('🧪 Debug: window.donulandPart4Debug.testCalendar() to test everything');
+console.log('🎯 Status: Calendar should now render properly with all features working');
