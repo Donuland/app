@@ -1,4 +1,279 @@
 /* ========================================
+   DONULAND PART 4 - CHYBĚJÍCÍ ZÁKLADNÍ STRUKTURA
+   Přidej tohle na ZAČÁTEK souboru donuland_app_part4.js
+   ======================================== */
+
+console.log('🍩 Donuland Part 4 - Adding missing calendar structure...');
+
+// ========================================
+// CHYBĚJÍCÍ GLOBÁLNÍ KALENDÁŘNÍ STAV
+// ========================================
+
+const calendarState = {
+    currentEvents: [],
+    filteredEvents: [],
+    eventColors: new Map(), // Mapování názvu akce na barvu
+    colorPalette: [], // Vygenerované barvy
+    filters: {
+        city: '',
+        category: '',
+        status: ''
+    },
+    isRendering: false
+};
+
+// ========================================
+// CHYBĚJÍCÍ RENDER FUNKCE
+// ========================================
+
+// Hlavní funkce pro vykreslení kalendáře
+function renderCalendar() {
+    if (calendarState.isRendering) {
+        console.log('⚠️ Calendar already rendering, skipping...');
+        return;
+    }
+    
+    console.log('📅 Rendering calendar...');
+    calendarState.isRendering = true;
+    
+    try {
+        const calendarGrid = document.getElementById('calendarGrid');
+        if (!calendarGrid) {
+            console.error('❌ Calendar grid not found');
+            return;
+        }
+        
+        // Vymazání současného obsahu
+        calendarGrid.innerHTML = '';
+        
+        // Přidání hlaviček dnů
+        const dayHeaders = ['Po', 'Út', 'St', 'Čt', 'Pá', 'So', 'Ne'];
+        dayHeaders.forEach(day => {
+            const header = document.createElement('div');
+            header.className = 'calendar-header';
+            header.textContent = day;
+            calendarGrid.appendChild(header);
+        });
+        
+        // Získání dnů v měsíci
+        const year = globalState.currentYear;
+        const month = globalState.currentMonth;
+        const daysInMonth = getDaysInMonth(year, month);
+        
+        // Přidání dnů
+        daysInMonth.forEach(dayData => {
+            const dayElement = createCalendarDay(dayData);
+            calendarGrid.appendChild(dayElement);
+        });
+        
+        console.log(`✅ Calendar rendered for ${month + 1}/${year}`);
+        
+    } catch (error) {
+        console.error('❌ Error rendering calendar:', error);
+        showNotification('❌ Chyba při vykreslování kalendáře', 'error');
+    } finally {
+        calendarState.isRendering = false;
+    }
+}
+
+// ========================================
+// CHYBĚJÍCÍ CSS ANIMACE
+// ========================================
+
+function addCalendarAnimationCSS() {
+    const style = document.createElement('style');
+    style.textContent = `
+        @keyframes popupSlideIn {
+            from { 
+                opacity: 0; 
+                transform: translate(-50%, -60%) scale(0.9); 
+            }
+            to { 
+                opacity: 1; 
+                transform: translate(-50%, -50%) scale(1); 
+            }
+        }
+        
+        .calendar-grid {
+            animation: fadeIn 0.5s ease-out;
+        }
+        
+        .calendar-day {
+            transition: all 0.3s ease;
+        }
+        
+        .calendar-day:hover {
+            transform: scale(1.02);
+            z-index: 5;
+        }
+    `;
+    
+    document.head.appendChild(style);
+}
+
+// ========================================
+// CHYBĚJÍCÍ FILTER FUNKCE
+// ========================================
+
+// Vymazání všech filtrů
+function clearFilters() {
+    const cityFilter = document.getElementById('cityFilter');
+    const categoryFilter = document.getElementById('categoryFilter');
+    const statusFilter = document.getElementById('statusFilter');
+    
+    if (cityFilter) cityFilter.value = '';
+    if (categoryFilter) categoryFilter.value = '';
+    if (statusFilter) statusFilter.value = '';
+    
+    calendarState.filters = { city: '', category: '', status: '' };
+    
+    renderCalendar();
+    updateMonthEventsList();
+    showNotification('🔄 Filtry kalendáře vymazány', 'info', 2000);
+}
+
+// ========================================
+// CHYBĚJÍCÍ MODAL FUNKCE (PLACEHOLDER)
+// ========================================
+
+function openEventModal(event = null, defaultDate = null) {
+    console.log('📝 Opening event modal:', { event, defaultDate });
+    // Tato funkce bude implementována v part4E
+    showNotification('ℹ️ Event modal - will be implemented in part 4E', 'info');
+}
+
+function openEventModalFromPopup(eventType, eventId) {
+    console.log('📝 Opening event modal from popup:', { eventType, eventId });
+    openEventModal();
+}
+
+function openEventModalFromList(eventType, eventId) {
+    console.log('📝 Opening event modal from list:', { eventType, eventId });
+    openEventModal();
+}
+
+function duplicatePrediction(predictionId) {
+    console.log('📋 Duplicating prediction:', predictionId);
+    showNotification('📋 Kopírování predikce - will be implemented in part 4E', 'info');
+}
+
+// ========================================
+// CHYBĚJÍCÍ HELPER FUNKCE
+// ========================================
+
+// Pokud formatNumber není definováno
+if (typeof formatNumber === 'undefined') {
+    function formatNumber(number) {
+        if (number === null || number === undefined || isNaN(number)) {
+            return '0';
+        }
+        return new Intl.NumberFormat('cs-CZ').format(Math.round(number));
+    }
+}
+
+// Pokud formatDate není definováno
+if (typeof formatDate === 'undefined') {
+    function formatDate(date) {
+        if (!date) return '';
+        
+        if (typeof date === 'string') {
+            date = new Date(date);
+        }
+        
+        if (isNaN(date.getTime())) {
+            return '';
+        }
+        
+        return date.toLocaleDateString('cs-CZ');
+    }
+}
+
+// Pokud escapeHtml není definováno
+if (typeof escapeHtml === 'undefined') {
+    function escapeHtml(text) {
+        if (!text) return '';
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+}
+
+// Pokud showNotification není definováno
+if (typeof showNotification === 'undefined') {
+    function showNotification(message, type = 'info', duration = 3000) {
+        console.log(`📢 ${type.toUpperCase()}: ${message}`);
+        
+        // Jednoduchá implementace pro fallback
+        if (window.alert && type === 'error') {
+            alert('Chyba: ' + message);
+        }
+    }
+}
+
+// ========================================
+// INICIALIZACE PO NAČTENÍ
+// ========================================
+
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('📅 Initializing calendar system...');
+    
+    // Přidání CSS animací
+    addCalendarAnimationCSS();
+    
+    // Inicializace color palette
+    if (calendarState.colorPalette.length === 0) {
+        calendarState.colorPalette = generateColorPalette();
+    }
+    
+    // Automatické vykreslení kalendáře po 2 sekundách
+    setTimeout(() => {
+        console.log('🔄 Auto-rendering calendar...');
+        
+        // Ověř, že globalState existuje
+        if (typeof globalState === 'undefined') {
+            console.warn('⚠️ globalState not found, creating temporary one');
+            window.globalState = {
+                currentYear: new Date().getFullYear(),
+                currentMonth: new Date().getMonth(),
+                historicalData: [],
+                debugMode: true
+            };
+        }
+        
+        // Vykreslení kalendáře
+        renderCalendar();
+        
+        // Pokud existuje updateMonthEventsList
+        if (typeof updateMonthEventsList === 'function') {
+            updateMonthEventsList();
+        }
+        
+    }, 2000);
+    
+    console.log('✅ Calendar system initialized');
+});
+
+// ========================================
+// EXPORT DEBUG FUNKCÍ
+// ========================================
+
+if (typeof window !== 'undefined') {
+    window.donulandCalendar = {
+        state: calendarState,
+        render: renderCalendar,
+        clear: clearFilters,
+        testRender: () => {
+            console.log('🧪 Testing calendar render...');
+            calendarState.isRendering = false; // Reset flag
+            renderCalendar();
+        }
+    };
+}
+
+console.log('🔧 Missing calendar structure added successfully');
+console.log('📅 Calendar should now render automatically in 2 seconds');
+console.log('🧪 Test manually: window.donulandCalendar.testRender()');
+/* ========================================
    DONULAND PART 4A - OPRAVY
    Barevný systém a základní kalendářní funkcionalita
    ======================================== */
