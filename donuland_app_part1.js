@@ -16,7 +16,7 @@ const CONFIG = {
     MAPS_API_KEY: 'AIzaSyBTTA_MKa6FrxKpkcd7c5-d3FnC6FBLVTc',
     
     // Business parametry
-    DONUT_PRICE: 50,
+    DONUT_PRICE: 110,
     DONUT_COST: 32,
     FRANCHISE_PRICE: 52,
     HOURLY_WAGE: 150,
