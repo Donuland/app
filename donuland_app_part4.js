@@ -705,41 +705,40 @@ function isDateInRange(checkDate, fromDate, toDate) {
     const actualToDate = toDate && toDate.trim() ? toDate : fromDate;
     
     try {
-        // KLÍČOVÁ OPRAVA: Vytvoř všechna data v LOCAL timezone s pevným časem
-        // Poledne eliminuje timezone problémy
-        const checkDateObj = new Date(checkDate + 'T12:00:00');
-        const fromDateObj = new Date(fromDate + 'T12:00:00');
-        const toDateObj = new Date(actualToDate + 'T12:00:00');
+        // 🔧 KLÍČOVÁ OPRAVA: Převeď všechno na string formát YYYY-MM-DD
+        let checkDateStr, fromDateStr, toDateStr;
         
-        // Resetuj všechna data na stejný čas pro konzistentní porovnání
-        checkDateObj.setHours(12, 0, 0, 0);
-        fromDateObj.setHours(12, 0, 0, 0);
-        toDateObj.setHours(12, 0, 0, 0);
+        // Zpracování checkDate (datum z kalendáře)
+        if (typeof checkDate === 'string') {
+            checkDateStr = checkDate.includes('T') ? checkDate.split('T')[0] : checkDate;
+        } else if (checkDate instanceof Date) {
+            checkDateStr = checkDate.toISOString().split('T')[0];
+        } else {
+            return false;
+        }
         
-        // Kontrola validity dat
-        if (isNaN(checkDateObj.getTime()) || isNaN(fromDateObj.getTime()) || isNaN(toDateObj.getTime())) {
+        // Zpracování fromDate (ze Sheets nebo formuláře)
+        fromDateStr = normalizeDateToYYYYMMDD(fromDate);
+        toDateStr = normalizeDateToYYYYMMDD(actualToDate);
+        
+        if (!fromDateStr || !toDateStr) {
             if (globalState.debugMode) {
-                console.warn('⚠️ Invalid dates in range check:', { 
-                    checkDate, fromDate, actualToDate,
-                    checkValid: !isNaN(checkDateObj.getTime()),
-                    fromValid: !isNaN(fromDateObj.getTime()),
-                    toValid: !isNaN(toDateObj.getTime())
-                });
+                console.warn('⚠️ Date normalization failed:', { fromDate, actualToDate });
             }
             return false;
         }
         
-        // KRITICKÁ LOGIKA: Datum musí být mezi from a to (VČETNĚ okrajů)
-        const inRange = checkDateObj >= fromDateObj && checkDateObj <= toDateObj;
+        // 🔧 POUZE STRING POROVNÁNÍ - žádné Date objekty!
+        const inRange = checkDateStr >= fromDateStr && checkDateStr <= toDateStr;
         
         if (globalState.debugMode && inRange) {
-            console.log(`📅 Date in range: ${checkDate} is between ${fromDate} and ${actualToDate}`);
+            console.log(`📅 ✅ MATCH: "${checkDateStr}" matches event "${fromDateStr}" to "${toDateStr}"`);
         }
         
         return inRange;
         
     } catch (error) {
-        console.warn('⚠️ Date parsing error in range check:', { 
+        console.warn('⚠️ Error in date range check:', { 
             checkDate, fromDate, actualToDate, error: error.message 
         });
         return false;
@@ -4215,3 +4214,61 @@ console.log('✅ Donuland Quick Fixes loaded');
 console.log('🔧 Manual trigger: window.donulandQuickFix.applyAll()');
 console.log('📅 Date fix: Events should now appear on correct dates');
 console.log('🎨 Font fix: Statistics should have smaller, readable fonts');
+// PŘIDEJ TUTO HELPER FUNKCI (na konec souboru):
+// ========================================
+
+/**
+ * Normalizuje jakýkoli datum formát na YYYY-MM-DD
+ */
+function normalizeDateToYYYYMMDD(dateInput) {
+    if (!dateInput) return null;
+    
+    try {
+        // Už je ve správném formátu
+        if (typeof dateInput === 'string' && dateInput.match(/^\d{4}-\d{2}-\d{2}$/)) {
+            return dateInput;
+        }
+        
+        // Formát DD.MM.YYYY (ze Sheets)
+        if (typeof dateInput === 'string' && dateInput.includes('.')) {
+            const parts = dateInput.split('.');
+            if (parts.length === 3) {
+                const day = parts[0].padStart(2, '0');
+                const month = parts[1].padStart(2, '0');
+                const year = parts[2];
+                return `${year}-${month}-${day}`;
+            }
+        }
+        
+        // Formát DD/MM/YYYY
+        if (typeof dateInput === 'string' && dateInput.includes('/')) {
+            const parts = dateInput.split('/');
+            if (parts.length === 3) {
+                const day = parts[0].padStart(2, '0');
+                const month = parts[1].padStart(2, '0');
+                const year = parts[2];
+                return `${year}-${month}-${day}`;
+            }
+        }
+        
+        // Date objekt
+        if (dateInput instanceof Date) {
+            return dateInput.toISOString().split('T')[0];
+        }
+        
+        // Zkus parsovat jako Date
+        if (typeof dateInput === 'string') {
+            const parsed = new Date(dateInput + 'T12:00:00'); // Polední čas eliminuje timezone problémy
+            if (!isNaN(parsed.getTime())) {
+                return parsed.toISOString().split('T')[0];
+            }
+        }
+        
+        console.warn('⚠️ Could not normalize date:', dateInput);
+        return null;
+        
+    } catch (error) {
+        console.warn('⚠️ Date normalization error:', { dateInput, error: error.message });
+        return null;
+    }
+}
