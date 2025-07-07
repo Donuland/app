@@ -2949,3 +2949,1428 @@ console.log('🌤️ Weather: Detailed weather type analysis with chocolate-spec
 console.log('⚡ Performance: Monitoring and error recovery systems');
 console.log('🧪 Debug: window.donulandAnalyticsDebug with test data generation');
 console.log('⏳ Ready for Part 4D: Calendar & Analytics Integration');
+/* ========================================
+   DONULAND PART 4D - INTEGRATION & COORDINATION
+   Integrace všech částí kalendáře a analýz
+   ======================================== */
+
+console.log('🍩 Donuland Part 4D (Integration) loading...');
+
+// ========================================
+// GLOBAL INTEGRATION STATE
+// ========================================
+
+// Globální stav pro integraci všech částí
+if (typeof window.integrationState === 'undefined') {
+    window.integrationState = {
+        isInitializing: false,
+        sectionsLoaded: {
+            part4A: false,
+            part4B: false,
+            part4C: false
+        },
+        lastSectionSwitch: null,
+        syncInProgress: false,
+        pendingUpdates: new Set(),
+        crossSectionFilters: {
+            dateRange: null,
+            city: '',
+            category: '',
+            status: ''
+        }
+    };
+}
+
+// ========================================
+// MAIN INTEGRATION CONTROLLER
+// ========================================
+
+// Hlavní kontroler pro integraci všech částí
+class DonulandIntegrationController {
+    constructor() {
+        this.sectionMap = new Map([
+            ['calendar', 'part4A'],
+            ['analytics', 'part4C']
+        ]);
+        
+        this.initializationQueue = [];
+        this.syncQueue = [];
+        this.retryAttempts = new Map();
+        
+        console.log('🔧 Integration Controller initialized');
+    }
+    
+    // Inicializace integrace
+    async initialize() {
+        if (integrationState.isInitializing) {
+            console.log('⚠️ Integration already initializing');
+            return;
+        }
+        
+        integrationState.isInitializing = true;
+        console.log('🚀 Starting integration initialization...');
+        
+        try {
+            // 1. Ověřit dostupnost všech částí
+            await this.verifyPartsAvailability();
+            
+            // 2. Inicializovat cross-section komunikaci
+            this.setupCrossSectionCommunication();
+            
+            // 3. Synchronizovat globální stavy
+            await this.synchronizeGlobalStates();
+            
+            // 4. Nastavit unified event handling
+            this.setupUnifiedEventHandling();
+            
+            // 5. Inicializovat section-specific features
+            await this.initializeSectionFeatures();
+            
+            // 6. Setup auto-sync mechanismy
+            this.setupAutoSync();
+            
+            console.log('✅ Integration initialization completed');
+            
+            // Emit completion event
+            eventBus.emit('integrationInitialized', {
+                timestamp: Date.now(),
+                sectionsLoaded: integrationState.sectionsLoaded
+            });
+            
+        } catch (error) {
+            console.error('❌ Integration initialization failed:', error);
+            this.handleInitializationError(error);
+        } finally {
+            integrationState.isInitializing = false;
+        }
+    }
+    
+    // Ověření dostupnosti všech částí
+    async verifyPartsAvailability() {
+        console.log('🔍 Verifying parts availability...');
+        
+        const requiredFunctions = [
+            { name: 'renderCalendar', part: 'part4A' },
+            { name: 'openEventModal', part: 'part4B' },
+            { name: 'initializeAnalytics', part: 'part4C' },
+            { name: 'updatePredictionAccuracy', part: 'part4C' },
+            { name: 'filterCalendar', part: 'part4A' }
+        ];
+        
+        const missingFunctions = [];
+        
+        for (const func of requiredFunctions) {
+            if (typeof window[func.name] !== 'function') {
+                missingFunctions.push(func);
+                integrationState.sectionsLoaded[func.part] = false;
+            } else {
+                integrationState.sectionsLoaded[func.part] = true;
+            }
+        }
+        
+        if (missingFunctions.length > 0) {
+            console.warn('⚠️ Missing functions:', missingFunctions);
+            // Pokračovat i s chybějícími funkcemi, ale s omezenou funkcionalitou
+        }
+        
+        // Ověřit HTML elementy
+        const requiredElements = [
+            'calendarGrid', 'monthEvents', 'overallStats', 
+            'topEvents', 'topCities', 'topCategories'
+        ];
+        
+        const missingElements = requiredElements.filter(id => !document.getElementById(id));
+        
+        if (missingElements.length > 0) {
+            console.warn('⚠️ Missing HTML elements:', missingElements);
+        }
+        
+        console.log('✅ Parts availability verified');
+    }
+    
+    // Setup cross-section komunikace
+    setupCrossSectionCommunication() {
+        console.log('📡 Setting up cross-section communication...');
+        
+        // Centrální message router
+        this.messageRouter = new Map([
+            ['calendar->analytics', this.handleCalendarToAnalytics.bind(this)],
+            ['analytics->calendar', this.handleAnalyticsToCalendar.bind(this)],
+            ['filter->all', this.handleFilterToAll.bind(this)],
+            ['data->all', this.handleDataToAll.bind(this)]
+        ]);
+        
+        // Setup message handling
+        eventBus.on('crossSectionMessage', (message) => {
+            this.routeMessage(message);
+        });
+        
+        console.log('✅ Cross-section communication established');
+    }
+    
+    // Synchronizace globálních stavů
+    async synchronizeGlobalStates() {
+        console.log('🔄 Synchronizing global states...');
+        
+        try {
+            // Synchronizovat kalendářní stav
+            if (typeof calendarState !== 'undefined' && globalState) {
+                calendarState.filters.city = integrationState.crossSectionFilters.city;
+                calendarState.filters.category = integrationState.crossSectionFilters.category;
+                calendarState.filters.status = integrationState.crossSectionFilters.status;
+            }
+            
+            // Synchronizovat analytics stav
+            if (typeof analyticsState !== 'undefined') {
+                analyticsState.lastUpdate = null; // Force refresh
+            }
+            
+            // Synchronizovat timeline
+            if (globalState && globalState.currentMonth !== undefined) {
+                integrationState.crossSectionFilters.dateRange = {
+                    month: globalState.currentMonth,
+                    year: globalState.currentYear
+                };
+            }
+            
+            console.log('✅ Global states synchronized');
+            
+        } catch (error) {
+            console.error('❌ Error synchronizing states:', error);
+        }
+    }
+    
+    // Unified event handling
+    setupUnifiedEventHandling() {
+        console.log('🎯 Setting up unified event handling...');
+        
+        // Section switching s integrovanými updates
+        eventBus.on('sectionChanged', (data) => {
+            this.handleSectionSwitch(data.section);
+        });
+        
+        // Data changes s propagací do všech sekcí
+        eventBus.on('dataLoaded', (data) => {
+            this.propagateDataUpdate(data);
+        });
+        
+        // Filter changes s cross-section sync
+        eventBus.on('filterChanged', (data) => {
+            this.propagateFilterUpdate(data);
+        });
+        
+        // Event modifications s calendar+analytics update
+        eventBus.on('eventEdited', (data) => {
+            this.handleEventModification(data);
+        });
+        
+        eventBus.on('eventDeleted', (data) => {
+            this.handleEventModification(data);
+        });
+        
+        // Prediction saves s calendar update
+        eventBus.on('predictionSaved', (data) => {
+            this.handlePredictionSave(data);
+        });
+        
+        console.log('✅ Unified event handling configured');
+    }
+    
+    // Inicializace section-specific features
+    async initializeSectionFeatures() {
+        console.log('⚙️ Initializing section-specific features...');
+        
+        try {
+            // Enhanced calendar features
+            if (integrationState.sectionsLoaded.part4A) {
+                await this.enhanceCalendarFeatures();
+            }
+            
+            // Enhanced analytics features
+            if (integrationState.sectionsLoaded.part4C) {
+                await this.enhanceAnalyticsFeatures();
+            }
+            
+            console.log('✅ Section-specific features initialized');
+            
+        } catch (error) {
+            console.error('❌ Error initializing section features:', error);
+        }
+    }
+    
+    // Enhanced calendar features
+    async enhanceCalendarFeatures() {
+        console.log('📅 Enhancing calendar features...');
+        
+        // Quick analytics integration
+        if (typeof renderCalendar === 'function') {
+            const originalRenderCalendar = renderCalendar;
+            window.renderCalendar = function(...args) {
+                const result = originalRenderCalendar.apply(this, args);
+                
+                // Trigger analytics update after calendar render
+                setTimeout(() => {
+                    integrationController.triggerAnalyticsUpdate('calendar-render');
+                }, 500);
+                
+                return result;
+            };
+        }
+        
+        // Enhanced month navigation
+        this.setupEnhancedMonthNavigation();
+        
+        // Calendar-analytics sync
+        this.setupCalendarAnalyticsSync();
+        
+        console.log('✅ Calendar features enhanced');
+    }
+    
+    // Enhanced analytics features
+    async enhanceAnalyticsFeatures() {
+        console.log('📊 Enhancing analytics features...');
+        
+        // Analytics-calendar integration
+        if (typeof initializeAnalytics === 'function') {
+            const originalInitializeAnalytics = initializeAnalytics;
+            window.initializeAnalytics = function(...args) {
+                const result = originalInitializeAnalytics.apply(this, args);
+                
+                // Update integration state
+                integrationState.pendingUpdates.delete('analytics');
+                
+                return result;
+            };
+        }
+        
+        // Enhanced data drill-down
+        this.setupAnalyticsDrillDown();
+        
+        console.log('✅ Analytics features enhanced');
+    }
+    
+    // Setup auto-sync mechanismy
+    setupAutoSync() {
+        console.log('🔄 Setting up auto-sync mechanisms...');
+        
+        // Periodic sync check
+        setInterval(() => {
+            this.performPeriodicSync();
+        }, 30000); // Every 30 seconds
+        
+        // Visibility change sync
+        document.addEventListener('visibilitychange', () => {
+            if (!document.hidden) {
+                setTimeout(() => {
+                    this.performVisibilitySync();
+                }, 1000);
+            }
+        });
+        
+        // Window focus sync
+        window.addEventListener('focus', () => {
+            setTimeout(() => {
+                this.performFocusSync();
+            }, 500);
+        });
+        
+        console.log('✅ Auto-sync mechanisms configured');
+    }
+}
+
+// ========================================
+// MESSAGE ROUTING HANDLERS
+// ========================================
+
+// Extension metod pro DonulandIntegrationController
+Object.assign(DonulandIntegrationController.prototype, {
+    // Route message mezi sekcemi
+    routeMessage(message) {
+        const { type, source, target, data } = message;
+        const routeKey = `${source}->${target}`;
+        
+        console.log(`📨 Routing message: ${type} from ${source} to ${target}`);
+        
+        const handler = this.messageRouter.get(routeKey) || this.messageRouter.get(`${source}->all`);
+        
+        if (handler) {
+            try {
+                handler(type, data, message);
+            } catch (error) {
+                console.error(`❌ Error routing message ${type}:`, error);
+            }
+        } else {
+            console.warn(`⚠️ No handler for route: ${routeKey}`);
+        }
+    },
+    
+    // Calendar -> Analytics komunikace
+    handleCalendarToAnalytics(type, data, message) {
+        switch (type) {
+            case 'month-changed':
+                this.syncAnalyticsToMonth(data.month, data.year);
+                break;
+                
+            case 'event-clicked':
+                this.showEventInAnalytics(data.eventId);
+                break;
+                
+            case 'filter-applied':
+                this.applyFiltersToAnalytics(data.filters);
+                break;
+                
+            default:
+                console.log(`📊 Analytics handling: ${type}`, data);
+        }
+    },
+    
+    // Analytics -> Calendar komunikace
+    handleAnalyticsToCalendar(type, data, message) {
+        switch (type) {
+            case 'time-range-selected':
+                this.syncCalendarToTimeRange(data.startDate, data.endDate);
+                break;
+                
+            case 'city-drilldown':
+                this.filterCalendarByCity(data.city);
+                break;
+                
+            case 'category-drilldown':
+                this.filterCalendarByCategory(data.category);
+                break;
+                
+            default:
+                console.log(`📅 Calendar handling: ${type}`, data);
+        }
+    },
+    
+    // Filter -> All komunikace
+    handleFilterToAll(type, data, message) {
+        if (type === 'global-filter-change') {
+            integrationState.crossSectionFilters = { ...data.filters };
+            this.propagateFiltersToAllSections(data.filters);
+        }
+    },
+    
+    // Data -> All komunikace
+    handleDataToAll(type, data, message) {
+        if (type === 'data-updated') {
+            this.refreshAllSections(data);
+        }
+    }
+});
+
+// ========================================
+// SECTION SWITCHING COORDINATION
+// ========================================
+
+Object.assign(DonulandIntegrationController.prototype, {
+    // Handle section switch s koordinací
+    handleSectionSwitch(targetSection) {
+        console.log(`🔄 Handling section switch to: ${targetSection}`);
+        
+        integrationState.lastSectionSwitch = {
+            section: targetSection,
+            timestamp: Date.now()
+        };
+        
+        // Section-specific coordination
+        switch (targetSection) {
+            case 'calendar':
+                this.prepareCalendarSection();
+                break;
+                
+            case 'analytics':
+                this.prepareAnalyticsSection();
+                break;
+                
+            default:
+                console.log(`📄 Standard section switch: ${targetSection}`);
+        }
+        
+        // Clear pending updates for current section
+        integrationState.pendingUpdates.delete(targetSection);
+    },
+    
+    // Příprava kalendářní sekce
+    async prepareCalendarSection() {
+        console.log('📅 Preparing calendar section...');
+        
+        try {
+            // Ensure calendar state is ready
+            if (typeof calendarState !== 'undefined') {
+                calendarState.isRendering = false; // Reset rendering lock
+            }
+            
+            // Update filters from cross-section state
+            this.syncFiltersToCalendar();
+            
+            // Trigger calendar render with retry
+            await this.safeCalendarRender();
+            
+            // Update month events list
+            setTimeout(() => {
+                if (typeof updateMonthEventsList === 'function') {
+                    updateMonthEventsList();
+                }
+            }, 300);
+            
+            console.log('✅ Calendar section prepared');
+            
+        } catch (error) {
+            console.error('❌ Error preparing calendar section:', error);
+            this.retryCalendarPreparation();
+        }
+    },
+    
+    // Příprava analytics sekce
+    async prepareAnalyticsSection() {
+        console.log('📊 Preparing analytics section...');
+        
+        try {
+            // Ensure analytics state is ready
+            if (typeof analyticsState !== 'undefined') {
+                analyticsState.isLoading = false; // Reset loading lock
+            }
+            
+            // Check if data is available
+            if (!globalState.historicalData || globalState.historicalData.length === 0) {
+                console.log('⚠️ No data available for analytics');
+                return;
+            }
+            
+            // Initialize analytics with retry
+            await this.safeAnalyticsInitialization();
+            
+            console.log('✅ Analytics section prepared');
+            
+        } catch (error) {
+            console.error('❌ Error preparing analytics section:', error);
+            this.retryAnalyticsPreparation();
+        }
+    },
+    
+    // Safe calendar render s error handling
+    async safeCalendarRender() {
+        const maxRetries = 3;
+        let attempt = 0;
+        
+        while (attempt < maxRetries) {
+            try {
+                if (typeof renderCalendar === 'function') {
+                    renderCalendar();
+                    return; // Success
+                } else {
+                    throw new Error('renderCalendar function not available');
+                }
+            } catch (error) {
+                attempt++;
+                console.warn(`⚠️ Calendar render attempt ${attempt} failed:`, error);
+                
+                if (attempt < maxRetries) {
+                    await new Promise(resolve => setTimeout(resolve, 1000 * attempt));
+                } else {
+                    throw error;
+                }
+            }
+        }
+    },
+    
+    // Safe analytics initialization s error handling
+    async safeAnalyticsInitialization() {
+        const maxRetries = 3;
+        let attempt = 0;
+        
+        while (attempt < maxRetries) {
+            try {
+                if (typeof initializeAnalytics === 'function') {
+                    initializeAnalytics();
+                    return; // Success
+                } else {
+                    throw new Error('initializeAnalytics function not available');
+                }
+            } catch (error) {
+                attempt++;
+                console.warn(`⚠️ Analytics init attempt ${attempt} failed:`, error);
+                
+                if (attempt < maxRetries) {
+                    await new Promise(resolve => setTimeout(resolve, 1000 * attempt));
+                } else {
+                    throw error;
+                }
+            }
+        }
+    }
+});
+
+// ========================================
+// DATA PROPAGATION & SYNCHRONIZATION
+// ========================================
+
+Object.assign(DonulandIntegrationController.prototype, {
+    // Propagace data update do všech sekcí
+    propagateDataUpdate(data) {
+        console.log('📊 Propagating data update to all sections...');
+        
+        integrationState.syncInProgress = true;
+        
+        try {
+            // Update calendar if visible
+            if (this.isSectionActive('calendar')) {
+                setTimeout(() => {
+                    if (typeof populateFilterDropdowns === 'function') {
+                        populateFilterDropdowns();
+                    }
+                    if (typeof renderCalendar === 'function') {
+                        renderCalendar();
+                    }
+                }, 200);
+            }
+            
+            // Update analytics if visible
+            if (this.isSectionActive('analytics')) {
+                setTimeout(() => {
+                    if (typeof initializeAnalytics === 'function') {
+                        initializeAnalytics();
+                    }
+                }, 500);
+            }
+            
+            // Mark other sections for update
+            this.markSectionsForUpdate(['calendar', 'analytics']);
+            
+        } catch (error) {
+            console.error('❌ Error propagating data update:', error);
+        } finally {
+            integrationState.syncInProgress = false;
+        }
+    },
+    
+    // Propagace filter update
+    propagateFilterUpdate(filterData) {
+        console.log('🔍 Propagating filter update...', filterData);
+        
+        // Update cross-section filters
+        if (filterData.city !== undefined) {
+            integrationState.crossSectionFilters.city = filterData.city;
+        }
+        if (filterData.category !== undefined) {
+            integrationState.crossSectionFilters.category = filterData.category;
+        }
+        if (filterData.status !== undefined) {
+            integrationState.crossSectionFilters.status = filterData.status;
+        }
+        
+        // Apply to calendar
+        this.syncFiltersToCalendar();
+        
+        // Apply to analytics (if it supports filtering)
+        this.syncFiltersToAnalytics();
+    },
+    
+    // Synchronizace filtrů do kalendáře
+    syncFiltersToCalendar() {
+        if (typeof calendarState === 'undefined') return;
+        
+        const filters = integrationState.crossSectionFilters;
+        
+        // Update calendar filters
+        calendarState.filters.city = filters.city || '';
+        calendarState.filters.category = filters.category || '';
+        calendarState.filters.status = filters.status || '';
+        
+        // Update UI elements
+        const cityFilter = document.getElementById('cityFilter');
+        const categoryFilter = document.getElementById('categoryFilter');
+        const statusFilter = document.getElementById('statusFilter');
+        
+        if (cityFilter) cityFilter.value = filters.city || '';
+        if (categoryFilter) categoryFilter.value = filters.category || '';
+        if (statusFilter) statusFilter.value = filters.status || '';
+        
+        // Re-render calendar if active
+        if (this.isSectionActive('calendar') && typeof renderCalendar === 'function') {
+            setTimeout(() => renderCalendar(), 100);
+        }
+    },
+    
+    // Synchronizace filtrů do analytics
+    syncFiltersToAnalytics() {
+        // Analytics může používat filtry pro zobrazení specifických dat
+        if (this.isSectionActive('analytics') && typeof analyticsState !== 'undefined') {
+            // Force refresh analytics s novými filtry
+            analyticsState.cachedStats = null;
+            
+            setTimeout(() => {
+                if (typeof initializeAnalytics === 'function') {
+                    initializeAnalytics();
+                }
+            }, 200);
+        }
+    },
+    
+    // Označit sekce pro update
+    markSectionsForUpdate(sections) {
+        sections.forEach(section => {
+            integrationState.pendingUpdates.add(section);
+        });
+        
+        console.log('📌 Marked sections for update:', Array.from(integrationState.pendingUpdates));
+    },
+    
+    // Zkontrolovat jestli je sekce aktivní
+    isSectionActive(sectionName) {
+        const section = document.getElementById(sectionName);
+        return section && section.classList.contains('active');
+    }
+});
+
+// ========================================
+// EVENT MODIFICATION HANDLING
+// ========================================
+
+Object.assign(DonulandIntegrationController.prototype, {
+    // Handle event modification (edit/delete)
+    handleEventModification(data) {
+        console.log('✏️ Handling event modification...', data);
+        
+        try {
+            // Update calendar
+            if (this.isSectionActive('calendar')) {
+                setTimeout(() => {
+                    if (typeof renderCalendar === 'function') {
+                        renderCalendar();
+                    }
+                }, 200);
+            } else {
+                this.markSectionsForUpdate(['calendar']);
+            }
+            
+            // Update analytics
+            if (this.isSectionActive('analytics')) {
+                setTimeout(() => {
+                    if (typeof updatePredictionAccuracy === 'function') {
+                        updatePredictionAccuracy();
+                    }
+                    if (typeof updateOverallStats === 'function') {
+                        updateOverallStats();
+                    }
+                }, 500);
+            } else {
+                this.markSectionsForUpdate(['analytics']);
+            }
+            
+            // Clear cached data
+            if (typeof analyticsState !== 'undefined') {
+                analyticsState.cachedStats = null;
+            }
+            
+        } catch (error) {
+            console.error('❌ Error handling event modification:', error);
+        }
+    },
+    
+    // Handle prediction save
+    handlePredictionSave(data) {
+        console.log('🔮 Handling prediction save...', data);
+        
+        try {
+            // Update calendar (new prediction event)
+            if (this.isSectionActive('calendar')) {
+                setTimeout(() => {
+                    if (typeof populateFilterDropdowns === 'function') {
+                        populateFilterDropdowns();
+                    }
+                    if (typeof renderCalendar === 'function') {
+                        renderCalendar();
+                    }
+                }, 300);
+            } else {
+                this.markSectionsForUpdate(['calendar']);
+            }
+            
+            // Update analytics (prediction accuracy data)
+            if (this.isSectionActive('analytics')) {
+                setTimeout(() => {
+                    if (typeof updatePredictionAccuracy === 'function') {
+                        updatePredictionAccuracy();
+                    }
+                }, 400);
+            } else {
+                this.markSectionsForUpdate(['analytics']);
+            }
+            
+        } catch (error) {
+            console.error('❌ Error handling prediction save:', error);
+        }
+    }
+});
+
+// ========================================
+// AUTO-SYNC MECHANISMS
+// ========================================
+
+Object.assign(DonulandIntegrationController.prototype, {
+    // Periodic sync check
+    performPeriodicSync() {
+        if (integrationState.syncInProgress) return;
+        
+        // Check for pending updates
+        if (integrationState.pendingUpdates.size > 0) {
+            console.log('🔄 Performing periodic sync for pending updates...');
+            this.processPendingUpdates();
+        }
+        
+        // Check for data staleness
+        if (globalState.lastDataLoad) {
+            const hourAgo = Date.now() - (60 * 60 * 1000);
+            if (globalState.lastDataLoad < hourAgo) {
+                console.log('📊 Data is stale, marking for refresh...');
+                this.markSectionsForUpdate(['calendar', 'analytics']);
+            }
+        }
+    },
+    
+    // Visibility change sync
+    performVisibilitySync() {
+        console.log('👁️ Performing visibility sync...');
+        
+        const currentSection = this.getCurrentActiveSection();
+        if (currentSection && integrationState.pendingUpdates.has(currentSection)) {
+            this.processPendingUpdatesForSection(currentSection);
+        }
+    },
+    
+    // Focus sync
+    performFocusSync() {
+        console.log('🎯 Performing focus sync...');
+        
+        // Similar to visibility sync, but more conservative
+        const currentSection = this.getCurrentActiveSection();
+        if (currentSection && integrationState.pendingUpdates.has(currentSection)) {
+            // Only sync if no user activity for 2+ seconds
+            setTimeout(() => {
+                if (integrationState.pendingUpdates.has(currentSection)) {
+                    this.processPendingUpdatesForSection(currentSection);
+                }
+            }, 2000);
+        }
+    },
+    
+    // Process pending updates
+    processPendingUpdates() {
+        const updates = Array.from(integrationState.pendingUpdates);
+        integrationState.pendingUpdates.clear();
+        
+        updates.forEach(section => {
+            this.processPendingUpdatesForSection(section);
+        });
+    },
+    
+    // Process pending updates pro konkrétní sekci
+    processPendingUpdatesForSection(section) {
+        console.log(`🔄 Processing pending updates for: ${section}`);
+        
+        try {
+            switch (section) {
+                case 'calendar':
+                    if (typeof renderCalendar === 'function') {
+                        renderCalendar();
+                    }
+                    if (typeof updateMonthEventsList === 'function') {
+                        updateMonthEventsList();
+                    }
+                    break;
+                    
+                case 'analytics':
+                    if (typeof initializeAnalytics === 'function') {
+                        initializeAnalytics();
+                    }
+                    break;
+            }
+            
+            integrationState.pendingUpdates.delete(section);
+            
+        } catch (error) {
+            console.error(`❌ Error processing updates for ${section}:`, error);
+            
+            // Retry logic
+            const retryKey = `retry-${section}`;
+            const retryCount = this.retryAttempts.get(retryKey) || 0;
+            
+            if (retryCount < 3) {
+                this.retryAttempts.set(retryKey, retryCount + 1);
+                setTimeout(() => {
+                    this.processPendingUpdatesForSection(section);
+                }, 2000 * (retryCount + 1));
+            }
+        }
+    },
+    
+    // Get current active section
+    getCurrentActiveSection() {
+        const sections = ['prediction', 'calendar', 'analytics', 'settings'];
+        return sections.find(section => {
+            const element = document.getElementById(section);
+            return element && element.classList.contains('active');
+        });
+    }
+});
+
+// ========================================
+// ENHANCED FEATURES
+// ========================================
+
+Object.assign(DonulandIntegrationController.prototype, {
+    // Enhanced month navigation
+    setupEnhancedMonthNavigation() {
+        // Wrap existing changeMonth function
+        if (typeof window.changeMonth === 'function') {
+            const originalChangeMonth = window.changeMonth;
+            window.changeMonth = (direction) => {
+                originalChangeMonth(direction);
+                
+                // Emit cross-section message
+                eventBus.emit('crossSectionMessage', {
+                    type: 'month-changed',
+                    source: 'calendar',
+                    target: 'analytics',
+                    data: {
+                        month: globalState.currentMonth,
+                        year: globalState.currentYear,
+                        direction: direction
+                    }
+                });
+            };
+        }
+    },
+    
+    // Calendar-analytics sync
+    setupCalendarAnalyticsSync() {
+        // Event clicks in calendar trigger analytics highlights
+        eventBus.on('eventClicked', (data) => {
+            eventBus.emit('crossSectionMessage', {
+                type: 'event-clicked',
+                source: 'calendar',
+                target: 'analytics',
+                data: data
+            });
+        });
+    },
+    
+    // Analytics drill-down
+    setupAnalyticsDrillDown() {
+        // Top cities/categories clicks filter calendar
+        eventBus.on('analyticsDrillDown', (data) => {
+            if (data.type === 'city') {
+                this.filterCalendarByCity(data.value);
+            } else if (data.type === 'category') {
+                this.filterCalendarByCategory(data.value);
+            }
+        });
+    },
+    
+    // Filter calendar by city
+    filterCalendarByCity(city) {
+        integrationState.crossSectionFilters.city = city;
+        
+        if (this.isSectionActive('calendar')) {
+            this.syncFiltersToCalendar();
+        } else {
+            // Switch to calendar and apply filter
+            const calendarBtn = document.querySelector('.nav-btn[data-section="calendar"]');
+            if (calendarBtn) {
+                calendarBtn.click();
+                setTimeout(() => {
+                    this.syncFiltersToCalendar();
+                }, 500);
+            }
+        }
+        
+        showNotification(`🏙️ Filtrováno podle města: ${city}`, 'info', 3000);
+    },
+    
+    // Filter calendar by category
+    filterCalendarByCategory(category) {
+        integrationState.crossSectionFilters.category = category;
+        
+        if (this.isSectionActive('calendar')) {
+            this.syncFiltersToCalendar();
+        } else {
+            // Switch to calendar and apply filter
+            const calendarBtn = document.querySelector('.nav-btn[data-section="calendar"]');
+            if (calendarBtn) {
+                calendarBtn.click();
+                setTimeout(() => {
+                    this.syncFiltersToCalendar();
+                }, 500);
+            }
+        }
+        
+        showNotification(`📋 Filtrováno podle kategorie: ${category}`, 'info', 3000);
+    },
+    
+    // Sync analytics to specific month
+    syncAnalyticsToMonth(month, year) {
+        console.log(`📊 Syncing analytics to month: ${month + 1}/${year}`);
+        
+        // Update analytics to show data for specific month
+        // This could involve filtering analytics data or highlighting specific periods
+        if (this.isSectionActive('analytics') && typeof analyticsState !== 'undefined') {
+            analyticsState.cachedStats = null;
+            
+            // Custom month filtering for analytics
+            setTimeout(() => {
+                if (typeof initializeAnalytics === 'function') {
+                    initializeAnalytics();
+                }
+            }, 300);
+        }
+    },
+    
+    // Show specific event in analytics
+    showEventInAnalytics(eventId) {
+        console.log(`📊 Showing event in analytics: ${eventId}`);
+        
+        // Switch to analytics and highlight specific event
+        const analyticsBtn = document.querySelector('.nav-btn[data-section="analytics"]');
+        if (analyticsBtn) {
+            analyticsBtn.click();
+            
+            setTimeout(() => {
+                // Find and highlight the event in analytics
+                this.highlightEventInAnalytics(eventId);
+            }, 1000);
+        }
+    },
+    
+    // Highlight specific event in analytics
+    highlightEventInAnalytics(eventId) {
+        // Find the event in top events list and highlight it
+        const topEventsContainer = document.getElementById('topEvents');
+        if (topEventsContainer) {
+            const eventElements = topEventsContainer.querySelectorAll('.top-item');
+            eventElements.forEach(element => {
+                element.style.border = 'none'; // Remove existing highlights
+                
+                // Check if this element contains our event
+                const eventTitle = element.querySelector('h4');
+                if (eventTitle && eventId.includes(eventTitle.textContent.split('. ')[1])) {
+                    element.style.border = '3px solid var(--primary-color)';
+                    element.style.borderRadius = '8px';
+                    element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    
+                    // Remove highlight after 5 seconds
+                    setTimeout(() => {
+                        element.style.border = 'none';
+                    }, 5000);
+                }
+            });
+        }
+    }
+});
+
+// ========================================
+// ERROR HANDLING & RECOVERY
+// ========================================
+
+Object.assign(DonulandIntegrationController.prototype, {
+    // Handle initialization error
+    handleInitializationError(error) {
+        console.error('❌ Integration initialization error:', error);
+        
+        // Show user-friendly notification
+        showNotification('⚠️ Inicializace integrace selhala. Některé funkce nemusí fungovat správně.', 'warning', 8000);
+        
+        // Attempt partial initialization
+        setTimeout(() => {
+            this.attemptPartialInitialization();
+        }, 3000);
+    },
+    
+    // Attempt partial initialization
+    async attemptPartialInitialization() {
+        console.log('🔄 Attempting partial initialization...');
+        
+        try {
+            // Try to initialize at least basic communication
+            this.setupCrossSectionCommunication();
+            
+            // Try to sync global states
+            await this.synchronizeGlobalStates();
+            
+            // Setup basic event handling
+            this.setupUnifiedEventHandling();
+            
+            console.log('✅ Partial initialization completed');
+            showNotification('✅ Základní funkce obnoveny', 'success', 4000);
+            
+        } catch (error) {
+            console.error('❌ Partial initialization also failed:', error);
+            this.enterDegradedMode();
+        }
+    },
+    
+    // Enter degraded mode
+    enterDegradedMode() {
+        console.warn('⚠️ Entering degraded mode - limited functionality');
+        
+        integrationState.degradedMode = true;
+        
+        // Disable cross-section features
+        this.disableCrossSectionFeatures();
+        
+        // Show persistent warning
+        showNotification('⚠️ Systém běží v omezeném režimu. Restart aplikace může pomoci.', 'warning', 0);
+    },
+    
+    // Disable cross-section features
+    disableCrossSectionFeatures() {
+        // Remove enhanced wrappers
+        if (window.renderCalendar && window.renderCalendar.isEnhanced) {
+            // Restore original function if available
+            window.renderCalendar = window.renderCalendar.original || window.renderCalendar;
+        }
+        
+        if (window.initializeAnalytics && window.initializeAnalytics.isEnhanced) {
+            // Restore original function if available
+            window.initializeAnalytics = window.initializeAnalytics.original || window.initializeAnalytics;
+        }
+    },
+    
+    // Retry calendar preparation
+    retryCalendarPreparation() {
+        const retryKey = 'calendar-preparation';
+        const retryCount = this.retryAttempts.get(retryKey) || 0;
+        
+        if (retryCount < 3) {
+            this.retryAttempts.set(retryKey, retryCount + 1);
+            
+            console.log(`🔄 Retrying calendar preparation (attempt ${retryCount + 1}/3)...`);
+            
+            setTimeout(() => {
+                this.prepareCalendarSection();
+            }, 2000 * (retryCount + 1));
+        } else {
+            console.error('❌ Calendar preparation failed after 3 attempts');
+            showNotification('❌ Kalendář se nepodařilo inicializovat', 'error', 5000);
+        }
+    },
+    
+    // Retry analytics preparation
+    retryAnalyticsPreparation() {
+        const retryKey = 'analytics-preparation';
+        const retryCount = this.retryAttempts.get(retryKey) || 0;
+        
+        if (retryCount < 3) {
+            this.retryAttempts.set(retryKey, retryCount + 1);
+            
+            console.log(`🔄 Retrying analytics preparation (attempt ${retryCount + 1}/3)...`);
+            
+            setTimeout(() => {
+                this.prepareAnalyticsSection();
+            }, 2000 * (retryCount + 1));
+        } else {
+            console.error('❌ Analytics preparation failed after 3 attempts');
+            showNotification('❌ Analýzy se nepodařilo inicializovat', 'error', 5000);
+        }
+    }
+});
+
+// ========================================
+// UTILITY METHODS
+// ========================================
+
+Object.assign(DonulandIntegrationController.prototype, {
+    // Trigger analytics update
+    triggerAnalyticsUpdate(reason) {
+        console.log(`📊 Triggering analytics update (reason: ${reason})`);
+        
+        if (this.isSectionActive('analytics')) {
+            // Immediate update
+            setTimeout(() => {
+                if (typeof updateOverallStats === 'function') {
+                    updateOverallStats();
+                }
+            }, 200);
+        } else {
+            // Mark for later update
+            this.markSectionsForUpdate(['analytics']);
+        }
+    },
+    
+    // Refresh all sections
+    refreshAllSections(data) {
+        console.log('🔄 Refreshing all sections...', data);
+        
+        integrationState.syncInProgress = true;
+        
+        try {
+            // Calendar
+            if (this.isSectionActive('calendar')) {
+                setTimeout(() => {
+                    if (typeof populateFilterDropdowns === 'function') {
+                        populateFilterDropdowns();
+                    }
+                    if (typeof renderCalendar === 'function') {
+                        renderCalendar();
+                    }
+                }, 100);
+            } else {
+                this.markSectionsForUpdate(['calendar']);
+            }
+            
+            // Analytics
+            if (this.isSectionActive('analytics')) {
+                setTimeout(() => {
+                    if (typeof analyticsState !== 'undefined') {
+                        analyticsState.cachedStats = null;
+                    }
+                    if (typeof initializeAnalytics === 'function') {
+                        initializeAnalytics();
+                    }
+                }, 300);
+            } else {
+                this.markSectionsForUpdate(['analytics']);
+            }
+            
+        } catch (error) {
+            console.error('❌ Error refreshing sections:', error);
+        } finally {
+            setTimeout(() => {
+                integrationState.syncInProgress = false;
+            }, 1000);
+        }
+    },
+    
+    // Get integration status
+    getIntegrationStatus() {
+        return {
+            isInitialized: !integrationState.isInitializing,
+            sectionsLoaded: integrationState.sectionsLoaded,
+            pendingUpdates: Array.from(integrationState.pendingUpdates),
+            lastSectionSwitch: integrationState.lastSectionSwitch,
+            syncInProgress: integrationState.syncInProgress,
+            degradedMode: integrationState.degradedMode || false
+        };
+    },
+    
+    // Force sync all sections
+    forceSyncAllSections() {
+        console.log('🔧 Force syncing all sections...');
+        
+        // Clear all caches
+        if (typeof analyticsState !== 'undefined') {
+            analyticsState.cachedStats = null;
+            analyticsState.lastUpdate = null;
+        }
+        
+        if (typeof calendarState !== 'undefined') {
+            calendarState.isRendering = false;
+        }
+        
+        // Clear retry attempts
+        this.retryAttempts.clear();
+        
+        // Refresh everything
+        this.refreshAllSections({ reason: 'force-sync' });
+        
+        showNotification('🔄 Všechny sekce byly znovu synchronizovány', 'info', 3000);
+    }
+});
+
+// ========================================
+// GLOBAL INTEGRATION CONTROLLER INSTANCE
+// ========================================
+
+// Create global integration controller instance
+const integrationController = new DonulandIntegrationController();
+
+// ========================================
+// INTEGRATION EVENT LISTENERS
+// ========================================
+
+// Auto-initialization when parts are loaded
+eventBus.on('part4ALoaded', () => {
+    console.log('✅ Part 4A loaded - calendar functionality available');
+    integrationState.sectionsLoaded.part4A = true;
+    integrationController.checkReadyForInitialization();
+});
+
+eventBus.on('part4BLoaded', () => {
+    console.log('✅ Part 4B loaded - event modal functionality available');
+    integrationState.sectionsLoaded.part4B = true;
+});
+
+eventBus.on('part4CLoaded', () => {
+    console.log('✅ Part 4C loaded - analytics functionality available');
+    integrationState.sectionsLoaded.part4C = true;
+    integrationController.checkReadyForInitialization();
+});
+
+// Check if ready for initialization
+integrationController.checkReadyForInitialization = function() {
+    const { part4A, part4C } = integrationState.sectionsLoaded;
+    
+    if (part4A && part4C && !integrationState.isInitializing) {
+        console.log('🚀 All critical parts loaded - starting integration...');
+        setTimeout(() => {
+            this.initialize();
+        }, 1000);
+    }
+};
+
+// Manual integration trigger
+eventBus.on('triggerIntegration', () => {
+    console.log('🔧 Manual integration trigger received');
+    integrationController.initialize();
+});
+
+// Section change handling
+eventBus.on('sectionChanged', (data) => {
+    // This is handled by the integration controller
+    // but we can add additional logging here
+    console.log(`📍 Section changed to: ${data.section} (integration tracking)`);
+});
+
+// Data reload handling
+eventBus.on('dataReloadRequested', () => {
+    console.log('🔄 Data reload requested - will sync after load');
+    integrationState.pendingUpdates.add('calendar');
+    integrationState.pendingUpdates.add('analytics');
+});
+
+// ========================================
+// INITIALIZATION ON DOM READY
+// ========================================
+
+// Auto-start integration when DOM is ready and parts are available
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('🔧 Part 4D Integration - DOM ready');
+    
+    // Wait a bit for other parts to load
+    setTimeout(() => {
+        // Check if critical parts are available immediately
+        const hasCalendar = typeof renderCalendar === 'function';
+        const hasAnalytics = typeof initializeAnalytics === 'function';
+        
+        if (hasCalendar || hasAnalytics) {
+            console.log(`🎯 Parts available: Calendar=${hasCalendar}, Analytics=${hasAnalytics}`);
+            
+            // Start integration if we have at least one critical part
+            if (hasCalendar || hasAnalytics) {
+                integrationController.initialize();
+            }
+        } else {
+            console.log('⏳ Waiting for parts to load...');
+        }
+    }, 2000);
+    
+    // Fallback initialization after 10 seconds
+    setTimeout(() => {
+        if (!integrationState.isInitializing && !integrationController.getIntegrationStatus().isInitialized) {
+            console.log('⚠️ Fallback integration initialization...');
+            integrationController.initialize();
+        }
+    }, 10000);
+});
+
+// ========================================
+// DEBUG INTERFACE
+// ========================================
+
+// Debug interface pro integration
+if (typeof window !== 'undefined') {
+    window.donulandIntegrationDebug = {
+        // Status
+        getStatus: () => integrationController.getIntegrationStatus(),
+        getState: () => integrationState,
+        
+        // Manual control
+        initialize: () => integrationController.initialize(),
+        forceSync: () => integrationController.forceSyncAllSections(),
+        
+        // Section control
+        switchToCalendar: () => {
+            const btn = document.querySelector('.nav-btn[data-section="calendar"]');
+            if (btn) btn.click();
+        },
+        switchToAnalytics: () => {
+            const btn = document.querySelector('.nav-btn[data-section="analytics"]');
+            if (btn) btn.click();
+        },
+        
+        // Filter testing
+        testCityFilter: (city) => integrationController.filterCalendarByCity(city),
+        testCategoryFilter: (category) => integrationController.filterCalendarByCategory(category),
+        
+        // Message testing
+        sendMessage: (type, source, target, data) => {
+            eventBus.emit('crossSectionMessage', { type, source, target, data });
+        },
+        
+        // Utility
+        clearRetries: () => {
+            integrationController.retryAttempts.clear();
+            console.log('🧹 Retry attempts cleared');
+        },
+        
+        clearPendingUpdates: () => {
+            integrationState.pendingUpdates.clear();
+            console.log('🧹 Pending updates cleared');
+        },
+        
+        // Test functions
+        testCalendarRender: () => {
+            if (typeof renderCalendar === 'function') {
+                renderCalendar();
+                console.log('📅 Calendar render test executed');
+            } else {
+                console.error('❌ renderCalendar function not available');
+            }
+        },
+        
+        testAnalyticsInit: () => {
+            if (typeof initializeAnalytics === 'function') {
+                initializeAnalytics();
+                console.log('📊 Analytics init test executed');
+            } else {
+                console.error('❌ initializeAnalytics function not available');
+            }
+        },
+        
+        // Emergency functions
+        enterDegradedMode: () => integrationController.enterDegradedMode(),
+        exitDegradedMode: () => {
+            integrationState.degradedMode = false;
+            integrationController.initialize();
+        }
+    };
+}
+
+// ========================================
+// FINALIZACE
+// ========================================
+
+console.log('✅ Donuland Part 4D loaded successfully');
+console.log('🔗 Features: ✅ Cross-Section Communication ✅ Auto-Sync ✅ Error Recovery ✅ Filter Propagation');
+console.log('🎯 Integration: Calendar ↔ Analytics ↔ Filters ↔ Data');
+console.log('🔧 Debug: window.donulandIntegrationDebug available');
+console.log('📡 Communication: eventBus-based message routing');
+console.log('🔄 Auto-sync: Periodic updates, visibility handling, focus management');
+console.log('⏳ Ready for Part 4E: Final polish and edge case handling');
+
+// Emit completion event
+eventBus.emit('part4DLoaded', { 
+    timestamp: Date.now(),
+    version: '1.0.0',
+    features: [
+        'cross-section-communication',
+        'auto-sync-mechanisms', 
+        'filter-propagation',
+        'section-coordination',
+        'error-recovery',
+        'message-routing',
+        'degraded-mode-support'
+    ]
+});
