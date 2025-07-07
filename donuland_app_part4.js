@@ -1,6 +1,6 @@
 /* ========================================
-   DONULAND PART 4A - OPRAVENÝ ZÁKLADNÍ KALENDÁŘ
-   Fungující kalendář bez testovacích dat a zbytečných notifikací
+   DONULAND PART 4A - OPRAVENÝ KALENDÁŘ
+   Funkční kalendář bez testovacích dat a alert zpráv
    ======================================== */
 
 console.log('🍩 Donuland Part 4A (Fixed) loading...');
@@ -711,11 +711,18 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 console.log('✅ Donuland Part 4A (Fixed) loaded successfully');
-console.log('📅 Features: ✅ Basic Calendar ✅ Event Display ✅ Filters ✅ Month Navigation ✅ No Test Data');
+console.log('📅 Features: ✅ Basic Calendar ✅ Event Display ✅ Filters ✅ Month Navigation ✅ No Test Data ✅ No Alerts');
 console.log('⏳ Ready for Part 4B: Event Modal & Data Management');
+
+// Event pro signalizaci dokončení části 4A
+eventBus.emit('part4ALoaded', { 
+    timestamp: Date.now(),
+    version: '1.1.0',
+    features: ['calendar', 'filters', 'month-navigation', 'events-display', 'no-test-data']
+});
 /* ========================================
-   DONULAND PART 4B - OPRAVENÝ EVENT MODAL A POKROČILÉ FUNKCE
-   Modal pro editaci událostí, detailní zobrazení bez zbytečných chyb
+   DONULAND PART 4B - OPRAVENÝ EVENT MODAL
+   Modal pro editaci událostí bez chyb a s lepší funkcionalitou
    ======================================== */
 
 console.log('🍩 Donuland Part 4B (Fixed) loading...');
@@ -832,6 +839,9 @@ function populateModal(event = null, defaultDate = null) {
                 elements.dateTo.value = dateStr; // Stejné datum pro jednodenní akci
             }
         }
+        
+        // Skrýt detail section pro nové události
+        removeEventDetailsFromModal();
     }
 }
 
@@ -909,6 +919,17 @@ function addEventDetailsToModal(event) {
     modalBody.appendChild(detailsSection);
 }
 
+// Odstranění detail section z modalu
+function removeEventDetailsFromModal() {
+    const modalBody = document.querySelector('.modal-body');
+    if (!modalBody) return;
+    
+    const existingDetails = modalBody.querySelector('.event-details-section');
+    if (existingDetails) {
+        existingDetails.remove();
+    }
+}
+
 // Formátování data pro input
 function formatDateForInput(date) {
     if (!date) return '';
@@ -980,6 +1001,13 @@ function saveEventEdit() {
             renderCalendar();
         }
         
+        // Emit event pro ostatní komponenty
+        eventBus.emit('eventEdited', {
+            eventName: eventName,
+            sales: sales,
+            notes: notes
+        });
+        
     } catch (error) {
         console.error('❌ Error saving event edit:', error);
         showNotification('❌ Chyba při ukládání', 'error');
@@ -1016,6 +1044,11 @@ function deleteEvent() {
         if (typeof renderCalendar === 'function') {
             renderCalendar();
         }
+        
+        // Emit event pro ostatní komponenty
+        eventBus.emit('eventDeleted', {
+            eventName: eventName
+        });
         
     } catch (error) {
         console.error('❌ Error deleting event:', error);
@@ -1342,6 +1375,19 @@ function populateFilterDropdownsEnhanced() {
 }
 
 // ========================================
+// MODAL UTILITY FUNKCE
+// ========================================
+
+// Zavření modalu
+function closeModal() {
+    const modal = document.getElementById('eventModal');
+    if (modal) {
+        modal.style.display = 'none';
+        eventBus.emit('modalClosed');
+    }
+}
+
+// ========================================
 // EVENT LISTENERS PRO PART 4B
 // ========================================
 
@@ -1358,18 +1404,35 @@ eventBus.on('predictionSaved', (data) => {
     }, 200);
 });
 
-// ========================================
-// MODAL UTILITY FUNKCE
-// ========================================
+// Event listener pro aktualizaci po editaci události
+eventBus.on('eventEdited', (data) => {
+    console.log('📝 Event edited, refreshing displays...');
+    setTimeout(() => {
+        if (typeof renderCalendar === 'function') {
+            renderCalendar();
+        }
+        // Aktualizovat analytics pokud je aktivní
+        if (typeof initializeAnalytics === 'function') {
+            const analyticsSection = document.getElementById('analytics');
+            if (analyticsSection && analyticsSection.classList.contains('active')) {
+                initializeAnalytics();
+            }
+        }
+    }, 300);
+});
 
-// Zavření modalu
-function closeModal() {
-    const modal = document.getElementById('eventModal');
-    if (modal) {
-        modal.style.display = 'none';
-        eventBus.emit('modalClosed');
-    }
-}
+// Event listener pro aktualizace po smazání události
+eventBus.on('eventDeleted', (data) => {
+    console.log('🗑️ Event deleted, refreshing displays...');
+    setTimeout(() => {
+        if (typeof renderCalendar === 'function') {
+            renderCalendar();
+        }
+        if (typeof populateFilterDropdowns === 'function') {
+            populateFilterDropdowns();
+        }
+    }, 300);
+});
 
 // ========================================
 // INICIALIZACE PART 4B
@@ -1397,15 +1460,33 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
     
+    // Setup form validation pro modal
+    const modalSales = document.getElementById('modalSales');
+    if (modalSales) {
+        modalSales.addEventListener('input', (e) => {
+            const value = parseInt(e.target.value);
+            if (value < 0) {
+                e.target.value = 0;
+            }
+        });
+    }
+    
     console.log('✅ Part 4B initialized');
 });
 
 console.log('✅ Donuland Part 4B (Fixed) loaded successfully');
-console.log('📝 Features: ✅ Event Modal ✅ Edit Events ✅ Delete Events ✅ Enhanced Display ✅ No Errors');
-console.log('⏳ Ready for Part 4C: Analytics without Test Data');
+console.log('📝 Features: ✅ Event Modal ✅ Edit Events ✅ Delete Events ✅ Enhanced Display ✅ LocalStorage Integration ✅ Validation');
+console.log('⏳ Ready for Part 4C: Analytics optimization');
+
+// Event pro signalizaci dokončení části 4B
+eventBus.emit('part4BLoaded', { 
+    timestamp: Date.now(),
+    version: '1.1.0',
+    features: ['event-modal', 'edit-events', 'delete-events', 'enhanced-display', 'localstorage-integration']
+});
 /* ========================================
    DONULAND PART 4C - OPRAVENÉ ANALYTICS
-   Funkční analytické funkce bez testovacích dat a zbytečných notifikací
+   Funkční analytické funkce bez testovacích dat a s lepším performance
    ======================================== */
 
 console.log('🍩 Donuland Part 4C (Fixed) loading...');
@@ -1427,7 +1508,8 @@ if (typeof window.analyticsState === 'undefined') {
             warning: '#ffc107',
             info: '#17a2b8',
             danger: '#dc3545'
-        }
+        },
+        hasInitialized: false
     };
 }
 
@@ -1450,26 +1532,44 @@ function initializeAnalytics() {
         // Zkontrolovat dostupnost dat
         if (!globalState.historicalData || globalState.historicalData.length === 0) {
             displayNoDataMessage();
+            analyticsState.isLoading = false;
             return;
         }
         
         // Postupně načíst všechny analytics komponenty
-        setTimeout(() => updateOverallStats(), 100);
-        setTimeout(() => updateTopEvents(), 200);
-        setTimeout(() => updateTopCities(), 300);
-        setTimeout(() => updateTopCategories(), 400);
-        setTimeout(() => displayMonthlyTrends(), 500);
-        setTimeout(() => updatePredictionAccuracy(), 600);
-        setTimeout(() => updateWeatherImpact(), 700);
+        const initPromises = [
+            () => updateOverallStats(),
+            () => updateTopEvents(),
+            () => updateTopCities(), 
+            () => updateTopCategories(),
+            () => displayMonthlyTrends(),
+            () => updatePredictionAccuracy(),
+            () => updateWeatherImpact()
+        ];
+        
+        // Postupné načítání s malými intervaly pro lepší UX
+        initPromises.forEach((initFn, index) => {
+            setTimeout(() => {
+                try {
+                    initFn();
+                } catch (error) {
+                    console.error(`❌ Error in analytics component ${index}:`, error);
+                }
+            }, index * 100);
+        });
         
         analyticsState.lastUpdate = Date.now();
+        analyticsState.hasInitialized = true;
+        
         console.log('✅ Analytics initialized successfully');
         
     } catch (error) {
         console.error('❌ Error initializing analytics:', error);
         displayAnalyticsError();
     } finally {
-        analyticsState.isLoading = false;
+        setTimeout(() => {
+            analyticsState.isLoading = false;
+        }, 1000);
     }
 }
 
@@ -1488,7 +1588,7 @@ function displayNoDataMessage() {
                     <div style="font-size: 3rem; margin-bottom: 20px;">📊</div>
                     <h4>Žádná data pro analýzu</h4>
                     <p>Načtěte historická data z Google Sheets pro zobrazení analýz</p>
-                    <button class="btn" onclick="loadData()" style="margin-top: 15px;">
+                    <button class="btn" onclick="loadData()" style="margin-top: 15px; background: linear-gradient(135deg, #667eea, #764ba2); color: white; border: none; padding: 10px 20px; border-radius: 6px; cursor: pointer;">
                         🔄 Načíst data
                     </button>
                 </div>
@@ -1512,6 +1612,9 @@ function displayAnalyticsError() {
                     <div style="font-size: 2rem; margin-bottom: 15px;">❌</div>
                     <h5>Chyba při načítání analýz</h5>
                     <p style="font-size: 0.9em;">Zkuste obnovit stránku nebo načíst data znovu</p>
+                    <button class="btn" onclick="initializeAnalytics()" style="margin-top: 10px; background: #dc3545; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer;">
+                        🔄 Zkusit znovu
+                    </button>
                 </div>
             `;
         }
@@ -1634,7 +1737,7 @@ function updateTopEvents() {
         const topEvents = getTopEvents(10);
         
         if (topEvents.length === 0) {
-            container.innerHTML = '<div class="no-data">Žádné události k zobrazení</div>';
+            container.innerHTML = '<div class="no-data" style="text-align: center; padding: 30px; color: #6c757d;">Žádné události k zobrazení</div>';
             return;
         }
         
@@ -1655,20 +1758,20 @@ function updateTopEvents() {
             else if (index === 2) medal = '🥉';
             
             html += `
-                <div class="top-item" style="border-left-color: ${getPerformanceColor(parseFloat(conversion))};">
+                <div class="top-item" style="border-left-color: ${getPerformanceColor(parseFloat(conversion))}; display: flex; justify-content: space-between; align-items: center; padding: 15px; background: white; border-radius: 8px; margin-bottom: 10px; border-left: 4px solid; box-shadow: 0 2px 4px rgba(0,0,0,0.1); transition: all 0.3s ease;">
                     <div class="top-info">
-                        <h4>${medal} ${index + 1}. ${escapeHtml(event.eventName)}</h4>
-                        <p>📍 ${escapeHtml(event.city)} • 📅 ${formatDate(event.dateFrom)} • 📋 ${escapeHtml(event.category)}</p>
-                        <p style="font-size: 0.8em; color: #6c757d; margin-top: 5px;">
+                        <h4 style="margin: 0 0 5px 0; color: #495057;">${medal} ${index + 1}. ${escapeHtml(event.eventName)}</h4>
+                        <p style="margin: 0 0 5px 0; color: #6c757d; font-size: 0.9em;">📍 ${escapeHtml(event.city)} • 📅 ${formatDate(event.dateFrom)} • 📋 ${escapeHtml(event.category)}</p>
+                        <p style="font-size: 0.8em; color: #6c757d; margin: 0;">
                             👥 ${formatNumber(event.visitors)} návštěvníků
                             ${event.rating ? ` • ⭐ ${event.rating}/5` : ''}
                         </p>
                     </div>
-                    <div class="top-stats">
-                        <div class="top-value" style="color: ${getPerformanceColor(parseFloat(conversion))};">
+                    <div class="top-stats" style="text-align: right;">
+                        <div class="top-value" style="color: ${getPerformanceColor(parseFloat(conversion))}; font-size: 1.2em; font-weight: bold; margin-bottom: 5px;">
                             ${formatNumber(event.sales)} ks
                         </div>
-                        <div class="top-subvalue">
+                        <div class="top-subvalue" style="font-size: 0.8em; color: #6c757d;">
                             🎯 ${conversion}% konverze<br>
                             💰 ${formatCurrency(revenue)}<br>
                             💎 ${formatCurrency(profit)} zisk
@@ -1701,7 +1804,7 @@ function updateTopCities() {
         const topCities = getTopCities(10);
         
         if (topCities.length === 0) {
-            container.innerHTML = '<div class="no-data">Žádná města k zobrazení</div>';
+            container.innerHTML = '<div class="no-data" style="text-align: center; padding: 30px; color: #6c757d;">Žádná města k zobrazení</div>';
             return;
         }
         
@@ -1720,17 +1823,17 @@ function updateTopCities() {
             else if (index === 2) medal = '🥉';
             
             html += `
-                <div class="top-item">
+                <div class="top-item" style="display: flex; justify-content: space-between; align-items: center; padding: 15px; background: white; border-radius: 8px; margin-bottom: 10px; border-left: 4px solid #667eea; box-shadow: 0 2px 4px rgba(0,0,0,0.1); transition: all 0.3s ease;">
                     <div class="top-info">
-                        <h4>${medal} ${index + 1}. ${escapeHtml(city.name)}</h4>
-                        <p>📊 ${city.eventsCount} akcí • 🎯 ${city.averageConversion.toFixed(1)}% průměrná konverze</p>
-                        <p style="font-size: 0.8em; color: #6c757d; margin-top: 5px;">
+                        <h4 style="margin: 0 0 5px 0; color: #495057;">${medal} ${index + 1}. ${escapeHtml(city.name)}</h4>
+                        <p style="margin: 0 0 5px 0; color: #6c757d; font-size: 0.9em;">📊 ${city.eventsCount} akcí • 🎯 ${city.averageConversion.toFixed(1)}% průměrná konverze</p>
+                        <p style="font-size: 0.8em; color: #6c757d; margin: 0;">
                             📈 ${formatNumber(avgPerEvent)} ks průměr/akci • 👥 ${formatNumber(city.totalVisitors)} návštěvníků
                         </p>
                     </div>
-                    <div class="top-stats">
-                        <div class="top-value">${formatNumber(city.totalSales)} ks</div>
-                        <div class="top-subvalue">
+                    <div class="top-stats" style="text-align: right;">
+                        <div class="top-value" style="color: #667eea; font-size: 1.2em; font-weight: bold; margin-bottom: 5px;">${formatNumber(city.totalSales)} ks</div>
+                        <div class="top-subvalue" style="font-size: 0.8em; color: #6c757d;">
                             💰 ${formatCurrency(city.totalRevenue)}<br>
                             💎 ${formatCurrency(city.totalRevenue - (city.totalSales * CONFIG.DONUT_COST))} zisk
                         </div>
@@ -1762,7 +1865,7 @@ function updateTopCategories() {
         const topCategories = getTopCategories();
         
         if (topCategories.length === 0) {
-            container.innerHTML = '<div class="no-data">Žádné kategorie k zobrazení</div>';
+            container.innerHTML = '<div class="no-data" style="text-align: center; padding: 30px; color: #6c757d;">Žádné kategorie k zobrazení</div>';
             return;
         }
         
@@ -1791,17 +1894,17 @@ function updateTopCategories() {
             else if (index === 2) medal = '🥉';
             
             html += `
-                <div class="top-item">
+                <div class="top-item" style="display: flex; justify-content: space-between; align-items: center; padding: 15px; background: white; border-radius: 8px; margin-bottom: 10px; border-left: 4px solid #28a745; box-shadow: 0 2px 4px rgba(0,0,0,0.1); transition: all 0.3s ease;">
                     <div class="top-info">
-                        <h4>${medal} ${index + 1}. ${icon} ${escapeHtml(category.name)}</h4>
-                        <p>📊 ${category.eventsCount} akcí • 🎯 ${category.averageConversion.toFixed(1)}% průměrná konverze</p>
-                        <p style="font-size: 0.8em; color: #6c757d; margin-top: 5px;">
+                        <h4 style="margin: 0 0 5px 0; color: #495057;">${medal} ${index + 1}. ${icon} ${escapeHtml(category.name)}</h4>
+                        <p style="margin: 0 0 5px 0; color: #6c757d; font-size: 0.9em;">📊 ${category.eventsCount} akcí • 🎯 ${category.averageConversion.toFixed(1)}% průměrná konverze</p>
+                        <p style="font-size: 0.8em; color: #6c757d; margin: 0;">
                             📈 ${formatNumber(avgPerEvent)} ks průměr/akci • 👥 ${formatNumber(category.totalVisitors)} návštěvníků
                         </p>
                     </div>
-                    <div class="top-stats">
-                        <div class="top-value">${formatNumber(category.totalSales)} ks</div>
-                        <div class="top-subvalue">
+                    <div class="top-stats" style="text-align: right;">
+                        <div class="top-value" style="color: #28a745; font-size: 1.2em; font-weight: bold; margin-bottom: 5px;">${formatNumber(category.totalSales)} ks</div>
+                        <div class="top-subvalue" style="font-size: 0.8em; color: #6c757d;">
                             💰 ${formatCurrency(category.totalRevenue)}<br>
                             💎 ${formatCurrency(category.totalRevenue - (category.totalSales * CONFIG.DONUT_COST))} zisk
                         </div>
@@ -1898,7 +2001,7 @@ function getTopCategories() {
 }
 
 // ========================================
-// JEDNODUCHÉ MĚSÍČNÍ TRENDY
+// MĚSÍČNÍ TRENDY - VYLEPŠENÉ
 // ========================================
 
 function displayMonthlyTrends() {
@@ -1910,7 +2013,7 @@ function displayMonthlyTrends() {
     try {
         if (!globalState.historicalData || globalState.historicalData.length === 0) {
             container.innerHTML = `
-                <div class="chart-placeholder">
+                <div class="chart-placeholder" style="text-align: center; padding: 40px;">
                     <div style="font-size: 3rem; margin-bottom: 20px;">📈</div>
                     <h4>Žádná data pro měsíční trendy</h4>
                     <p>Načtěte historická data pro zobrazení trendů</p>
@@ -1952,7 +2055,7 @@ function displayMonthlyTrends() {
         
         if (sortedMonths.length === 0) {
             container.innerHTML = `
-                <div class="chart-placeholder">
+                <div class="chart-placeholder" style="text-align: center; padding: 40px;">
                     <div style="font-size: 3rem; margin-bottom: 20px;">📈</div>
                     <h4>Nedostatek dat pro trendy</h4>
                     <p>Potřebujeme alespoň jeden měsíc s prodejními daty</p>
@@ -1965,7 +2068,7 @@ function displayMonthlyTrends() {
         html += '<h4 style="text-align: center; margin-bottom: 20px;">📈 Měsíční trendy</h4>';
         
         // Jednoduchý sloupcový graf
-        html += '<div class="trends-bars" style="display: flex; align-items: flex-end; justify-content: space-around; height: 200px; margin: 20px 0; border-bottom: 2px solid #e9ecef;">';
+        html += '<div class="trends-bars" style="display: flex; align-items: flex-end; justify-content: space-around; height: 200px; margin: 20px 0; border-bottom: 2px solid #e9ecef; overflow-x: auto;">';
         
         const maxSales = Math.max(...sortedMonths.map(m => m.totalSales));
         
@@ -1976,14 +2079,14 @@ function displayMonthlyTrends() {
             });
             
             const height = maxSales > 0 ? (monthData.totalSales / maxSales) * 180 : 10;
-            const color = `hsl(${120 + index * 20}, 70%, 55%)`;
+            const color = `hsl(${200 + index * 15}, 70%, 55%)`;
             
             html += `
-                <div class="trend-bar" style="display: flex; flex-direction: column; align-items: center; margin: 0 5px;">
-                    <div style="width: 30px; height: ${height}px; background: ${color}; border-radius: 4px 4px 0 0; transition: all 0.3s ease; cursor: pointer;" 
-                         title="${monthName}: ${formatNumber(monthData.totalSales)} ks"></div>
+                <div class="trend-bar" style="display: flex; flex-direction: column; align-items: center; margin: 0 5px; cursor: pointer;" title="${monthName} ${year}: ${formatNumber(monthData.totalSales)} ks prodáno na ${monthData.eventsCount} akcích">
+                    <div style="width: 30px; height: ${height}px; background: ${color}; border-radius: 4px 4px 0 0; transition: all 0.3s ease; min-height: 5px;" onmouseover="this.style.transform='scale(1.1)'" onmouseout="this.style.transform='scale(1)'"></div>
                     <div style="margin-top: 10px; font-size: 0.8em; font-weight: 600; color: #495057;">${monthName}</div>
-                    <div style="font-size: 0.7em; color: #6c757d;">${formatNumber(monthData.totalSales)} ks</div>
+                    <div style="font-size: 0.7em; color: #6c757d;">${formatNumber(monthData.totalSales)}</div>
+                    <div style="font-size: 0.6em; color: #6c757d;">${monthData.eventsCount} akcí</div>
                 </div>
             `;
         });
@@ -1998,14 +2101,6 @@ function displayMonthlyTrends() {
         
         html += `
             <div class="trends-summary" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 15px; margin-top: 20px; padding: 15px; background: #f8f9fa; border-radius: 8px;">
-                <div style="text-align: center;">
-                    <div style="font-size: 1.2em; font-weight: bold; color: #667eea;">${formatNumber(totalSales)}</div>
-                    <div style="font-size: 0.8em; color: #6c757d;">Celkem prodáno</div>
-                </div>
-                <div style="text-align: center;">
-                    <div style="font-size: 1.2em; font-weight: bold; color: #28a745;">${formatCurrency(totalRevenue)}</div>
-                    <div style="font-size: 0.8em; color: #6c757d;">Celkový obrat</div>
-                </div>
                 <div style="text-align: center;">
                     <div style="font-size: 1.2em; font-weight: bold; color: #e91e63;">${totalEvents}</div>
                     <div style="font-size: 0.8em; color: #6c757d;">Celkem akcí</div>
@@ -2051,7 +2146,7 @@ function updatePredictionAccuracy() {
                         <h6 style="margin: 0 0 10px 0;">💡 Jak zlepšit analýzu:</h6>
                         <ul style="margin: 0; padding-left: 20px; text-align: left;">
                             <li>Vytvořte predikce pro budoucí akce</li>
-                            <li>Po akcích aktualizujte skutečné prodeje</li>
+                            <li>Po akcích aktualizujte skutečné prodeje v kalendáři</li>
                             <li>Systém automaticky porovná predikce s realitou</li>
                         </ul>
                     </div>
@@ -2077,9 +2172,51 @@ function updatePredictionAccuracy() {
                 <div style="color: #6c757d; font-size: 0.9em;">Průměrná přesnost</div>
                 <div style="color: #6c757d; font-size: 0.8em; margin-top: 5px;">${accuracyData.comparisons.length} porovnání</div>
             </div>
+            
+            <div style="background: white; padding: 15px; border-radius: 8px; text-align: center;">
+                <div style="font-size: 1.2em; margin-bottom: 10px;">📈</div>
+                <div style="font-size: 1.3em; font-weight: bold; color: #17a2b8; margin-bottom: 5px;">${accuracyData.overestimations}</div>
+                <div style="color: #6c757d; font-size: 0.9em;">Nadhodnocení</div>
+            </div>
+            
+            <div style="background: white; padding: 15px; border-radius: 8px; text-align: center;">
+                <div style="font-size: 1.2em; margin-bottom: 10px;">📉</div>
+                <div style="font-size: 1.3em; font-weight: bold; color: #fd7e14; margin-bottom: 5px;">${accuracyData.underestimations}</div>
+                <div style="color: #6c757d; font-size: 0.9em;">Podhodnocení</div>
+            </div>
         `;
         
         html += '</div>';
+        
+        // Posledních 5 porovnání
+        if (accuracyData.comparisons.length > 0) {
+            html += '<h5 style="margin: 20px 0 10px 0;">📋 Nejnovější porovnání:</h5>';
+            
+            accuracyData.comparisons.slice(0, 5).forEach(comp => {
+                const accuracyColor = comp.accuracy >= 80 ? '#28a745' : comp.accuracy >= 60 ? '#ffc107' : '#dc3545';
+                const diffIcon = comp.difference > 0 ? '📈' : '📉';
+                const diffColor = comp.difference > 0 ? '#17a2b8' : '#fd7e14';
+                
+                html += `
+                    <div style="background: white; padding: 12px; margin-bottom: 8px; border-radius: 6px; border-left: 3px solid ${accuracyColor};">
+                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                            <div>
+                                <strong>${escapeHtml(comp.eventName)}</strong>
+                                <div style="font-size: 0.8em; color: #6c757d;">${escapeHtml(comp.city)} • ${formatDate(comp.date)}</div>
+                            </div>
+                            <div style="text-align: right;">
+                                <div style="color: ${accuracyColor}; font-weight: bold;">${comp.accuracy.toFixed(1)}%</div>
+                                <div style="font-size: 0.8em; color: ${diffColor};">${diffIcon} ${Math.abs(comp.difference)} ks</div>
+                            </div>
+                        </div>
+                        <div style="font-size: 0.8em; color: #6c757d; margin-top: 5px;">
+                            Predikce: ${formatNumber(comp.predicted)} ks • Skutečnost: ${formatNumber(comp.actual)} ks
+                        </div>
+                    </div>
+                `;
+            });
+        }
+        
         html += '</div>';
         
         container.innerHTML = html;
@@ -2172,7 +2309,7 @@ function updateWeatherImpact() {
                         <ul style="margin: 0; padding-left: 20px; text-align: left;">
                             <li>Počasí se automaticky načítá pro venkovní akce</li>
                             <li>AI zohledňuje vliv počasí na prodej donutů</li>
-                            <li>Zvláště důležité pro čokoládové donuty (teplota)</li>
+                            <li>Zvláště důležité pro čokoládové donuty (teplota > 24°C)</li>
                         </ul>
                     </div>
                 </div>
@@ -2192,6 +2329,22 @@ function updateWeatherImpact() {
                 <div style="color: #6c757d; font-size: 0.9em;">Akcí s daty o počasí</div>
             </div>
         `;
+        
+        if (weatherData.weatherBreakdown) {
+            Object.entries(weatherData.weatherBreakdown).forEach(([weather, data]) => {
+                const icon = getWeatherIcon(weather);
+                const avgSales = data.totalSales / data.count;
+                
+                html += `
+                    <div style="background: white; padding: 15px; border-radius: 8px; text-align: center;">
+                        <div style="font-size: 1.5em; margin-bottom: 5px;">${icon}</div>
+                        <div style="font-size: 1.1em; font-weight: bold; color: #495057;">${formatNumber(avgSales)}</div>
+                        <div style="color: #6c757d; font-size: 0.8em;">Průměr při ${weather}</div>
+                        <div style="color: #6c757d; font-size: 0.7em;">${data.count} akcí</div>
+                    </div>
+                `;
+            });
+        }
         
         html += '</div>';
         html += '</div>';
@@ -2214,8 +2367,28 @@ function analyzeWeatherImpact() {
         return null;
     }
     
+    // Seskupit podle počasí
+    const weatherBreakdown = {};
+    
+    eventsWithWeather.forEach(record => {
+        const weather = record.weather.toLowerCase();
+        
+        if (!weatherBreakdown[weather]) {
+            weatherBreakdown[weather] = {
+                count: 0,
+                totalSales: 0,
+                totalVisitors: 0
+            };
+        }
+        
+        weatherBreakdown[weather].count++;
+        weatherBreakdown[weather].totalSales += record.sales;
+        weatherBreakdown[weather].totalVisitors += record.visitors;
+    });
+    
     return {
-        totalEvents: eventsWithWeather.length
+        totalEvents: eventsWithWeather.length,
+        weatherBreakdown: weatherBreakdown
     };
 }
 
@@ -2235,6 +2408,18 @@ function escapeHtml(text) {
     const div = document.createElement('div');
     div.textContent = text;
     return div.innerHTML;
+}
+
+// Získání ikony podle počasí
+function getWeatherIcon(main) {
+    const weather = main.toLowerCase();
+    if (weather.includes('clear') || weather.includes('sun')) return '☀️';
+    if (weather.includes('cloud')) return '☁️';
+    if (weather.includes('rain')) return '🌧️';
+    if (weather.includes('drizzle')) return '🌦️';
+    if (weather.includes('snow')) return '❄️';
+    if (weather.includes('storm')) return '⛈️';
+    return '🌤️';
 }
 
 // ========================================
@@ -2265,6 +2450,23 @@ eventBus.on('dataLoaded', () => {
     }
 });
 
+// Event listener pro editaci událostí
+eventBus.on('eventEdited', () => {
+    console.log('📝 Event edited - refreshing analytics...');
+    analyticsState.cachedStats = null;
+    
+    const analyticsSection = document.getElementById('analytics');
+    if (analyticsSection && analyticsSection.classList.contains('active')) {
+        setTimeout(() => {
+            if (analyticsState.hasInitialized) {
+                // Pouze aktualizovat komponenty které mohou být ovlivněny
+                updateOverallStats();
+                updatePredictionAccuracy();
+            }
+        }, 500);
+    }
+});
+
 // ========================================
 // INICIALIZACE
 // ========================================
@@ -2286,14 +2488,29 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 console.log('✅ Donuland Part 4C (Fixed) loaded successfully');
-console.log('📊 Features: ✅ Overall Stats ✅ Top Events ✅ Top Cities ✅ Top Categories ✅ Monthly Trends ✅ No Test Data');
-console.log('⏳ Ready for Part 4D: Integration without errors');
-/* ========================================
-   DONULAND PART 4D - OPRAVENÁ INTEGRACE
-   Integrace všech částí kalendáře a analýz bez chyb a testovacích dat
+console.log('📊 Features: ✅ Overall Stats ✅ Top Events ✅ Top Cities ✅ Top Categories ✅ Enhanced Monthly Trends ✅ Prediction Accuracy ✅ Weather Impact ✅ Performance Optimized');
+console.log('⏳ Ready for Part 4D: Final Integration');
+
+// Event pro signalizaci dokončení části 4C
+eventBus.emit('part4CLoaded', { 
+    timestamp: Date.now(),
+    version: '1.1.0',
+    features: ['overall-stats', 'top-events', 'top-cities', 'top-categories', 'enhanced-monthly-trends', 'prediction-accuracy', 'weather-impact', 'performance-optimized']
+});em; font-weight: bold; color: #667eea;">${formatNumber(totalSales)}</div>
+                    <div style="font-size: 0.8em; color: #6c757d;">Celkem prodáno</div>
+                </div>
+                <div style="text-align: center;">
+                    <div style="font-size: 1.2em; font-weight: bold; color: #28a745;">${formatCurrency(totalRevenue)}</div>
+                    <div style="font-size: 0.8em; color: #6c757d;">Celkový obrat</div>
+                </div>
+                <div style="text-align: center;">
+                    <div style="font-size: 1.2
+   /* ========================================
+   DONULAND PART 4D - FINÁLNÍ INTEGRACE
+   Kompletní integrace kalendáře a analýz bez chyb
    ======================================== */
 
-console.log('🍩 Donuland Part 4D (Fixed Integration) loading...');
+console.log('🍩 Donuland Part 4D (Final Integration) loading...');
 
 // ========================================
 // GLOBAL INTEGRATION STATE
@@ -2315,12 +2532,13 @@ if (typeof window.integrationState === 'undefined') {
             city: '',
             category: '',
             status: ''
-        }
+        },
+        initialized: false
     };
 }
 
 // ========================================
-// MAIN INTEGRATION CONTROLLER
+// INTEGRATION CONTROLLER
 // ========================================
 
 class DonulandIntegrationController {
@@ -2330,17 +2548,17 @@ class DonulandIntegrationController {
             ['analytics', 'part4C']
         ]);
         
-        this.initializationQueue = [];
-        this.syncQueue = [];
         this.retryAttempts = new Map();
+        this.maxRetries = 3;
+        this.ready = false;
         
         console.log('🔧 Integration Controller initialized');
     }
     
-    // Inicializace integrace
+    // Hlavní inicializace integrace
     async initialize() {
-        if (integrationState.isInitializing) {
-            console.log('⚠️ Integration already initializing');
+        if (integrationState.isInitializing || integrationState.initialized) {
+            console.log('⚠️ Integration already initialized or in progress');
             return;
         }
         
@@ -2348,24 +2566,26 @@ class DonulandIntegrationController {
         console.log('🚀 Starting integration initialization...');
         
         try {
-            // 1. Ověřit dostupnost všech částí
+            // 1. Ověřit dostupnost částí
             await this.verifyPartsAvailability();
             
-            // 2. Inicializovat cross-section komunikaci
+            // 2. Inicializovat komunikaci
             this.setupCrossSectionCommunication();
             
-            // 3. Synchronizovat globální stavy
+            // 3. Synchronizovat stavy
             await this.synchronizeGlobalStates();
             
-            // 4. Nastavit unified event handling
+            // 4. Setup event handling
             this.setupUnifiedEventHandling();
             
-            // 5. Inicializovat section-specific features
+            // 5. Inicializovat section features
             await this.initializeSectionFeatures();
+            
+            integrationState.initialized = true;
+            this.ready = true;
             
             console.log('✅ Integration initialization completed');
             
-            // Emit completion event
             eventBus.emit('integrationInitialized', {
                 timestamp: Date.now(),
                 sectionsLoaded: integrationState.sectionsLoaded
@@ -2379,7 +2599,7 @@ class DonulandIntegrationController {
         }
     }
     
-    // Ověření dostupnosti všech částí
+    // Ověření dostupnosti částí
     async verifyPartsAvailability() {
         console.log('🔍 Verifying parts availability...');
         
@@ -2387,28 +2607,25 @@ class DonulandIntegrationController {
             { name: 'renderCalendar', part: 'part4A' },
             { name: 'openEventModal', part: 'part4B' },
             { name: 'initializeAnalytics', part: 'part4C' },
-            { name: 'filterCalendar', part: 'part4A' }
+            { name: 'filterCalendar', part: 'part4A' },
+            { name: 'populateFilterDropdowns', part: 'part4A' }
         ];
         
-        const missingFunctions = [];
-        
         for (const func of requiredFunctions) {
-            if (typeof window[func.name] !== 'function') {
-                missingFunctions.push(func);
-                integrationState.sectionsLoaded[func.part] = false;
-            } else {
+            if (typeof window[func.name] === 'function') {
                 integrationState.sectionsLoaded[func.part] = true;
+                console.log(`✅ ${func.name} available`);
+            } else {
+                console.warn(`⚠️ ${func.name} not available`);
+                integrationState.sectionsLoaded[func.part] = false;
             }
-        }
-        
-        if (missingFunctions.length > 0) {
-            console.warn('⚠️ Missing functions:', missingFunctions);
         }
         
         // Ověřit HTML elementy
         const requiredElements = [
             'calendarGrid', 'monthEvents', 'overallStats', 
-            'topEvents', 'topCities', 'topCategories'
+            'topEvents', 'topCities', 'topCategories',
+            'monthlyTrends', 'predictionAccuracy', 'weatherImpact'
         ];
         
         const missingElements = requiredElements.filter(id => !document.getElementById(id));
@@ -2420,21 +2637,37 @@ class DonulandIntegrationController {
         console.log('✅ Parts availability verified');
     }
     
-    // Setup cross-section komunikace
+    // Setup komunikace mezi sekcemi
     setupCrossSectionCommunication() {
         console.log('📡 Setting up cross-section communication...');
         
-        // Centrální message router
-        this.messageRouter = new Map([
-            ['calendar->analytics', this.handleCalendarToAnalytics.bind(this)],
-            ['analytics->calendar', this.handleAnalyticsToCalendar.bind(this)],
-            ['filter->all', this.handleFilterToAll.bind(this)],
-            ['data->all', this.handleDataToAll.bind(this)]
-        ]);
+        // Event listener pro section changes
+        eventBus.on('sectionChanged', (data) => {
+            this.handleSectionSwitch(data.section);
+        });
         
-        // Setup message handling
-        eventBus.on('crossSectionMessage', (message) => {
-            this.routeMessage(message);
+        // Data loading events
+        eventBus.on('dataLoaded', (data) => {
+            this.propagateDataUpdate(data);
+        });
+        
+        // Form changes
+        eventBus.on('formChanged', () => {
+            this.handleFormChange();
+        });
+        
+        // Event modifications
+        eventBus.on('eventEdited', (data) => {
+            this.handleEventModification('edited', data);
+        });
+        
+        eventBus.on('eventDeleted', (data) => {
+            this.handleEventModification('deleted', data);
+        });
+        
+        // Prediction saves
+        eventBus.on('predictionSaved', (data) => {
+            this.handlePredictionSave(data);
         });
         
         console.log('✅ Cross-section communication established');
@@ -2476,39 +2709,90 @@ class DonulandIntegrationController {
     setupUnifiedEventHandling() {
         console.log('🎯 Setting up unified event handling...');
         
-        // Section switching s integrovanými updates
-        eventBus.on('sectionChanged', (data) => {
-            this.handleSectionSwitch(data.section);
-        });
+        // Enhanced navigation handling
+        this.setupEnhancedNavigation();
         
-        // Data changes s propagací do všech sekcí
-        eventBus.on('dataLoaded', (data) => {
-            this.propagateDataUpdate(data);
-        });
+        // Auto-refresh mechanisms
+        this.setupAutoRefresh();
         
-        // Filter changes s cross-section sync
-        eventBus.on('filterChanged', (data) => {
-            this.propagateFilterUpdate(data);
-        });
-        
-        // Event modifications s calendar+analytics update
-        eventBus.on('eventEdited', (data) => {
-            this.handleEventModification(data);
-        });
-        
-        eventBus.on('eventDeleted', (data) => {
-            this.handleEventModification(data);
-        });
-        
-        // Prediction saves s calendar update
-        eventBus.on('predictionSaved', (data) => {
-            this.handlePredictionSave(data);
-        });
+        // Filter synchronization
+        this.setupFilterSync();
         
         console.log('✅ Unified event handling configured');
     }
     
-    // Inicializace section-specific features
+    // Enhanced navigace
+    setupEnhancedNavigation() {
+        // Wrap existing changeMonth function
+        if (typeof window.changeMonth === 'function') {
+            const originalChangeMonth = window.changeMonth;
+            window.changeMonth = (direction) => {
+                originalChangeMonth(direction);
+                
+                // Cross-section sync
+                this.syncDateRange();
+                
+                // Update analytics if active
+                if (this.isSectionActive('analytics')) {
+                    setTimeout(() => {
+                        this.refreshAnalytics('month-change');
+                    }, 500);
+                }
+            };
+        }
+        
+        // Wrap goToToday function
+        if (typeof window.goToToday === 'function') {
+            const originalGoToToday = window.goToToday;
+            window.goToToday = () => {
+                originalGoToToday();
+                this.syncDateRange();
+                
+                if (this.isSectionActive('analytics')) {
+                    setTimeout(() => {
+                        this.refreshAnalytics('go-to-today');
+                    }, 500);
+                }
+            };
+        }
+    }
+    
+    // Auto-refresh mechanisms
+    setupAutoRefresh() {
+        // Refresh analytics when calendar is updated
+        eventBus.on('calendarRendered', () => {
+            if (this.isSectionActive('analytics')) {
+                setTimeout(() => {
+                    this.refreshAnalytics('calendar-rendered');
+                }, 1000);
+            }
+        });
+        
+        // Refresh calendar when predictions are saved
+        eventBus.on('predictionSaved', () => {
+            if (this.isSectionActive('calendar')) {
+                setTimeout(() => {
+                    this.refreshCalendar('prediction-saved');
+                }, 500);
+            }
+        });
+    }
+    
+    // Filter synchronization
+    setupFilterSync() {
+        // Enhanced filter handling
+        if (typeof window.filterCalendar === 'function') {
+            const originalFilterCalendar = window.filterCalendar;
+            window.filterCalendar = () => {
+                originalFilterCalendar();
+                
+                // Sync filters across sections
+                this.syncFilters();
+            };
+        }
+    }
+    
+    // Inicializace section features
     async initializeSectionFeatures() {
         console.log('⚙️ Initializing section-specific features...');
         
@@ -2534,23 +2818,19 @@ class DonulandIntegrationController {
     async enhanceCalendarFeatures() {
         console.log('📅 Enhancing calendar features...');
         
-        // Quick analytics integration
+        // Emit calendar rendered event
         if (typeof renderCalendar === 'function') {
             const originalRenderCalendar = renderCalendar;
             window.renderCalendar = function(...args) {
                 const result = originalRenderCalendar.apply(this, args);
                 
-                // Trigger analytics update after calendar render
-                setTimeout(() => {
-                    integrationController.triggerAnalyticsUpdate('calendar-render');
-                }, 500);
+                eventBus.emit('calendarRendered', {
+                    timestamp: Date.now()
+                });
                 
                 return result;
             };
         }
-        
-        // Enhanced month navigation
-        this.setupEnhancedMonthNavigation();
         
         console.log('✅ Calendar features enhanced');
     }
@@ -2559,14 +2839,17 @@ class DonulandIntegrationController {
     async enhanceAnalyticsFeatures() {
         console.log('📊 Enhancing analytics features...');
         
-        // Analytics-calendar integration
+        // Enhanced analytics initialization
         if (typeof initializeAnalytics === 'function') {
             const originalInitializeAnalytics = initializeAnalytics;
             window.initializeAnalytics = function(...args) {
                 const result = originalInitializeAnalytics.apply(this, args);
                 
-                // Update integration state
                 integrationState.pendingUpdates.delete('analytics');
+                
+                eventBus.emit('analyticsInitialized', {
+                    timestamp: Date.now()
+                });
                 
                 return result;
             };
@@ -2577,93 +2860,11 @@ class DonulandIntegrationController {
 }
 
 // ========================================
-// MESSAGE ROUTING HANDLERS
-// ========================================
-
-// Extension metod pro DonulandIntegrationController
-Object.assign(DonulandIntegrationController.prototype, {
-    // Route message mezi sekcemi
-    routeMessage(message) {
-        const { type, source, target, data } = message;
-        const routeKey = `${source}->${target}`;
-        
-        console.log(`📨 Routing message: ${type} from ${source} to ${target}`);
-        
-        const handler = this.messageRouter.get(routeKey) || this.messageRouter.get(`${source}->all`);
-        
-        if (handler) {
-            try {
-                handler(type, data, message);
-            } catch (error) {
-                console.error(`❌ Error routing message ${type}:`, error);
-            }
-        } else {
-            console.warn(`⚠️ No handler for route: ${routeKey}`);
-        }
-    },
-    
-    // Calendar -> Analytics komunikace
-    handleCalendarToAnalytics(type, data, message) {
-        switch (type) {
-            case 'month-changed':
-                this.syncAnalyticsToMonth(data.month, data.year);
-                break;
-                
-            case 'event-clicked':
-                this.showEventInAnalytics(data.eventId);
-                break;
-                
-            case 'filter-applied':
-                this.applyFiltersToAnalytics(data.filters);
-                break;
-                
-            default:
-                console.log(`📊 Analytics handling: ${type}`, data);
-        }
-    },
-    
-    // Analytics -> Calendar komunikace
-    handleAnalyticsToCalendar(type, data, message) {
-        switch (type) {
-            case 'time-range-selected':
-                this.syncCalendarToTimeRange(data.startDate, data.endDate);
-                break;
-                
-            case 'city-drilldown':
-                this.filterCalendarByCity(data.city);
-                break;
-                
-            case 'category-drilldown':
-                this.filterCalendarByCategory(data.category);
-                break;
-                
-            default:
-                console.log(`📅 Calendar handling: ${type}`, data);
-        }
-    },
-    
-    // Filter -> All komunikace
-    handleFilterToAll(type, data, message) {
-        if (type === 'global-filter-change') {
-            integrationState.crossSectionFilters = { ...data.filters };
-            this.propagateFiltersToAllSections(data.filters);
-        }
-    },
-    
-    // Data -> All komunikace
-    handleDataToAll(type, data, message) {
-        if (type === 'data-updated') {
-            this.refreshAllSections(data);
-        }
-    }
-});
-
-// ========================================
-// SECTION SWITCHING COORDINATION
+// SECTION HANDLING
 // ========================================
 
 Object.assign(DonulandIntegrationController.prototype, {
-    // Handle section switch s koordinací
+    // Handle section switch
     handleSectionSwitch(targetSection) {
         console.log(`🔄 Handling section switch to: ${targetSection}`);
         
@@ -2672,7 +2873,7 @@ Object.assign(DonulandIntegrationController.prototype, {
             timestamp: Date.now()
         };
         
-        // Section-specific coordination
+        // Section-specific handling
         switch (targetSection) {
             case 'calendar':
                 this.prepareCalendarSection();
@@ -2690,20 +2891,20 @@ Object.assign(DonulandIntegrationController.prototype, {
         integrationState.pendingUpdates.delete(targetSection);
     },
     
-    // Příprava kalendářní sekce
+    // Prepare calendar section
     async prepareCalendarSection() {
         console.log('📅 Preparing calendar section...');
         
         try {
-            // Ensure calendar state is ready
+            // Reset calendar state
             if (typeof calendarState !== 'undefined') {
-                calendarState.isRendering = false; // Reset rendering lock
+                calendarState.isRendering = false;
             }
             
-            // Update filters from cross-section state
+            // Sync filters
             this.syncFiltersToCalendar();
             
-            // Trigger calendar render with retry
+            // Render calendar
             await this.safeCalendarRender();
             
             console.log('✅ Calendar section prepared');
@@ -2714,14 +2915,14 @@ Object.assign(DonulandIntegrationController.prototype, {
         }
     },
     
-    // Příprava analytics sekce
+    // Prepare analytics section
     async prepareAnalyticsSection() {
         console.log('📊 Preparing analytics section...');
         
         try {
-            // Ensure analytics state is ready
+            // Reset analytics state
             if (typeof analyticsState !== 'undefined') {
-                analyticsState.isLoading = false; // Reset loading lock
+                analyticsState.isLoading = false;
             }
             
             // Check if data is available
@@ -2730,7 +2931,7 @@ Object.assign(DonulandIntegrationController.prototype, {
                 return;
             }
             
-            // Initialize analytics with retry
+            // Initialize analytics
             await this.safeAnalyticsInitialization();
             
             console.log('✅ Analytics section prepared');
@@ -2741,7 +2942,7 @@ Object.assign(DonulandIntegrationController.prototype, {
         }
     },
     
-    // Safe calendar render s error handling
+    // Safe calendar render
     async safeCalendarRender() {
         const maxRetries = 3;
         let attempt = 0;
@@ -2767,7 +2968,7 @@ Object.assign(DonulandIntegrationController.prototype, {
         }
     },
     
-    // Safe analytics initialization s error handling
+    // Safe analytics initialization
     async safeAnalyticsInitialization() {
         const maxRetries = 3;
         let attempt = 0;
@@ -2795,77 +2996,142 @@ Object.assign(DonulandIntegrationController.prototype, {
 });
 
 // ========================================
-// DATA PROPAGATION & SYNCHRONIZATION
+// DATA SYNCHRONIZATION
 // ========================================
 
 Object.assign(DonulandIntegrationController.prototype, {
-    // Propagace data update do všech sekcí
+    // Propagate data update
     propagateDataUpdate(data) {
         console.log('📊 Propagating data update to all sections...');
         
         integrationState.syncInProgress = true;
         
         try {
-            // Update calendar if visible
+            // Update calendar if active
             if (this.isSectionActive('calendar')) {
                 setTimeout(() => {
-                    if (typeof populateFilterDropdowns === 'function') {
-                        populateFilterDropdowns();
-                    }
-                    if (typeof renderCalendar === 'function') {
-                        renderCalendar();
-                    }
+                    this.refreshCalendar('data-update');
                 }, 200);
+            } else {
+                integrationState.pendingUpdates.add('calendar');
             }
             
-            // Update analytics if visible
+            // Update analytics if active
             if (this.isSectionActive('analytics')) {
                 setTimeout(() => {
-                    if (typeof initializeAnalytics === 'function') {
-                        initializeAnalytics();
-                    }
+                    this.refreshAnalytics('data-update');
                 }, 500);
+            } else {
+                integrationState.pendingUpdates.add('analytics');
             }
-            
-            // Mark other sections for update
-            this.markSectionsForUpdate(['calendar', 'analytics']);
             
         } catch (error) {
             console.error('❌ Error propagating data update:', error);
         } finally {
-            integrationState.syncInProgress = false;
+            setTimeout(() => {
+                integrationState.syncInProgress = false;
+            }, 1000);
         }
     },
     
-    // Propagace filter update
-    propagateFilterUpdate(filterData) {
-        console.log('🔍 Propagating filter update...', filterData);
-        
-        // Update cross-section filters
-        if (filterData.city !== undefined) {
-            integrationState.crossSectionFilters.city = filterData.city;
-        }
-        if (filterData.category !== undefined) {
-            integrationState.crossSectionFilters.category = filterData.category;
-        }
-        if (filterData.status !== undefined) {
-            integrationState.crossSectionFilters.status = filterData.status;
-        }
-        
-        // Apply to calendar
-        this.syncFiltersToCalendar();
-        
-        // Apply to analytics (if it supports filtering)
-        this.syncFiltersToAnalytics();
+    // Handle form changes
+    handleFormChange() {
+        // Form changes primarily affect prediction section
+        // No immediate action needed for calendar/analytics
+        console.log('📝 Form changed - no immediate calendar/analytics update needed');
     },
     
-    // Synchronizace filtrů do kalendáře
+    // Handle event modifications
+    handleEventModification(type, data) {
+        console.log(`📝 Event ${type}:`, data);
+        
+        // Update both calendar and analytics
+        setTimeout(() => {
+            if (this.isSectionActive('calendar')) {
+                this.refreshCalendar(`event-${type}`);
+            }
+            
+            if (this.isSectionActive('analytics')) {
+                this.refreshAnalytics(`event-${type}`);
+            }
+        }, 300);
+    },
+    
+    // Handle prediction saves
+    handlePredictionSave(data) {
+        console.log('🔮 Prediction saved:', data);
+        
+        // Update calendar filters and display
+        setTimeout(() => {
+            if (typeof populateFilterDropdowns === 'function') {
+                populateFilterDropdowns();
+            }
+            
+            if (this.isSectionActive('calendar')) {
+                this.refreshCalendar('prediction-saved');
+            }
+        }, 200);
+    },
+    
+    // Refresh calendar
+    refreshCalendar(reason) {
+        console.log(`📅 Refreshing calendar (reason: ${reason})`);
+        
+        try {
+            if (typeof populateFilterDropdowns === 'function') {
+                populateFilterDropdowns();
+            }
+            
+            if (typeof renderCalendar === 'function') {
+                renderCalendar();
+            }
+        } catch (error) {
+            console.error('❌ Error refreshing calendar:', error);
+        }
+    },
+    
+    // Refresh analytics
+    refreshAnalytics(reason) {
+        console.log(`📊 Refreshing analytics (reason: ${reason})`);
+        
+        try {
+            if (typeof analyticsState !== 'undefined') {
+                analyticsState.cachedStats = null;
+            }
+            
+            if (typeof initializeAnalytics === 'function') {
+                initializeAnalytics();
+            }
+        } catch (error) {
+            console.error('❌ Error refreshing analytics:', error);
+        }
+    }
+});
+
+// ========================================
+// FILTER SYNCHRONIZATION
+// ========================================
+
+Object.assign(DonulandIntegrationController.prototype, {
+    // Sync filters across sections
+    syncFilters() {
+        const cityFilter = document.getElementById('cityFilter');
+        const categoryFilter = document.getElementById('categoryFilter');
+        const statusFilter = document.getElementById('statusFilter');
+        
+        if (cityFilter) integrationState.crossSectionFilters.city = cityFilter.value;
+        if (categoryFilter) integrationState.crossSectionFilters.category = categoryFilter.value;
+        if (statusFilter) integrationState.crossSectionFilters.status = statusFilter.value;
+        
+        console.log('🔍 Filters synchronized:', integrationState.crossSectionFilters);
+    },
+    
+    // Sync filters to calendar
     syncFiltersToCalendar() {
         if (typeof calendarState === 'undefined') return;
         
         const filters = integrationState.crossSectionFilters;
         
-        // Update calendar filters
         calendarState.filters.city = filters.city || '';
         calendarState.filters.category = filters.category || '';
         calendarState.filters.status = filters.status || '';
@@ -2878,41 +3144,16 @@ Object.assign(DonulandIntegrationController.prototype, {
         if (cityFilter) cityFilter.value = filters.city || '';
         if (categoryFilter) categoryFilter.value = filters.category || '';
         if (statusFilter) statusFilter.value = filters.status || '';
-        
-        // Re-render calendar if active
-        if (this.isSectionActive('calendar') && typeof renderCalendar === 'function') {
-            setTimeout(() => renderCalendar(), 100);
+    },
+    
+    // Sync date range
+    syncDateRange() {
+        if (globalState && globalState.currentMonth !== undefined) {
+            integrationState.crossSectionFilters.dateRange = {
+                month: globalState.currentMonth,
+                year: globalState.currentYear
+            };
         }
-    },
-    
-    // Synchronizace filtrů do analytics
-    syncFiltersToAnalytics() {
-        // Analytics může používat filtry pro zobrazení specifických dat
-        if (this.isSectionActive('analytics') && typeof analyticsState !== 'undefined') {
-            // Force refresh analytics s novými filtry
-            analyticsState.cachedStats = null;
-            
-            setTimeout(() => {
-                if (typeof initializeAnalytics === 'function') {
-                    initializeAnalytics();
-                }
-            }, 200);
-        }
-    },
-    
-    // Označit sekce pro update
-    markSectionsForUpdate(sections) {
-        sections.forEach(section => {
-            integrationState.pendingUpdates.add(section);
-        });
-        
-        console.log('📌 Marked sections for update:', Array.from(integrationState.pendingUpdates));
-    },
-    
-    // Zkontrolovat jestli je sekce aktivní
-    isSectionActive(sectionName) {
-        const section = document.getElementById(sectionName);
-        return section && section.classList.contains('active');
     }
 });
 
@@ -2921,55 +3162,21 @@ Object.assign(DonulandIntegrationController.prototype, {
 // ========================================
 
 Object.assign(DonulandIntegrationController.prototype, {
-    // Trigger analytics update
-    triggerAnalyticsUpdate(reason) {
-        console.log(`📊 Triggering analytics update (reason: ${reason})`);
-        
-        if (this.isSectionActive('analytics')) {
-            // Immediate update
-            setTimeout(() => {
-                if (typeof updateOverallStats === 'function') {
-                    updateOverallStats();
-                }
-            }, 200);
-        } else {
-            // Mark for later update
-            this.markSectionsForUpdate(['analytics']);
-        }
-    },
-    
-    // Enhanced month navigation
-    setupEnhancedMonthNavigation() {
-        // Wrap existing changeMonth function
-        if (typeof window.changeMonth === 'function') {
-            const originalChangeMonth = window.changeMonth;
-            window.changeMonth = (direction) => {
-                originalChangeMonth(direction);
-                
-                // Emit cross-section message
-                eventBus.emit('crossSectionMessage', {
-                    type: 'month-changed',
-                    source: 'calendar',
-                    target: 'analytics',
-                    data: {
-                        month: globalState.currentMonth,
-                        year: globalState.currentYear,
-                        direction: direction
-                    }
-                });
-            };
-        }
+    // Check if section is active
+    isSectionActive(sectionName) {
+        const section = document.getElementById(sectionName);
+        return section && section.classList.contains('active');
     },
     
     // Get integration status
     getIntegrationStatus() {
         return {
-            isInitialized: !integrationState.isInitializing,
+            isInitialized: integrationState.initialized,
+            isReady: this.ready,
             sectionsLoaded: integrationState.sectionsLoaded,
             pendingUpdates: Array.from(integrationState.pendingUpdates),
             lastSectionSwitch: integrationState.lastSectionSwitch,
-            syncInProgress: integrationState.syncInProgress,
-            degradedMode: integrationState.degradedMode || false
+            syncInProgress: integrationState.syncInProgress
         };
     },
     
@@ -2983,19 +3190,17 @@ Object.assign(DonulandIntegrationController.prototype, {
         }, 3000);
     },
     
-    // Attempt partial initialization
+    // Partial initialization fallback
     async attemptPartialInitialization() {
         console.log('🔄 Attempting partial initialization...');
         
         try {
-            // Try to initialize at least basic communication
             this.setupCrossSectionCommunication();
-            
-            // Try to sync global states
             await this.synchronizeGlobalStates();
-            
-            // Setup basic event handling
             this.setupUnifiedEventHandling();
+            
+            integrationState.initialized = true;
+            this.ready = true;
             
             console.log('✅ Partial initialization completed');
             
@@ -3004,28 +3209,52 @@ Object.assign(DonulandIntegrationController.prototype, {
         }
     },
     
-    // Get current active section
-    getCurrentActiveSection() {
-        const sections = ['prediction', 'calendar', 'analytics', 'settings'];
-        return sections.find(section => {
-            const element = document.getElementById(section);
-            return element && element.classList.contains('active');
-        });
+    // Retry calendar preparation
+    retryCalendarPreparation() {
+        const retryKey = 'calendar-prep';
+        const currentAttempts = this.retryAttempts.get(retryKey) || 0;
+        
+        if (currentAttempts < this.maxRetries) {
+            this.retryAttempts.set(retryKey, currentAttempts + 1);
+            
+            setTimeout(() => {
+                console.log(`🔄 Retrying calendar preparation (attempt ${currentAttempts + 1})`);
+                this.prepareCalendarSection();
+            }, 2000 * (currentAttempts + 1));
+        } else {
+            console.error('❌ Calendar preparation failed after max retries');
+        }
+    },
+    
+    // Retry analytics preparation
+    retryAnalyticsPreparation() {
+        const retryKey = 'analytics-prep';
+        const currentAttempts = this.retryAttempts.get(retryKey) || 0;
+        
+        if (currentAttempts < this.maxRetries) {
+            this.retryAttempts.set(retryKey, currentAttempts + 1);
+            
+            setTimeout(() => {
+                console.log(`🔄 Retrying analytics preparation (attempt ${currentAttempts + 1})`);
+                this.prepareAnalyticsSection();
+            }, 2000 * (currentAttempts + 1));
+        } else {
+            console.error('❌ Analytics preparation failed after max retries');
+        }
     }
 });
 
 // ========================================
-// GLOBAL INTEGRATION CONTROLLER INSTANCE
+// GLOBAL CONTROLLER INSTANCE
 // ========================================
 
-// Create global integration controller instance
 const integrationController = new DonulandIntegrationController();
 
 // ========================================
-// INTEGRATION EVENT LISTENERS
+// EVENT LISTENERS
 // ========================================
 
-// Auto-initialization when parts are loaded
+// Part loading events
 eventBus.on('part4ALoaded', () => {
     console.log('✅ Part 4A loaded - calendar functionality available');
     integrationState.sectionsLoaded.part4A = true;
@@ -3043,11 +3272,11 @@ eventBus.on('part4CLoaded', () => {
     integrationController.checkReadyForInitialization();
 });
 
-// Check if ready for initialization
+// Check readiness for initialization
 integrationController.checkReadyForInitialization = function() {
     const { part4A, part4C } = integrationState.sectionsLoaded;
     
-    if (part4A && part4C && !integrationState.isInitializing) {
+    if (part4A && part4C && !integrationState.isInitializing && !integrationState.initialized) {
         console.log('🚀 All critical parts loaded - starting integration...');
         setTimeout(() => {
             this.initialize();
@@ -3055,54 +3284,55 @@ integrationController.checkReadyForInitialization = function() {
     }
 };
 
-// Manual integration trigger
+// Manual trigger
 eventBus.on('triggerIntegration', () => {
     console.log('🔧 Manual integration trigger received');
-    integrationController.initialize();
+    if (!integrationState.initialized) {
+        integrationController.initialize();
+    }
 });
 
-// Section change handling
+// Handle pending updates when switching sections
 eventBus.on('sectionChanged', (data) => {
-    // This is handled by the integration controller
-    console.log(`📍 Section changed to: ${data.section} (integration tracking)`);
-});
-
-// Data reload handling
-eventBus.on('dataReloadRequested', () => {
-    console.log('🔄 Data reload requested - will sync after load');
-    integrationState.pendingUpdates.add('calendar');
-    integrationState.pendingUpdates.add('analytics');
+    if (integrationState.pendingUpdates.has(data.section)) {
+        console.log(`📋 Processing pending updates for ${data.section}`);
+        
+        setTimeout(() => {
+            if (data.section === 'calendar') {
+                integrationController.refreshCalendar('pending-update');
+            } else if (data.section === 'analytics') {
+                integrationController.refreshAnalytics('pending-update');
+            }
+            
+            integrationState.pendingUpdates.delete(data.section);
+        }, 500);
+    }
 });
 
 // ========================================
-// INITIALIZATION ON DOM READY
+// INITIALIZATION
 // ========================================
 
-// Auto-start integration when DOM is ready and parts are available
+// Auto-start integration
 document.addEventListener('DOMContentLoaded', function() {
     console.log('🔧 Part 4D Integration - DOM ready');
     
-    // Wait a bit for other parts to load
+    // Wait for other parts to load
     setTimeout(() => {
-        // Check if critical parts are available immediately
         const hasCalendar = typeof renderCalendar === 'function';
         const hasAnalytics = typeof initializeAnalytics === 'function';
         
-        if (hasCalendar || hasAnalytics) {
-            console.log(`🎯 Parts available: Calendar=${hasCalendar}, Analytics=${hasAnalytics}`);
-            
-            // Start integration if we have at least one critical part
-            if (hasCalendar || hasAnalytics) {
-                integrationController.initialize();
-            }
+        if (hasCalendar && hasAnalytics) {
+            console.log('🎯 Both calendar and analytics available - starting integration');
+            integrationController.initialize();
         } else {
-            console.log('⏳ Waiting for parts to load...');
+            console.log(`⏳ Waiting for parts to load... Calendar: ${hasCalendar}, Analytics: ${hasAnalytics}`);
         }
     }, 2000);
     
-    // Fallback initialization after 10 seconds
+    // Fallback initialization
     setTimeout(() => {
-        if (!integrationState.isInitializing && !integrationController.getIntegrationStatus().isInitialized) {
+        if (!integrationState.initialized) {
             console.log('⚠️ Fallback integration initialization...');
             integrationController.initialize();
         }
@@ -3113,7 +3343,6 @@ document.addEventListener('DOMContentLoaded', function() {
 // DEBUG INTERFACE
 // ========================================
 
-// Debug interface pro integration
 if (typeof window !== 'undefined') {
     window.donulandIntegrationDebug = {
         // Status
@@ -3133,10 +3362,9 @@ if (typeof window !== 'undefined') {
             if (btn) btn.click();
         },
         
-        // Message testing
-        sendMessage: (type, source, target, data) => {
-            eventBus.emit('crossSectionMessage', { type, source, target, data });
-        },
+        // Refresh control
+        refreshCalendar: () => integrationController.refreshCalendar('manual'),
+        refreshAnalytics: () => integrationController.refreshAnalytics('manual'),
         
         // Utility
         clearRetries: () => {
@@ -3149,22 +3377,29 @@ if (typeof window !== 'undefined') {
             console.log('🧹 Pending updates cleared');
         },
         
+        // Force sync
+        syncAll: () => {
+            integrationController.syncFilters();
+            integrationController.syncDateRange();
+            console.log('🔄 All synchronization forced');
+        },
+        
         // Test functions
-        testCalendarRender: () => {
+        testCalendar: () => {
             if (typeof renderCalendar === 'function') {
                 renderCalendar();
-                console.log('📅 Calendar render test executed');
+                console.log('📅 Calendar test executed');
             } else {
-                console.error('❌ renderCalendar function not available');
+                console.error('❌ renderCalendar not available');
             }
         },
         
-        testAnalyticsInit: () => {
+        testAnalytics: () => {
             if (typeof initializeAnalytics === 'function') {
                 initializeAnalytics();
-                console.log('📊 Analytics init test executed');
+                console.log('📊 Analytics test executed');
             } else {
-                console.error('❌ initializeAnalytics function not available');
+                console.error('❌ initializeAnalytics not available');
             }
         }
     };
@@ -3174,24 +3409,25 @@ if (typeof window !== 'undefined') {
 // FINALIZACE
 // ========================================
 
-console.log('✅ Donuland Part 4D (Fixed Integration) loaded successfully');
-console.log('🔗 Features: ✅ Cross-Section Communication ✅ Auto-Sync ✅ Error Recovery ✅ Filter Propagation');
-console.log('🎯 Integration: Calendar ↔ Analytics ↔ Filters ↔ Data');
+console.log('✅ Donuland Part 4D (Final Integration) loaded successfully');
+console.log('🔗 Features: ✅ Cross-Section Communication ✅ Auto-Sync ✅ Error Recovery ✅ Filter Sync ✅ Real-time Updates');
+console.log('🎯 Integration: Calendar ↔ Analytics ↔ Filters ↔ Data ↔ Events');
 console.log('🔧 Debug: window.donulandIntegrationDebug available');
-console.log('📡 Communication: eventBus-based message routing');
-console.log('🔄 Auto-sync: Periodic updates and section coordination');
-console.log('⏳ Ready for final testing');
+console.log('🚀 System: Complete calendar and analytics integration ready');
 
-// Emit completion event
+// Emit completion
 eventBus.emit('part4DLoaded', { 
     timestamp: Date.now(),
     version: '1.0.0',
     features: [
         'cross-section-communication',
         'auto-sync-mechanisms', 
-        'filter-propagation',
+        'filter-synchronization',
         'section-coordination',
         'error-recovery',
-        'message-routing'
+        'real-time-updates',
+        'debug-interface'
     ]
 });
+
+console.log('🎉 DONULAND PART 4 (A+B+C+D) COMPLETE - Calendar & Analytics fully integrated!');
