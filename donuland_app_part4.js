@@ -1402,12 +1402,1331 @@ eventBus.on('predictionSaved', (data) => {
 console.log('✅ Donuland Part 4B loaded successfully');
 console.log('📝 Features: ✅ Event Modal ✅ Edit Events ✅ Delete Events ✅ Enhanced Display');
 console.log('⏳ Ready for Part 4C: Analytics and Charts');
-/* ========================================
-   DONULAND PART 4C - KOMPLETNÍ ANALYTICS
-   Dokončené analytické funkce a vizualizace dat
+       /* ========================================
+   DONULAND PART 4C-1 - ANALYTICS CORE
+   Základní analytické funkce a statistiky
    ======================================== */
 
-console.log('🍩 Donuland Part 4C (COMPLETE) loading...');
+console.log('🍩 Donuland Part 4C-1 (Core Analytics) loading...');
+
+// ========================================
+// ANALYTICS STAV A KONFIGURACE
+// ========================================
+
+// Globální stav pro analytics
+if (typeof window.analyticsState === 'undefined') {
+    window.analyticsState = {
+        isLoading: false,
+        lastUpdate: null,
+        cachedStats: null,
+        chartColors: {
+            primary: '#667eea',
+            secondary: '#764ba2',
+            success: '#28a745',
+            warning: '#ffc107',
+            info: '#17a2b8',
+            danger: '#dc3545'
+        }
+    };
+}
+
+// ========================================
+// HLAVNÍ ANALYTICS FUNKCE
+// ========================================
+
+// Inicializace analytics sekce
+function initializeAnalytics() {
+    console.log('📊 Initializing core analytics...');
+    
+    if (analyticsState.isLoading) {
+        console.log('⚠️ Analytics already loading');
+        return;
+    }
+    
+    analyticsState.isLoading = true;
+    
+    try {
+        // Zkontrolovat dostupnost dat
+        if (!globalState.historicalData || globalState.historicalData.length === 0) {
+            displayNoDataMessage();
+            return;
+        }
+        
+        // Zobrazit loading state
+        showAnalyticsLoading();
+        
+        // Postupně načíst všechny analytics komponenty
+        setTimeout(() => updateOverallStats(), 100);
+        setTimeout(() => updateTopEvents(), 200);
+        setTimeout(() => updateTopCities(), 300);
+        setTimeout(() => updateTopCategories(), 400);
+        setTimeout(() => displayMonthlyTrends(), 500);
+        
+        analyticsState.lastUpdate = Date.now();
+        console.log('✅ Core analytics initialized successfully');
+        
+        // Skrýt loading po dokončení základních komponent
+        setTimeout(() => {
+            hideAnalyticsLoading();
+        }, 600);
+        
+    } catch (error) {
+        console.error('❌ Error initializing analytics:', error);
+        showNotification('❌ Chyba při načítání analýz', 'error');
+        hideAnalyticsLoading();
+    } finally {
+        analyticsState.isLoading = false;
+    }
+}
+
+// Loading state pro analytics
+function showAnalyticsLoading() {
+    const containers = [
+        'overallStats', 'topEvents', 'topCities', 'topCategories', 'monthlyTrends'
+    ];
+    
+    containers.forEach(containerId => {
+        const container = document.getElementById(containerId);
+        if (container) {
+            container.innerHTML = `
+                <div style="text-align: center; padding: 40px;">
+                    <div class="spinner" style="margin: 0 auto 15px;"></div>
+                    <p style="color: #6c757d;">Načítám ${containerId}...</p>
+                </div>
+            `;
+        }
+    });
+}
+
+function hideAnalyticsLoading() {
+    console.log('✅ Core analytics loading completed');
+}
+
+// Zobrazení zprávy o chybějících datech
+function displayNoDataMessage() {
+    const containers = [
+        'overallStats', 'topEvents', 'topCities', 'topCategories', 'monthlyTrends'
+    ];
+    
+    containers.forEach(containerId => {
+        const container = document.getElementById(containerId);
+        if (container) {
+            container.innerHTML = `
+                <div style="text-align: center; padding: 40px; color: #6c757d;">
+                    <div style="font-size: 3rem; margin-bottom: 20px;">📊</div>
+                    <h4>Žádná data pro analýzu</h4>
+                    <p>Načtěte historická data pro zobrazení analýz</p>
+                    <button class="btn" onclick="loadData()" style="margin-top: 15px;">
+                        🔄 Načíst data
+                    </button>
+                </div>
+            `;
+        }
+    });
+}
+
+// ========================================
+// CELKOVÉ STATISTIKY
+// ========================================
+
+function updateOverallStats() {
+    console.log('📈 Updating overall statistics...');
+    
+    const container = document.getElementById('overallStats');
+    if (!container) return;
+    
+    try {
+        const stats = calculateOverallStats();
+        
+        const html = `
+            <div class="stat-item">
+                <div class="stat-value">${stats.totalEvents}</div>
+                <div class="stat-label">Celkem akcí</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-value">${formatNumber(stats.totalSales)}</div>
+                <div class="stat-label">Celkem prodejů</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-value">${formatNumber(stats.averageSales)}</div>
+                <div class="stat-label">Průměrný prodej</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-value">${formatCurrency(stats.totalRevenue)}</div>
+                <div class="stat-label">Celkový obrat</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-value">${stats.averageConversion.toFixed(1)}%</div>
+                <div class="stat-label">Průměrná konverze</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-value">${formatNumber(stats.totalVisitors)}</div>
+                <div class="stat-label">Celkem návštěvníků</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-value">${stats.bestConversion.toFixed(1)}%</div>
+                <div class="stat-label">Nejlepší konverze</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-value">${formatCurrency(stats.totalProfit)}</div>
+                <div class="stat-label">Odhadovaný zisk</div>
+            </div>
+        `;
+        
+        container.innerHTML = html;
+        console.log('✅ Overall stats updated');
+        
+    } catch (error) {
+        console.error('❌ Error updating overall stats:', error);
+        container.innerHTML = '<div class="error-message">Chyba při načítání statistik</div>';
+    }
+}
+
+function calculateOverallStats() {
+    const data = globalState.historicalData.filter(record => 
+        record.sales > 0 && record.visitors > 0
+    );
+    
+    if (data.length === 0) {
+        return {
+            totalEvents: 0,
+            totalSales: 0,
+            averageSales: 0,
+            totalRevenue: 0,
+            averageConversion: 0,
+            totalVisitors: 0,
+            bestConversion: 0,
+            totalProfit: 0
+        };
+    }
+    
+    const totalEvents = data.length;
+    const totalSales = data.reduce((sum, record) => sum + record.sales, 0);
+    const totalVisitors = data.reduce((sum, record) => sum + record.visitors, 0);
+    const totalRevenue = totalSales * CONFIG.DONUT_PRICE;
+    const averageSales = totalSales / totalEvents;
+    const averageConversion = (totalSales / totalVisitors) * 100;
+    
+    // Nejlepší konverze
+    const conversions = data.map(record => (record.sales / record.visitors) * 100);
+    const bestConversion = Math.max(...conversions);
+    
+    // Odhadovaný zisk (revenue - náklady)
+    const totalCosts = totalSales * CONFIG.DONUT_COST;
+    const totalProfit = totalRevenue - totalCosts;
+    
+    return {
+        totalEvents,
+        totalSales,
+        averageSales,
+        totalRevenue,
+        averageConversion,
+        totalVisitors,
+        bestConversion,
+        totalProfit
+    };
+}
+
+// ========================================
+// TOP UDÁLOSTI
+// ========================================
+
+function updateTopEvents() {
+    console.log('🏆 Updating top events...');
+    
+    const container = document.getElementById('topEvents');
+    if (!container) return;
+    
+    try {
+        const topEvents = getTopEvents(10);
+        
+        if (topEvents.length === 0) {
+            container.innerHTML = '<div class="no-data">Žádné události k zobrazení</div>';
+            return;
+        }
+        
+        let html = '<div class="top-events-header" style="margin-bottom: 15px;">';
+        html += '<h4 style="margin: 0;">🏆 Nejúspěšnější akce</h4>';
+        html += `<p style="color: #6c757d; margin: 5px 0 0 0; font-size: 0.9em;">Top ${topEvents.length} podle prodeje</p>`;
+        html += '</div>';
+        
+        topEvents.forEach((event, index) => {
+            const conversion = event.visitors > 0 ? ((event.sales / event.visitors) * 100).toFixed(1) : '0';
+            const revenue = event.sales * CONFIG.DONUT_PRICE;
+            const profit = revenue - (event.sales * CONFIG.DONUT_COST);
+            
+            // Medaile pro top 3
+            let medal = '';
+            if (index === 0) medal = '🥇';
+            else if (index === 1) medal = '🥈';
+            else if (index === 2) medal = '🥉';
+            
+            html += `
+                <div class="top-item" style="border-left-color: ${getPerformanceColor(parseFloat(conversion))};">
+                    <div class="top-info">
+                        <h4>${medal} ${index + 1}. ${escapeHtml(event.eventName)}</h4>
+                        <p>📍 ${escapeHtml(event.city)} • 📅 ${formatDate(event.dateFrom)} • 📋 ${escapeHtml(event.category)}</p>
+                        <p style="font-size: 0.8em; color: #6c757d; margin-top: 5px;">
+                            👥 ${formatNumber(event.visitors)} návštěvníků
+                            ${event.rating ? ` • ⭐ ${event.rating}/5` : ''}
+                        </p>
+                    </div>
+                    <div class="top-stats">
+                        <div class="top-value" style="color: ${getPerformanceColor(parseFloat(conversion))};">
+                            ${formatNumber(event.sales)} ks
+                        </div>
+                        <div class="top-subvalue">
+                            🎯 ${conversion}% konverze<br>
+                            💰 ${formatCurrency(revenue)}<br>
+                            💎 ${formatCurrency(profit)} zisk
+                        </div>
+                    </div>
+                </div>
+            `;
+        });
+        
+        container.innerHTML = html;
+        console.log('✅ Top events updated');
+        
+    } catch (error) {
+        console.error('❌ Error updating top events:', error);
+        container.innerHTML = '<div class="error-message">Chyba při načítání top akcí</div>';
+    }
+}
+
+// ========================================
+// TOP MĚSTA
+// ========================================
+
+function updateTopCities() {
+    console.log('🏙️ Updating top cities...');
+    
+    const container = document.getElementById('topCities');
+    if (!container) return;
+    
+    try {
+        const topCities = getTopCities(10);
+        
+        if (topCities.length === 0) {
+            container.innerHTML = '<div class="no-data">Žádná města k zobrazení</div>';
+            return;
+        }
+        
+        let html = '<div class="top-cities-header" style="margin-bottom: 15px;">';
+        html += '<h4 style="margin: 0;">🏙️ Nejúspěšnější města</h4>';
+        html += `<p style="color: #6c757d; margin: 5px 0 0 0; font-size: 0.9em;">Top ${topCities.length} podle prodeje</p>`;
+        html += '</div>';
+        
+        topCities.forEach((city, index) => {
+            const avgSalesPerEvent = city.totalSales / city.eventsCount;
+            
+            // Medaile pro top 3
+            let medal = '';
+            if (index === 0) medal = '🥇';
+            else if (index === 1) medal = '🥈';
+            else if (index === 2) medal = '🥉';
+            
+            html += `
+                <div class="top-item">
+                    <div class="top-info">
+                        <h4>${medal} ${index + 1}. ${escapeHtml(city.name)}</h4>
+                        <p>📊 ${city.eventsCount} akcí • 🎯 ${city.averageConversion.toFixed(1)}% průměrná konverze</p>
+                        <p style="font-size: 0.8em; color: #6c757d; margin-top: 5px;">
+                            📈 ${formatNumber(avgSalesPerEvent)} ks průměr/akci • 👥 ${formatNumber(city.totalVisitors)} návštěvníků
+                        </p>
+                    </div>
+                    <div class="top-stats">
+                        <div class="top-value">${formatNumber(city.totalSales)} ks</div>
+                        <div class="top-subvalue">
+                            💰 ${formatCurrency(city.totalRevenue)}<br>
+                            💎 ${formatCurrency(city.totalRevenue - (city.totalSales * CONFIG.DONUT_COST))} zisk
+                        </div>
+                    </div>
+                </div>
+            `;
+        });
+        
+        container.innerHTML = html;
+        console.log('✅ Top cities updated');
+        
+    } catch (error) {
+        console.error('❌ Error updating top cities:', error);
+        container.innerHTML = '<div class="error-message">Chyba při načítání top měst</div>';
+    }
+}
+
+// ========================================
+// TOP KATEGORIE
+// ========================================
+
+function updateTopCategories() {
+    console.log('📊 Updating top categories...');
+    
+    const container = document.getElementById('topCategories');
+    if (!container) return;
+    
+    try {
+        const topCategories = getTopCategories();
+        
+        if (topCategories.length === 0) {
+            container.innerHTML = '<div class="no-data">Žádné kategorie k zobrazení</div>';
+            return;
+        }
+        
+        const categoryIcons = {
+            'food festival': '🍔',
+            'veletrh': '🍫',
+            'koncert': '🎵',
+            'kulturní akce': '🎭',
+            'sportovní': '🏃',
+            'ostatní': '📅'
+        };
+        
+        let html = '<div class="top-categories-header" style="margin-bottom: 15px;">';
+        html += '<h4 style="margin: 0;">📊 Nejúspěšnější kategorie</h4>';
+        html += `<p style="color: #6c757d; margin: 5px 0 0 0; font-size: 0.9em;">Analýza podle typů akcí</p>`;
+        html += '</div>';
+        
+        topCategories.forEach((category, index) => {
+            const icon = categoryIcons[category.name] || '📋';
+            const avgSalesPerEvent = category.totalSales / category.eventsCount;
+            
+            // Medaile pro top 3
+            let medal = '';
+            if (index === 0) medal = '🥇';
+            else if (index === 1) medal = '🥈';
+            else if (index === 2) medal = '🥉';
+            
+            html += `
+                <div class="top-item">
+                    <div class="top-info">
+                        <h4>${medal} ${index + 1}. ${icon} ${escapeHtml(category.name)}</h4>
+                        <p>📊 ${category.eventsCount} akcí • 🎯 ${category.averageConversion.toFixed(1)}% průměrná konverze</p>
+                        <p style="font-size: 0.8em; color: #6c757d; margin-top: 5px;">
+                            📈 ${formatNumber(avgSalesPerEvent)} ks průměr/akci • 👥 ${formatNumber(category.totalVisitors)} návštěvníků
+                        </p>
+                    </div>
+                    <div class="top-stats">
+                        <div class="top-value">${formatNumber(category.totalSales)} ks</div>
+                        <div class="top-subvalue">
+                            💰 ${formatCurrency(category.totalRevenue)}<br>
+                            💎 ${formatCurrency(category.totalRevenue - (category.totalSales * CONFIG.DONUT_COST))} zisk
+                        </div>
+                    </div>
+                </div>
+            `;
+        });
+        
+        container.innerHTML = html;
+        console.log('✅ Top categories updated');
+        
+    } catch (error) {
+        console.error('❌ Error updating top categories:', error);
+        container.innerHTML = '<div class="error-message">Chyba při načítání top kategorií</div>';
+    }
+}
+
+// ========================================
+// DATA PROCESSING FUNKCE
+// ========================================
+
+function getTopEvents(limit = 10) {
+    return globalState.historicalData
+        .filter(record => record.sales > 0 && record.visitors > 0)
+        .sort((a, b) => b.sales - a.sales)
+        .slice(0, limit);
+}
+
+function getTopCities(limit = 10) {
+    const cityStats = new Map();
+    
+    globalState.historicalData.forEach(record => {
+        if (record.sales > 0 && record.visitors > 0 && record.city) {
+            const city = record.city;
+            
+            if (!cityStats.has(city)) {
+                cityStats.set(city, {
+                    name: city,
+                    totalSales: 0,
+                    totalVisitors: 0,
+                    totalRevenue: 0,
+                    eventsCount: 0
+                });
+            }
+            
+            const stats = cityStats.get(city);
+            stats.totalSales += record.sales;
+            stats.totalVisitors += record.visitors;
+            stats.totalRevenue += record.sales * CONFIG.DONUT_PRICE;
+            stats.eventsCount += 1;
+        }
+    });
+    
+    return Array.from(cityStats.values())
+        .map(city => ({
+            ...city,
+            averageConversion: (city.totalSales / city.totalVisitors) * 100
+        }))
+        .sort((a, b) => b.totalSales - a.totalSales)
+        .slice(0, limit);
+}
+
+function getTopCategories() {
+    const categoryStats = new Map();
+    
+    globalState.historicalData.forEach(record => {
+        if (record.sales > 0 && record.visitors > 0 && record.category) {
+            const category = record.category;
+            
+            if (!categoryStats.has(category)) {
+                categoryStats.set(category, {
+                    name: category,
+                    totalSales: 0,
+                    totalVisitors: 0,
+                    totalRevenue: 0,
+                    eventsCount: 0
+                });
+            }
+            
+            const stats = categoryStats.get(category);
+            stats.totalSales += record.sales;
+            stats.totalVisitors += record.visitors;
+            stats.totalRevenue += record.sales * CONFIG.DONUT_PRICE;
+            stats.eventsCount += 1;
+        }
+    });
+    
+    return Array.from(categoryStats.values())
+        .map(category => ({
+            ...category,
+            averageConversion: (category.totalSales / category.totalVisitors) * 100
+        }))
+        .sort((a, b) => b.totalSales - a.totalSales);
+}
+
+// ========================================
+// JEDNODUCHÉ MĚSÍČNÍ TRENDY
+// ========================================
+
+function displayMonthlyTrends() {
+    console.log('📈 Generating basic monthly trends...');
+    
+    const container = document.getElementById('monthlyTrends');
+    if (!container) return;
+    
+    try {
+        if (!globalState.historicalData || globalState.historicalData.length === 0) {
+            container.innerHTML = `
+                <div class="chart-placeholder">
+                    <div style="font-size: 3rem; margin-bottom: 20px;">📈</div>
+                    <h4>Žádná data pro měsíční trendy</h4>
+                    <p>Načtěte historická data pro zobrazení trendů</p>
+                    <button class="btn" onclick="loadData()" style="margin-top: 15px;">
+                        🔄 Načíst data
+                    </button>
+                </div>
+            `;
+            return;
+        }
+        
+        // Seskup data podle měsíců
+        const monthlyData = new Map();
+        
+        globalState.historicalData.forEach(record => {
+            if (record.dateFrom && record.sales > 0) {
+                const date = new Date(record.dateFrom);
+                const monthKey = `${date.getFullYear()}-${(date.getMonth() + 1).toString().padStart(2, '0')}`;
+                
+                if (!monthlyData.has(monthKey)) {
+                    monthlyData.set(monthKey, {
+                        month: monthKey,
+                        totalSales: 0,
+                        eventsCount: 0,
+                        totalRevenue: 0,
+                        totalVisitors: 0
+                    });
+                }
+                
+                const monthData = monthlyData.get(monthKey);
+                monthData.totalSales += record.sales;
+                monthData.eventsCount += 1;
+                monthData.totalRevenue += (record.sales * CONFIG.DONUT_PRICE);
+                monthData.totalVisitors += record.visitors;
+            }
+        });
+        
+        // Seřaď podle měsíce a vezmi posledních 12
+        const sortedMonths = Array.from(monthlyData.values())
+            .sort((a, b) => a.month.localeCompare(b.month))
+            .slice(-12);
+        
+        if (sortedMonths.length === 0) {
+            container.innerHTML = `
+                <div class="chart-placeholder">
+                    <div style="font-size: 3rem; margin-bottom: 20px;">📈</div>
+                    <h4>Nedostatek dat pro trendy</h4>
+                    <p>Potřebujeme alespoň jeden měsíc s prodejními daty</p>
+                </div>
+            `;
+            return;
+        }
+        
+        let html = '<div class="trends-chart" style="padding: 20px; background: white; border-radius: 8px;">';
+        html += '<h4 style="text-align: center; margin-bottom: 20px;">📈 Měsíční trendy</h4>';
+        
+        // Jednoduchý sloupcový graf
+        html += '<div class="trends-bars" style="display: flex; align-items: flex-end; justify-content: space-around; height: 200px; margin: 20px 0; border-bottom: 2px solid #e9ecef;">';
+        
+        const maxSales = Math.max(...sortedMonths.map(m => m.totalSales));
+        
+        sortedMonths.forEach((monthData, index) => {
+            const [year, month] = monthData.month.split('-');
+            const monthName = new Date(year, month - 1).toLocaleDateString('cs-CZ', { 
+                month: 'short'
+            });
+            
+            const height = maxSales > 0 ? (monthData.totalSales / maxSales) * 180 : 10;
+            const color = `hsl(${120 + index * 20}, 70%, 55%)`;
+            
+            html += `
+                <div class="trend-bar" style="display: flex; flex-direction: column; align-items: center; margin: 0 5px;">
+                    <div style="width: 30px; height: ${height}px; background: ${color}; border-radius: 4px 4px 0 0; transition: all 0.3s ease; cursor: pointer;" 
+                         title="${monthName}: ${formatNumber(monthData.totalSales)} ks"></div>
+                    <div style="margin-top: 10px; font-size: 0.8em; font-weight: 600; color: #495057;">${monthName}</div>
+                    <div style="font-size: 0.7em; color: #6c757d;">${formatNumber(monthData.totalSales)} ks</div>
+                </div>
+            `;
+        });
+        
+        html += '</div>';
+        
+        // Shrnutí
+        const totalSales = sortedMonths.reduce((sum, m) => sum + m.totalSales, 0);
+        const totalRevenue = sortedMonths.reduce((sum, m) => sum + m.totalRevenue, 0);
+        const totalEvents = sortedMonths.reduce((sum, m) => sum + m.eventsCount, 0);
+        const avgSalesPerMonth = totalSales / sortedMonths.length;
+        
+        html += `
+            <div class="trends-summary" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 15px; margin-top: 20px; padding: 15px; background: #f8f9fa; border-radius: 8px;">
+                <div style="text-align: center;">
+                    <div style="font-size: 1.2em; font-weight: bold; color: #667eea;">${formatNumber(totalSales)}</div>
+                    <div style="font-size: 0.8em; color: #6c757d;">Celkem prodáno</div>
+                </div>
+                <div style="text-align: center;">
+                    <div style="font-size: 1.2em; font-weight: bold; color: #28a745;">${formatCurrency(totalRevenue)}</div>
+                    <div style="font-size: 0.8em; color: #6c757d;">Celkový obrat</div>
+                </div>
+                <div style="text-align: center;">
+                    <div style="font-size: 1.2em; font-weight: bold; color: #e91e63;">${totalEvents}</div>
+                    <div style="font-size: 0.8em; color: #6c757d;">Celkem akcí</div>
+                </div>
+                <div style="text-align: center;">
+                    <div style="font-size: 1.2em; font-weight: bold; color: #9c27b0;">${formatNumber(avgSalesPerMonth)}</div>
+                    <div style="font-size: 0.8em; color: #6c757d;">Průměr/měsíc</div>
+                </div>
+            </div>
+        `;
+        
+        html += '</div>';
+        
+        container.innerHTML = html;
+        console.log(`✅ Basic monthly trends displayed with ${sortedMonths.length} months`);
+        
+    } catch (error) {
+        console.error('❌ Error generating monthly trends:', error);
+        container.innerHTML = '<div class="error-message">Chyba při generování trendů</div>';
+    }
+}
+
+// ========================================
+// HELPER FUNKCE
+// ========================================
+
+function getPerformanceColor(conversion) {
+    if (conversion >= 15) return '#28a745'; // Zelená - výborné
+    if (conversion >= 10) return '#17a2b8'; // Modrá - dobré
+    if (conversion >= 5) return '#ffc107';  // Žlutá - průměrné
+    return '#dc3545'; // Červená - špatné
+}
+
+function escapeHtml(text) {
+    if (!text) return '';
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+// ========================================
+// EVENT LISTENERS PRO CORE ANALYTICS
+// ========================================
+
+// Event listener pro změnu na analytics sekci
+eventBus.on('sectionChanged', (data) => {
+    if (data.section === 'analytics') {
+        console.log('📊 Analytics section opened - initializing core analytics...');
+        setTimeout(() => {
+            initializeAnalytics();
+        }, 300);
+    }
+});
+
+// Event listener pro načtení dat
+eventBus.on('dataLoaded', () => {
+    console.log('📊 Data loaded - updating core analytics...');
+    analyticsState.cachedStats = null; // Clear cache
+    
+    // Pokud je analytics sekce aktivní, aktualizuj
+    const analyticsSection = document.getElementById('analytics');
+    if (analyticsSection && analyticsSection.classList.contains('active')) {
+        setTimeout(() => {
+            initializeAnalytics();
+        }, 1000);
+    }
+});
+
+// ========================================
+// INICIALIZACE
+// ========================================
+
+// Automatická inicializace při načtení
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('📊 Initializing Part 4C-1 - Core Analytics...');
+    
+    // Auto-inicializace pokud jsou data dostupná a je aktivní analytics sekce
+    setTimeout(() => {
+        const analyticsSection = document.getElementById('analytics');
+        if (analyticsSection && analyticsSection.classList.contains('active') && 
+            globalState.historicalData && globalState.historicalData.length > 0) {
+            initializeAnalytics();
+        }
+    }, 2000);
+    
+    console.log('✅ Part 4C-1 Core Analytics initialized');
+});
+
+console.log('✅ Donuland Part 4C-1 loaded successfully');
+console.log('📊 Features: ✅ Overall Stats ✅ Top Events ✅ Top Cities ✅ Top Categories ✅ Basic Monthly Trends');
+console.log('⏳ Ready for Part 4C-2: Advanced Analytics (Prediction Accuracy & Weather Impact)');
+/* ========================================
+   DONULAND PART 4C-2 - ADVANCED ANALYTICS
+   Pokročilé analytické funkce - přesnost predikcí a vliv počasí
+   ======================================== */
+
+console.log('🍩 Donuland Part 4C-2 (Advanced Analytics) loading...');
+
+// Rozšíření inicializace analytics o pokročilé komponenty
+const originalInitializeAnalytics = initializeAnalytics;
+window.initializeAnalytics = function() {
+    console.log('📊 Initializing complete analytics (including advanced)...');
+    
+    // Spustit základní analytics z Part 4C-1
+    originalInitializeAnalytics();
+    
+    // Přidat pokročilé komponenty
+    setTimeout(() => updatePredictionAccuracy(), 800);
+    setTimeout(() => updateWeatherImpact(), 900);
+    setTimeout(() => exportAnalyticsButton(), 1000);
+};
+
+// ========================================
+// PŘESNOST PREDIKCÍ
+// ========================================
+
+function updatePredictionAccuracy() {
+    console.log('🎯 Updating prediction accuracy analysis...');
+    
+    const container = document.getElementById('predictionAccuracy');
+    if (!container) return;
+    
+    try {
+        const accuracyData = calculatePredictionAccuracy();
+        
+        if (!accuracyData || accuracyData.comparisons.length === 0) {
+            container.innerHTML = `
+                <div style="text-align: center; padding: 40px;">
+                    <div style="font-size: 3rem; margin-bottom: 20px;">🎯</div>
+                    <h4>Analýza přesnosti predikcí</h4>
+                    <p>Pro analýzu přesnosti potřebujeme události s predikcemi i skutečnými výsledky.</p>
+                    <div style="background: #e3f2fd; padding: 15px; border-radius: 8px; margin-top: 20px;">
+                        <h6 style="margin: 0 0 10px 0;">💡 Jak zlepšit analýzu:</h6>
+                        <ul style="margin: 0; padding-left: 20px; text-align: left;">
+                            <li>Vytvořte predikce pro budoucí akce</li>
+                            <li>Po akcích aktualizujte skutečné prodeje</li>
+                            <li>Systém automaticky porovná predikce s realitou</li>
+                        </ul>
+                    </div>
+                </div>
+            `;
+            return;
+        }
+        
+        let html = '<div class="prediction-accuracy-analysis" style="background: linear-gradient(135deg, #e3f2fd, #f0f9ff); padding: 20px; border-radius: 8px;">';
+        html += '<h4 style="margin: 0 0 20px 0; text-align: center;">🎯 Přesnost AI predikcí</h4>';
+        
+        // Celkové metriky přesnosti
+        html += '<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 15px; margin-bottom: 25px;">';
+        
+        const avgAccuracy = accuracyData.averageAccuracy;
+        const accuracyColor = avgAccuracy >= 80 ? '#28a745' : avgAccuracy >= 60 ? '#ffc107' : '#dc3545';
+        const accuracyIcon = avgAccuracy >= 80 ? '🎯' : avgAccuracy >= 60 ? '⚠️' : '❌';
+        
+        html += `
+            <div style="background: white; padding: 15px; border-radius: 8px; text-align: center; border-left: 4px solid ${accuracyColor};">
+                <div style="font-size: 1.5em; margin-bottom: 10px;">${accuracyIcon}</div>
+                <div style="font-size: 1.5em; font-weight: bold; color: ${accuracyColor}; margin-bottom: 5px;">${avgAccuracy.toFixed(1)}%</div>
+                <div style="color: #6c757d; font-size: 0.9em;">Průměrná přesnost</div>
+                <div style="color: #6c757d; font-size: 0.8em; margin-top: 5px;">${accuracyData.comparisons.length} porovnání</div>
+            </div>
+            
+            <div style="background: white; padding: 15px; border-radius: 8px; text-align: center;">
+                <div style="font-size: 1.5em; margin-bottom: 10px;">📈</div>
+                <div style="font-size: 1.3em; font-weight: bold; color: #17a2b8; margin-bottom: 5px;">${formatNumber(Math.abs(accuracyData.averageDifference))}</div>
+                <div style="color: #6c757d; font-size: 0.9em;">Průměrná odchylka</div>
+                <div style="color: #6c757d; font-size: 0.8em; margin-top: 5px;">ks prodeje</div>
+            </div>
+            
+            <div style="background: white; padding: 15px; border-radius: 8px; text-align: center;">
+                <div style="font-size: 1.5em; margin-bottom: 10px;">${accuracyData.overestimations > accuracyData.underestimations ? '📊' : '📉'}</div>
+                <div style="font-size: 1.3em; font-weight: bold; color: #9c27b0; margin-bottom: 5px;">${accuracyData.overestimations}</div>
+                <div style="color: #6c757d; font-size: 0.9em;">Nadhodnocení</div>
+                <div style="color: #6c757d; font-size: 0.8em; margin-top: 5px;">vs ${accuracyData.underestimations} podhodnocení</div>
+            </div>
+        `;
+        
+        html += '</div>';
+        
+        // Detailní přehled porovnání
+        html += '<div style="background: white; padding: 15px; border-radius: 8px; margin-bottom: 20px;">';
+        html += '<h5 style="margin: 0 0 15px 0;">📋 Detailní porovnání predikcí</h5>';
+        
+        accuracyData.comparisons.slice(0, 8).forEach((comp, index) => {
+            const accuracy = comp.accuracy;
+            const accuracyColor = accuracy >= 80 ? '#28a745' : accuracy >= 60 ? '#ffc107' : '#dc3545';
+            const difference = comp.predicted - comp.actual;
+            const differenceIcon = difference > 0 ? '📈' : difference < 0 ? '📉' : '✅';
+            const differenceText = difference > 0 ? `+${Math.abs(difference)}` : `-${Math.abs(difference)}`;
+            
+            html += `
+                <div style="display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid #e9ecef; font-size: 0.9em;">
+                    <div style="flex: 1;">
+                        <div style="font-weight: 600; color: #495057;">${escapeHtml(comp.eventName)}</div>
+                        <div style="font-size: 0.8em; color: #6c757d;">${formatDate(comp.date)} • ${escapeHtml(comp.city)}</div>
+                    </div>
+                    <div style="text-align: center; margin: 0 15px;">
+                        <div style="font-size: 0.8em; color: #6c757d;">Predikce vs Realita</div>
+                        <div style="font-weight: 600;">${formatNumber(comp.predicted)} vs ${formatNumber(comp.actual)}</div>
+                    </div>
+                    <div style="text-align: right;">
+                        <div style="font-weight: 600; color: ${accuracyColor};">${accuracy.toFixed(1)}%</div>
+                        <div style="font-size: 0.8em; color: #6c757d;">${differenceIcon} ${differenceText}</div>
+                    </div>
+                </div>
+            `;
+        });
+        
+        html += '</div>';
+        
+        // Doporučení pro zlepšení
+        html += '<div style="background: #e3f2fd; padding: 15px; border-radius: 8px;">';
+        html += '<h5 style="margin: 0 0 10px 0; color: #1976d2;">💡 Doporučení pro zlepšení přesnosti:</h5>';
+        html += '<ul style="margin: 0; padding-left: 20px; color: #495057; font-size: 0.9em;">';
+        
+        if (avgAccuracy < 70) {
+            html += '<li>Přesnost je nižší než optimální - zvažte aktualizaci predikčních faktorů</li>';
+        }
+        
+        if (accuracyData.overestimations > accuracyData.underestimations * 1.5) {
+            html += '<li>AI často nadhodnocuje - snižte predikční faktory o 10-15%</li>';
+        } else if (accuracyData.underestimations > accuracyData.overestimations * 1.5) {
+            html += '<li>AI často podhodnocuje - zvyšte predikční faktory o 10-15%</li>';
+        }
+        
+        html += '<li>Pokračujte v aktualizaci skutečných prodejů pro zlepšení učení AI</li>';
+        html += '<li>Více dat = přesnější predikce - organizujte více akcí pro lepší analýzu</li>';
+        html += '</ul>';
+        html += '</div>';
+        
+        html += '</div>'; // prediction-accuracy-analysis
+        
+        container.innerHTML = html;
+        console.log('✅ Prediction accuracy analysis updated');
+        
+    } catch (error) {
+        console.error('❌ Error updating prediction accuracy:', error);
+        container.innerHTML = '<div class="error-message">Chyba při analýze přesnosti predikcí</div>';
+    }
+}
+
+function calculatePredictionAccuracy() {
+    try {
+        const savedPredictions = JSON.parse(localStorage.getItem('donuland_predictions') || '[]');
+        const savedEdits = JSON.parse(localStorage.getItem('donuland_event_edits') || '{}');
+        
+        const comparisons = [];
+        
+        // Najít predikce které mají skutečné výsledky
+        savedPredictions.forEach(prediction => {
+            if (prediction.formData && prediction.prediction) {
+                const eventName = prediction.formData.eventName;
+                
+                // Zkusit najít skutečný prodej v editacích
+                if (savedEdits[eventName] && savedEdits[eventName].sales) {
+                    const actualSales = savedEdits[eventName].sales;
+                    const predictedSales = prediction.prediction.predictedSales;
+                    
+                    if (actualSales > 0 && predictedSales > 0) {
+                        const accuracy = (Math.min(actualSales, predictedSales) / Math.max(actualSales, predictedSales)) * 100;
+                        
+                        comparisons.push({
+                            eventName: eventName,
+                            city: prediction.formData.city,
+                            date: prediction.formData.eventDateFrom,
+                            predicted: predictedSales,
+                            actual: actualSales,
+                            accuracy: accuracy,
+                            difference: predictedSales - actualSales
+                        });
+                    }
+                }
+                
+                // Nebo najít v historických datech
+                const historicalMatch = globalState.historicalData.find(record => 
+                    record.eventName === eventName && record.sales > 0
+                );
+                
+                if (historicalMatch && !savedEdits[eventName]) {
+                    const actualSales = historicalMatch.sales;
+                    const predictedSales = prediction.prediction.predictedSales;
+                    
+                    if (actualSales > 0 && predictedSales > 0) {
+                        const accuracy = (Math.min(actualSales, predictedSales) / Math.max(actualSales, predictedSales)) * 100;
+                        
+                        comparisons.push({
+                            eventName: eventName,
+                            city: prediction.formData.city,
+                            date: prediction.formData.eventDateFrom,
+                            predicted: predictedSales,
+                            actual: actualSales,
+                            accuracy: accuracy,
+                            difference: predictedSales - actualSales
+                        });
+                    }
+                }
+            }
+        });
+        
+        if (comparisons.length === 0) {
+            return null;
+        }
+        
+        const averageAccuracy = comparisons.reduce((sum, comp) => sum + comp.accuracy, 0) / comparisons.length;
+        const averageDifference = comparisons.reduce((sum, comp) => sum + comp.difference, 0) / comparisons.length;
+        const overestimations = comparisons.filter(comp => comp.difference > 0).length;
+        const underestimations = comparisons.filter(comp => comp.difference < 0).length;
+        
+        return {
+            comparisons: comparisons.sort((a, b) => new Date(b.date) - new Date(a.date)),
+            averageAccuracy,
+            averageDifference,
+            overestimations,
+            underestimations
+        };
+        
+    } catch (error) {
+        console.error('❌ Error calculating prediction accuracy:', error);
+        return null;
+    }
+}
+
+// ========================================
+// VLIV POČASÍ
+// ========================================
+
+function updateWeatherImpact() {
+    console.log('🌤️ Updating weather impact analysis...');
+    
+    const container = document.getElementById('weatherImpact');
+    if (!container) return;
+    
+    try {
+        const weatherData = analyzeWeatherImpact();
+        
+        if (!weatherData || weatherData.totalEvents === 0) {
+            container.innerHTML = `
+                <div style="text-align: center; padding: 40px;">
+                    <div style="font-size: 3rem; margin-bottom: 20px;">🌤️</div>
+                    <h4>Analýza vlivu počasí na prodej</h4>
+                    <p>Nedostatek dat o počasí pro komplexní analýzu.</p>
+                    <div style="background: #fff3cd; padding: 15px; border-radius: 8px; margin-top: 20px;">
+                        <h6 style="margin: 0 0 10px 0;">📡 Info o počasí:</h6>
+                        <ul style="margin: 0; padding-left: 20px; text-align: left;">
+                            <li>Počasí se automaticky načítá pro venkovní akce</li>
+                            <li>AI zohledňuje vliv počasí na prodej donutů</li>
+                            <li>Zvláště důležité pro čokoládové donuty (teplota)</li>
+                        </ul>
+                    </div>
+                </div>
+            `;
+            return;
+        }
+        
+        let html = '<div class="weather-impact-analysis" style="background: linear-gradient(135deg, #e3f2fd, #f0f9ff); padding: 20px; border-radius: 8px;">';
+        html += '<h4 style="margin: 0 0 20px 0; text-align: center;">🌤️ Vliv počasí na prodej</h4>';
+        
+        html += '<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 15px; margin: 20px 0;">';
+        
+        // Celkové statistiky počasí
+        html += `
+            <div style="background: white; padding: 15px; border-radius: 8px; text-align: center; border-left: 4px solid #17a2b8;">
+                <div style="font-size: 1.3em; font-weight: bold; color: #17a2b8;">${weatherData.totalEvents}</div>
+                <div style="color: #6c757d; font-size: 0.9em;">Akcí s daty o počasí</div>
+            </div>
+        `;
+        
+        if (weatherData.avgSalesGoodWeather !== null) {
+            html += `
+                <div style="background: white; padding: 15px; border-radius: 8px; text-align: center; border-left: 4px solid #28a745;">
+                    <div style="font-size: 1.3em; font-weight: bold; color: #28a745;">${formatNumber(weatherData.avgSalesGoodWeather)}</div>
+                    <div style="color: #6c757d; font-size: 0.9em;">Ø prodej - hezké počasí</div>
+                    <div style="color: #6c757d; font-size: 0.8em;">${weatherData.goodWeatherEvents} akcí</div>
+                </div>
+            `;
+        }
+        
+        if (weatherData.avgSalesBadWeather !== null) {
+            html += `
+                <div style="background: white; padding: 15px; border-radius: 8px; text-align: center; border-left: 4px solid #dc3545;">
+                    <div style="font-size: 1.3em; font-weight: bold; color: #dc3545;">${formatNumber(weatherData.avgSalesBadWeather)}</div>
+                    <div style="color: #6c757d; font-size: 0.9em;">Ø prodej - špatné počasí</div>
+                    <div style="color: #6c757d; font-size: 0.8em;">${weatherData.badWeatherEvents} akcí</div>
+                </div>
+            `;
+        }
+        
+        if (weatherData.weatherImpact !== null) {
+            const impactColor = weatherData.weatherImpact > 0 ? '#28a745' : '#dc3545';
+            const impactIcon = weatherData.weatherImpact > 0 ? '📈' : '📉';
+            
+            html += `
+                <div style="background: white; padding: 15px; border-radius: 8px; text-align: center; border-left: 4px solid ${impactColor};">
+                    <div style="font-size: 1.3em; font-weight: bold; color: ${impactColor};">${impactIcon} ${Math.abs(weatherData.weatherImpact).toFixed(1)}%</div>
+                    <div style="color: #6c757d; font-size: 0.9em;">Vliv počasí</div>
+                    <div style="color: #6c757d; font-size: 0.8em;">${weatherData.weatherImpact > 0 ? 'pozitivní' : 'negativní'}</div>
+                </div>
+            `;
+        }
+        
+        html += '</div>';
+        
+        // Detailní breakdown podle typu počasí
+        if (weatherData.weatherBreakdown && weatherData.weatherBreakdown.length > 0) {
+            html += '<div style="background: white; padding: 15px; border-radius: 8px; margin: 20px 0;">';
+            html += '<h5 style="margin: 0 0 15px 0;">🌦️ Prodeje podle typu počasí</h5>';
+            
+            weatherData.weatherBreakdown.forEach(weather => {
+                const icon = getWeatherIcon(weather.type);
+                const avgSales = weather.totalSales / weather.events;
+                const avgConversion = weather.totalVisitors > 0 ? ((weather.totalSales / weather.totalVisitors) * 100).toFixed(1) : '0';
+                
+                html += `
+                    <div style="display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid #e9ecef; font-size: 0.9em;">
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <span style="font-size: 1.2em;">${icon}</span>
+                            <div>
+                                <div style="font-weight: 600; color: #495057;">${escapeHtml(weather.type)}</div>
+                                <div style="font-size: 0.8em; color: #6c757d;">${weather.events} akcí • ${formatNumber(weather.totalVisitors)} návštěvníků</div>
+                            </div>
+                        </div>
+                        <div style="text-align: right;">
+                            <div style="font-weight: 600; color: #495057;">${formatNumber(weather.totalSales)} ks</div>
+                            <div style="font-size: 0.8em; color: #6c757d;">${formatNumber(avgSales)} ks/akci • ${avgConversion}% konverze</div>
+                        </div>
+                    </div>
+                `;
+            });
+            
+            html += '</div>';
+        }
+        
+        // Doporučení podle počasí
+        html += '<div style="background: #e3f2fd; padding: 15px; border-radius: 8px; margin-top: 20px;">';
+        html += '<h5 style="margin: 0 0 10px 0; color: #1976d2;">💡 Strategická doporučení na základě počasí:</h5>';
+        html += '<ul style="margin: 0; padding-left: 20px; color: #495057; font-size: 0.9em;">';
+        html += '<li><strong>Hezké počasí:</strong> Navyšte zásoby o 20-30%, připravte chladící boxy pro čokoládu</li>';
+        html += '<li><strong>Špatné počasí:</strong> Snižte zásoby o 30-40%, připravte krytí a speciální akce</li>';
+        html += '<li><strong>Vysoké teploty (25°C+):</strong> 🚨 Kritické pro čokolády - chladící boxy nutné!</li>';
+        html += '<li><strong>Déšť:</strong> Ochrana před vlhkostí, uzavřené balení donutů</li>';
+        html += '</ul>';
+        html += '</div>';
+        
+        html += '</div>'; // weather-impact-analysis
+        
+        container.innerHTML = html;
+        console.log('✅ Weather impact analysis updated');
+        
+    } catch (error) {
+        console.error('❌ Error updating weather impact:', error);
+        container.innerHTML = '<div class="error-message">Chyba při analýze vlivu počasí</div>';
+    }
+}
+
+function analyzeWeatherImpact() {
+    const eventsWithWeather = globalState.historicalData.filter(record => 
+        record.weather && record.sales > 0 && record.visitors > 0
+    );
+    
+    if (eventsWithWeather.length === 0) {
+        return null;
+    }
+    
+    // Kategorizace počasí
+    const goodWeatherEvents = eventsWithWeather.filter(record => {
+        const weather = record.weather.toLowerCase();
+        return weather.includes('clear') || weather.includes('sunny') || 
+               weather.includes('jasno') || weather.includes('slunečno');
+    });
+    
+    const badWeatherEvents = eventsWithWeather.filter(record => {
+        const weather = record.weather.toLowerCase();
+        return weather.includes('rain') || weather.includes('storm') || 
+               weather.includes('déšť') || weather.includes('bouře') ||
+               weather.includes('snow') || weather.includes('sníh');
+    });
+    
+    const avgSalesGoodWeather = goodWeatherEvents.length > 0 ? 
+        goodWeatherEvents.reduce((sum, e) => sum + e.sales, 0) / goodWeatherEvents.length : null;
+    
+    const avgSalesBadWeather = badWeatherEvents.length > 0 ? 
+        badWeatherEvents.reduce((sum, e) => sum + e.sales, 0) / badWeatherEvents.length : null;
+    
+    let weatherImpact = null;
+    if (avgSalesGoodWeather !== null && avgSalesBadWeather !== null) {
+        weatherImpact = ((avgSalesGoodWeather - avgSalesBadWeather) / avgSalesBadWeather) * 100;
+    }
+    
+    // Detailní breakdown podle typu počasí
+    const weatherTypes = new Map();
+    eventsWithWeather.forEach(record => {
+        const type = categorizeWeather(record.weather);
+        if (!weatherTypes.has(type)) {
+            weatherTypes.set(type, {
+                type: type,
+                events: 0,
+                totalSales: 0,
+                totalVisitors: 0
+            });
+        }
+        
+        const data = weatherTypes.get(type);
+        data.events += 1;
+        data.totalSales += record.sales;
+        data.totalVisitors += record.visitors;
+    });
+    
+    const weatherBreakdown = Array.from(weatherTypes.values())
+        .sort((a, b) => b.totalSales - a.totalSales);
+    
+    return {
+        totalEvents: eventsWithWeather.length,
+        goodWeatherEvents: goodWeatherEvents.length,
+        badWeatherEvents: badWeatherEvents.length,
+        avgSalesGoodWeather,
+        avgSalesBadWeather,
+        weatherImpact,
+        weatherBreakdown
+    };
+}
+
+function categorizeWeather(weather) {
+    if (!weather) return 'Neznámé';
+    
+    const w = weather.toLowerCase();
+    
+    if (w.includes('clear') || w.includes('sunny') || w.includes('jasno')) return 'Slunečno';
+    if (w.includes('cloud') || w.includes('oblačno')) return 'Oblačno';
+    if (w.includes('rain') || w.includes('déšť')) return 'Déšť';
+    if (w.includes('storm') || w.includes('bouře')) return 'Bouřka';
+    if (w.includes('snow') || w.includes('sníh')) return 'Sníh';
+    if (w.includes('fog') || w.includes('mlha')) return 'Mlha';
+    
+    return 'Ostatní';
+}
+
+function getWeatherIcon(weatherType) {
+    const icons = {
+        'Slunečno': '☀️',
+        'Oblačno': '☁️',
+        'Déšť': '🌧️',
+        'Bouřka': '⛈️',
+        'Sníh': '❄️',
+        'Mlha': '🌫️',
+        'Ostatní': '🌤️',
+        'Neznámé': '❓'
+    };
+    return icons[weatherType] || '🌤️';
+}
+
+// ========================================
+// CSV EXPORT ANALYTICS
+// ========================================
+
+function exportAnalyticsButton() {
+    // Přidat export tlačítko pokud neexistuje
+    const analyticsSection = document.getElementById('analytics');
+    if (analyticsSection && !document.getElementById('analyticsExportBtn')) {
+        const exportBtn = document.createElement('div');
+        exportBtn.innerHTML = `
+            <div style="text-align: center; margin: 30px 0;">
+                <button id="analyticsExportBtn" class="btn btn-export" onclick="exportAnalyticsToCSV()">
+                    📄 Export analytics do CSV
+                </button>
+            </div>
+        `;
+        analyticsSection.appendChild(exportBtn);
+    }
+}
+
+function exportAnalyticsToCSV() {
+    console.log('📄 Exporting analytics to CSV...');
+    
+    try {
+        if (!globalState.historicalData || globalState.historicalData.length === 0) {
+            showNotification('❌ Žádná data k exportu', 'error');
+            return;
+        }
+        
+        const stats = calculateOverallStats();
+        const topEvents = getTopEvents(20);
+        const topCities = getTopCities(20);
+        const topCategories = getTopCategories();
+        const accuracyData = calculatePredictionAccuracy();
+        const weatherData = analyzeWeatherImpact();
+        
+        let csvContent = 'Donuland Analytics Export\n';
+        csvContent += `Export Date,${new Date().toLocaleDateString('cs-CZ')}\n`;
+        csvContent += `Export Time,${new Date().toLocaleTimeString('cs-CZ')}\n\n`;
+        
+        // Celkové statistiky
+        csvContent += 'CELKOVE STATISTIKY\n';
+        csvContent += 'Metrika,Hodnota\n';
+        csvContent += `Celkem akcí,${stats.totalEvents}\n`;
+        csvContent += `Celkem prodejů,${stats.totalSales}\n`;
+        csvContent += `Průměrný prodej,${stats.averageSales.toFixed(0)}\n`;
+        csvContent += `Celkový obrat,${stats.totalRevenue}\n`;
+        csvContent += `Odhadovaný zisk,${stats.totalProfit}\n`;
+        csvContent += `Průměrná konverze,${stats.averageConversion.toFixed(2)}%\n`;
+        csvContent += `Nejlepší konverze,${stats.bestConversion.toFixed(2)}%\n`;
+        csvContent += `Celkem návštěvníků,${stats.totalVisitors}\n\n`;
+        
+        // Top události
+        csvContent += 'TOP UDÁLOSTI\n';
+        csvContent += 'Pořadí,Název,Město,Datum,Kategorie,Prodej,Návštěvníci,Konverze,Obrat,Zisk,Rating\n';
+        topEvents.forEach((event, index) => {
+            const conversion = event.visitors > 0 ? ((event.sales / event.visitors) * 100).toFixed(1) : '0';
+            const revenue = event.sales * CONFIG.DONUT_PRICE;
+            const profit = revenue - (event.sales * CONFIG.DONUT_COST);
+            csvContent += `${index + 1},"${event.eventName}","${event.city}","${formatDate(event.dateFrom)}","${event.category}",${event.sales},${event.visitors},${conversion}%,${revenue},${profit},${event.rating || 'N/A'}\n`;
+        });
+        csvContent += '\n';
+        
+        // Top města
+        csvContent += 'TOP MESTA\n';
+        csvContent += 'Pořadí,Město,Celkem prodejů,Akcí,Průměr/akci,Průměrná konverze,Celkový obrat,Celkový zisk\n';
+        topCities.forEach((city, index) => {
+            const avgPerEvent = city.totalSales / city.eventsCount;
+            const totalProfit = city.totalRevenue - (city.totalSales * CONFIG.DONUT_COST);
+            csvContent += `${index + 1},"${city.name}",${city.totalSales},${city.eventsCount},${avgPerEvent.toFixed(1)},${city.averageConversion.toFixed(1)}%,${city.totalRevenue},${totalProfit}\n`;
+        });
+        csvContent += '\n';
+        
+        // Top kategorie
+        csvContent += 'TOP KATEGORIE\n';
+        csvContent += 'Pořadí,Kategorie,Celkem prodejů,Akcí,Průměr/akci,Průměrná konverze,Celkový obrat,Celkový zisk\n';
+        topCategories.forEach((category, index) => {
+            const avgPerEvent = category.totalSales / category.eventsCount;
+            const totalProfit = category.totalRevenue - (category.totalSales * CONFIG.DONUT_COST);
+            csvContent += `${index + 1},"${category.name}",${category.totalSales},${category.eventsCount},${avgPerEvent.toFixed(1)},${category.averageConversion.toFixed(1)}%,${category.totalRevenue},${totalProfit}\n`;
+        });
+        csvContent += '\n';
+        
+        // Přesnost predikcí
+        if (accuracyData && accuracyData.comparisons.length > 0) {
+            csvContent += 'PRESNOST PREDIKCI\n';
+            csvContent += 'Událost,Město,Datum,Predikce,Realita,Přesnost,Rozdíl\n';
+            accuracyData.comparisons.forEach(comp => {
+                csvContent += `"${comp.eventName}","${comp.city}","${formatDate(comp.date)}",${comp.predicted},${comp.actual},${comp.accuracy.toFixed(1)}%,${comp.difference}\n`;
+            });
+            csvContent += '\n';
+        }
+        
+        // Vliv počasí
+        if (weatherData && weatherData.totalEvents > 0) {
+            csvContent += 'VLIV POCASI\n';
+            csvContent += 'Metrika,Hodnota\n';
+            csvContent += `Celkem akcí s počasím,${weatherData.totalEvents}\n`;
+            if (weatherData.avgSalesGoodWeather !== null) {
+                csvContent += `Průměr - hezké počasí,${weatherData.avgSalesGoodWeather.toFixed(1)}\n`;
+            }
+            if (weatherData.avgSalesBadWeather !== null) {
+                csvContent += `Průměr - špatné počasí,${weatherData.avgSalesBadWeather.toFixed(1)}\n`;
+            }
+            if (weatherData.weatherImpact !== null) {
+                csvContent += `Vliv počasí,${weatherData.weatherImpact.toFixed(1)}%\n`;
+            }
+            csvContent += '\n';
+        }
+        
+        // Stáhnout soubor
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const link = document.createElement('a');
+        const filename = `donuland_analytics_${new Date().toISOString().split('T')[0]}.csv`;
+        
+        link.href = URL.createObjectURL(blob);
+        link.download = filename;
+        link.click();
+        
+        showNotification('📄 Analytics exportovány do CSV', 'success');
+        console.log('✅ Analytics exported to CSV:', filename);
+        
+    } catch (error) {
+        console.error('❌ Error exporting analytics:', error);
+        showNotification('❌ Chyba při exportu analytics', 'error');
+    }
+}
+
+// ========================================
+// EVENT LISTENERS PRO ADVANCED ANALYTICS
+// ========================================
+
+// Event listener pro změny událostí
+eventBus.on('eventEdited', () => {
+    console.log('📝 Event edited - updating advanced analytics...');
+    analyticsState.cachedStats = null;
+    
+    const analyticsSection = document.getElementById('analytics');
+    if (analyticsSection && analyticsSection.classList.contains('active')) {
+        setTimeout(() => {
+            updatePredictionAccuracy();
+            updateWeatherImpact();
+        }, 500);
+    }
+});
+
+eventBus.on('predictionSaved', () => {
+    console.log('🔮 Prediction saved - updating analytics...');
+    analyticsState.cachedStats = null;
+    
+    const analyticsSection = document.getElementById('analytics');
+    if (analyticsSection && analyticsSection.classList.contains('active')) {
+        setTimeout(() => {
+            updatePredictionAccuracy();
+        }, 300);
+    }
+});
+
+// ========================================
+// DEBUG FUNKCE PRO ANALYTICS
+// ========================================
 
 // Rozšířené debug funkce pro analytics
 if (typeof window !== 'undefined') {
@@ -1546,11 +2865,15 @@ function withPerformanceMonitoring(func, name) {
 }
 
 // Aplikace performance monitoringu na klíčové funkce
-const originalInitializeAnalytics = initializeAnalytics;
-window.initializeAnalytics = withPerformanceMonitoring(originalInitializeAnalytics, 'initializeAnalytics');
+if (typeof updatePredictionAccuracy !== 'undefined') {
+    const originalUpdatePredictionAccuracy = updatePredictionAccuracy;
+    window.updatePredictionAccuracy = withPerformanceMonitoring(originalUpdatePredictionAccuracy, 'updatePredictionAccuracy');
+}
 
-const originalDisplayMonthlyTrends = displayMonthlyTrends;
-window.displayMonthlyTrends = withPerformanceMonitoring(originalDisplayMonthlyTrends, 'displayMonthlyTrends');
+if (typeof updateWeatherImpact !== 'undefined') {
+    const originalUpdateWeatherImpact = updateWeatherImpact;
+    window.updateWeatherImpact = withPerformanceMonitoring(originalUpdateWeatherImpact, 'updateWeatherImpact');
+}
 
 // ========================================
 // ERROR RECOVERY SYSTÉM
@@ -1572,14 +2895,8 @@ function recoverFromAnalyticsError(error, componentName) {
         setTimeout(() => {
             try {
                 switch (componentName) {
-                    case 'overall-stats':
-                        updateOverallStats();
-                        break;
-                    case 'monthly-trends':
-                        displayMonthlyTrends();
-                        break;
-                    case 'top-events':
-                        updateTopEvents();
+                    case 'prediction-accuracy':
+                        updatePredictionAccuracy();
                         break;
                     case 'weather-impact':
                         updateWeatherImpact();
@@ -1601,1785 +2918,34 @@ function recoverFromAnalyticsError(error, componentName) {
     }
 }
 
-// Aplikace error recovery na všechny analytics funkce
-const analyticsComponents = [
-    { func: updateOverallStats, name: 'overall-stats' },
-    { func: updateTopEvents, name: 'top-events' },
-    { func: updateTopCities, name: 'top-cities' },
-    { func: updateTopCategories, name: 'top-categories' },
-    { func: displayMonthlyTrends, name: 'monthly-trends' },
+// Aplikace error recovery na pokročilé analytics funkce
+const advancedAnalyticsComponents = [
     { func: updatePredictionAccuracy, name: 'prediction-accuracy' },
     { func: updateWeatherImpact, name: 'weather-impact' }
 ];
 
-analyticsComponents.forEach(component => {
-    const originalFunc = component.func;
-    window[component.func.name] = function(...args) {
-        try {
-            return originalFunc.apply(this, args);
-        } catch (error) {
-            recoverFromAnalyticsError(error, component.name);
-        }
-    };
+advancedAnalyticsComponents.forEach(component => {
+    if (typeof window[component.func.name] !== 'undefined') {
+        const originalFunc = window[component.func.name];
+        window[component.func.name] = function(...args) {
+            try {
+                return originalFunc.apply(this, args);
+            } catch (error) {
+                recoverFromAnalyticsError(error, component.name);
+            }
+        };
+    }
 });
 
 // ========================================
 // FINALIZACE
 // ========================================
 
-console.log('✅ Donuland Part 4C COMPLETE loaded successfully');
-console.log('📊 Features: ✅ Enhanced Overall Stats ✅ Top Rankings ✅ Interactive Monthly Trends ✅ Prediction Accuracy ✅ Comprehensive Weather Analysis');
-console.log('📈 Charts: Interactive bar charts with tooltips and hover effects');
+console.log('✅ Donuland Part 4C-2 loaded successfully');
+console.log('🎯 Features: ✅ Prediction Accuracy Analysis ✅ Weather Impact Analysis ✅ CSV Export ✅ Performance Monitoring');
 console.log('📄 Export: Complete CSV export with all analytics data');
 console.log('🎯 Accuracy: Prediction vs reality comparison system');
-console.log('🌤️ Weather: Detailed seasonal and weather type analysis');
+console.log('🌤️ Weather: Detailed weather type analysis with chocolate-specific recommendations');
 console.log('⚡ Performance: Monitoring and error recovery systems');
 console.log('🧪 Debug: window.donulandAnalyticsDebug with test data generation');
-console.log('💾 Cache: Smart caching system for better performance');
-console.log('📱 Responsive: Mobile-optimized charts and layouts');
-console.log('⏳ Ready for Part 4D: Complete Calendar & Analytics Integration'); ========================================
-// ANALYTICS STAV A KONFIGURACE
-// ========================================
-
-// Globální stav pro analytics
-if (typeof window.analyticsState === 'undefined') {
-    window.analyticsState = {
-        isLoading: false,
-        lastUpdate: null,
-        cachedStats: null,
-        chartColors: {
-            primary: '#667eea',
-            secondary: '#764ba2',
-            success: '#28a745',
-            warning: '#ffc107',
-            info: '#17a2b8',
-            danger: '#dc3545'
-        }
-    };
-}
-
-// ========================================
-// HLAVNÍ ANALYTICS FUNKCE
-// ========================================
-
-// Inicializace analytics sekce
-function initializeAnalytics() {
-    console.log('📊 Initializing complete analytics...');
-    
-    if (analyticsState.isLoading) {
-        console.log('⚠️ Analytics already loading');
-        return;
-    }
-    
-    analyticsState.isLoading = true;
-    
-    try {
-        // Zkontrolovat dostupnost dat
-        if (!globalState.historicalData || globalState.historicalData.length === 0) {
-            displayNoDataMessage();
-            return;
-        }
-        
-        // Zobrazit loading state
-        showAnalyticsLoading();
-        
-        // Postupně načíst všechny analytics komponenty
-        setTimeout(() => updateOverallStats(), 100);
-        setTimeout(() => updateTopEvents(), 200);
-        setTimeout(() => updateTopCities(), 300);
-        setTimeout(() => updateTopCategories(), 400);
-        setTimeout(() => displayMonthlyTrends(), 500);
-        setTimeout(() => updatePredictionAccuracy(), 600);
-        setTimeout(() => updateWeatherImpact(), 700);
-        
-        analyticsState.lastUpdate = Date.now();
-        console.log('✅ Complete analytics initialized successfully');
-        
-        // Skrýt loading po dokončení
-        setTimeout(() => {
-            hideAnalyticsLoading();
-        }, 800);
-        
-    } catch (error) {
-        console.error('❌ Error initializing analytics:', error);
-        showNotification('❌ Chyba při načítání analýz', 'error');
-        hideAnalyticsLoading();
-    } finally {
-        analyticsState.isLoading = false;
-    }
-}
-
-// Loading state pro analytics
-function showAnalyticsLoading() {
-    const containers = [
-        'overallStats', 'topEvents', 'topCities', 'topCategories',
-        'monthlyTrends', 'predictionAccuracy', 'weatherImpact'
-    ];
-    
-    containers.forEach(containerId => {
-        const container = document.getElementById(containerId);
-        if (container) {
-            container.innerHTML = `
-                <div style="text-align: center; padding: 40px;">
-                    <div class="spinner" style="margin: 0 auto 15px;"></div>
-                    <p style="color: #6c757d;">Načítám ${containerId}...</p>
-                </div>
-            `;
-        }
-        
-        html += '</div>';
-        
-        // Detailní breakdown podle typu počasí
-        if (weatherData.weatherBreakdown && weatherData.weatherBreakdown.length > 0) {
-            html += '<div style="background: white; padding: 20px; border-radius: 8px; margin: 20px 0;">';
-            html += '<h5 style="margin: 0 0 15px 0;">🌦️ Prodeje podle typu počasí</h5>';
-            
-            weatherData.weatherBreakdown.forEach(weather => {
-                const icon = getWeatherIcon(weather.type);
-                const avgSales = weather.totalSales / weather.events;
-                const avgConversion = weather.totalVisitors > 0 ? ((weather.totalSales / weather.totalVisitors) * 100).toFixed(1) : '0';
-                
-                html += `
-                    <div style="display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px solid #e9ecef;">
-                        <div style="display: flex; align-items: center; gap: 10px;">
-                            <span style="font-size: 1.5em;">${icon}</span>
-                            <div>
-                                <div style="font-weight: 600; color: #495057;">${escapeHtml(weather.type)}</div>
-                                <div style="font-size: 0.8em; color: #6c757d;">${weather.events} akcí • ${formatNumber(weather.totalVisitors)} návštěvníků</div>
-                            </div>
-                        </div>
-                        <div style="text-align: right;">
-                            <div style="font-weight: 600; color: #495057;">${formatNumber(weather.totalSales)} ks</div>
-                            <div style="font-size: 0.8em; color: #6c757d;">${formatNumber(avgSales)} ks/akci • ${avgConversion}% konverze</div>
-                        </div>
-                    </div>
-                `;
-            });
-            
-            html += '</div>';
-        }
-        
-        // Sezónní analýza počasí
-        if (weatherData.seasonalAnalysis) {
-            html += '<div style="background: white; padding: 20px; border-radius: 8px; margin: 20px 0;">';
-            html += '<h5 style="margin: 0 0 15px 0;">📅 Sezónní vliv počasí</h5>';
-            
-            const seasons = [
-                { name: 'Jaro', months: [3, 4, 5], icon: '🌸' },
-                { name: 'Léto', months: [6, 7, 8], icon: '☀️' },
-                { name: 'Podzim', months: [9, 10, 11], icon: '🍂' },
-                { name: 'Zima', months: [12, 1, 2], icon: '❄️' }
-            ];
-            
-            seasons.forEach(season => {
-                const seasonData = weatherData.seasonalAnalysis[season.name.toLowerCase()];
-                if (seasonData && seasonData.events > 0) {
-                    const avgSales = seasonData.totalSales / seasonData.events;
-                    const avgConversion = seasonData.totalVisitors > 0 ? 
-                        ((seasonData.totalSales / seasonData.totalVisitors) * 100).toFixed(1) : '0';
-                    
-                    html += `
-                        <div style="display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px solid #e9ecef;">
-                            <div style="display: flex; align-items: center; gap: 10px;">
-                                <span style="font-size: 1.5em;">${season.icon}</span>
-                                <div>
-                                    <div style="font-weight: 600; color: #495057;">${season.name}</div>
-                                    <div style="font-size: 0.8em; color: #6c757d;">${seasonData.events} akcí • Ø teplota ${seasonData.avgTemp?.toFixed(1) || 'N/A'}°C</div>
-                                </div>
-                            </div>
-                            <div style="text-align: right;">
-                                <div style="font-weight: 600; color: #495057;">${formatNumber(seasonData.totalSales)} ks</div>
-                                <div style="font-size: 0.8em; color: #6c757d;">${formatNumber(avgSales)} ks/akci • ${avgConversion}% konverze</div>
-                            </div>
-                        </div>
-                    `;
-                }
-            });
-            
-            html += '</div>';
-        }
-        
-        // Doporučení podle počasí
-        html += '<div style="background: #e3f2fd; padding: 20px; border-radius: 8px; margin-top: 20px;">';
-        html += '<h5 style="margin: 0 0 15px 0; color: #1976d2;">💡 Strategická doporučení na základě počasí:</h5>';
-        html += '<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 15px;">';
-        
-        // Doporučení pro dobré počasí
-        html += `
-            <div style="background: rgba(40, 167, 69, 0.1); padding: 15px; border-radius: 8px; border-left: 4px solid #28a745;">
-                <h6 style="margin: 0 0 10px 0; color: #28a745;">☀️ Strategie pro hezké počasí</h6>
-                <ul style="margin: 0; padding-left: 20px; color: #495057; font-size: 0.9em;">
-                    <li>Navyšte zásoby o 20-30% oproti průměru</li>
-                    <li>Připravte více chladících boxů pro čokoládové donuty</li>
-                    <li>Marketingově využijte předpověď hezkého počasí</li>
-                    <li>Zvažte venkovní prezentační stánek</li>
-                </ul>
-            </div>
-        `;
-        
-        // Doporučení pro špatné počasí
-        html += `
-            <div style="background: rgba(220, 53, 69, 0.1); padding: 15px; border-radius: 8px; border-left: 4px solid #dc3545;">
-                <h6 style="margin: 0 0 10px 0; color: #dc3545;">🌧️ Strategie pro špatné počasí</h6>
-                <ul style="margin: 0; padding-left: 20px; color: #495057; font-size: 0.9em;">
-                    <li>Snižte zásoby o 30-40% oproti průměru</li>
-                    <li>Připravte krytí a ochranu před deštěm</li>
-                    <li>Zvažte speciální akce a slevy</li>
-                    <li>Fokus na kvalitu místo kvantity</li>
-                </ul>
-            </div>
-        `;
-        
-        html += '</div>';
-        
-        // Specifická doporučení pro čokoládové donuty
-        html += '<div style="background: rgba(255, 193, 7, 0.1); padding: 15px; border-radius: 8px; margin-top: 15px; border-left: 4px solid #ffc107;">';
-        html += '<h6 style="margin: 0 0 10px 0; color: #856404;">🍫 Speciální péče o čokoládové donuty</h6>';
-        html += '<ul style="margin: 0; padding-left: 20px; color: #495057; font-size: 0.9em;">';
-        html += '<li><strong>15-24°C:</strong> ✅ Ideální teplota - čokoláda zůstává stabilní</li>';
-        html += '<li><strong>25-27°C:</strong> ⚠️ Pozor - častější kontrola, více stínu</li>';
-        html += '<li><strong>28°C+:</strong> 🚨 Kritické - chladící boxy nutné, rychlá spotřeba</li>';
-        html += '<li><strong>Déšť:</strong> 💧 Ochrana před vlhkostí, uzavřené balení</li>';
-        html += '</ul>';
-        html += '</div>';
-        
-        html += '</div>';
-        
-        html += '</div>'; // weather-impact-analysis
-        
-        container.innerHTML = html;
-        console.log('✅ Comprehensive weather impact analysis updated');
-        
-    } catch (error) {
-        console.error('❌ Error updating weather impact:', error);
-        container.innerHTML = '<div class="error-message">Chyba při komplexní analýze vlivu počasí</div>';
-    }
-}
-
-function analyzeWeatherImpact() {
-    const eventsWithWeather = globalState.historicalData.filter(record => 
-        record.weather && record.sales > 0 && record.visitors > 0
-    );
-    
-    if (eventsWithWeather.length === 0) {
-        return null;
-    }
-    
-    // Kategorizace počasí
-    const goodWeatherEvents = eventsWithWeather.filter(record => {
-        const weather = record.weather.toLowerCase();
-        return weather.includes('clear') || weather.includes('sunny') || 
-               weather.includes('jasno') || weather.includes('slunečno');
-    });
-    
-    const badWeatherEvents = eventsWithWeather.filter(record => {
-        const weather = record.weather.toLowerCase();
-        return weather.includes('rain') || weather.includes('storm') || 
-               weather.includes('déšť') || weather.includes('bouře') ||
-               weather.includes('snow') || weather.includes('sníh');
-    });
-    
-    const avgSalesGoodWeather = goodWeatherEvents.length > 0 ? 
-        goodWeatherEvents.reduce((sum, e) => sum + e.sales, 0) / goodWeatherEvents.length : null;
-    
-    const avgSalesBadWeather = badWeatherEvents.length > 0 ? 
-        badWeatherEvents.reduce((sum, e) => sum + e.sales, 0) / badWeatherEvents.length : null;
-    
-    let weatherImpact = null;
-    if (avgSalesGoodWeather !== null && avgSalesBadWeather !== null) {
-        weatherImpact = ((avgSalesGoodWeather - avgSalesBadWeather) / avgSalesBadWeather) * 100;
-    }
-    
-    // Detailní breakdown podle typu počasí
-    const weatherTypes = new Map();
-    eventsWithWeather.forEach(record => {
-        const type = categorizeWeather(record.weather);
-        if (!weatherTypes.has(type)) {
-            weatherTypes.set(type, {
-                type: type,
-                events: 0,
-                totalSales: 0,
-                totalVisitors: 0
-            });
-        }
-        
-        const data = weatherTypes.get(type);
-        data.events += 1;
-        data.totalSales += record.sales;
-        data.totalVisitors += record.visitors;
-    });
-    
-    const weatherBreakdown = Array.from(weatherTypes.values())
-        .sort((a, b) => b.totalSales - a.totalSales);
-    
-    // Sezónní analýza
-    const seasonalAnalysis = {};
-    const seasons = ['jaro', 'léto', 'podzim', 'zima'];
-    seasons.forEach(season => {
-        seasonalAnalysis[season] = {
-            events: 0,
-            totalSales: 0,
-            totalVisitors: 0,
-            totalTemp: 0
-        };
-    });
-    
-    eventsWithWeather.forEach(record => {
-        if (record.dateFrom) {
-            const date = new Date(record.dateFrom);
-            const month = date.getMonth() + 1;
-            
-            let season;
-            if (month >= 3 && month <= 5) season = 'jaro';
-            else if (month >= 6 && month <= 8) season = 'léto';
-            else if (month >= 9 && month <= 11) season = 'podzim';
-            else season = 'zima';
-            
-            seasonalAnalysis[season].events += 1;
-            seasonalAnalysis[season].totalSales += record.sales;
-            seasonalAnalysis[season].totalVisitors += record.visitors;
-        }
-    });
-    
-    return {
-        totalEvents: eventsWithWeather.length,
-        goodWeatherEvents: goodWeatherEvents.length,
-        badWeatherEvents: badWeatherEvents.length,
-        avgSalesGoodWeather,
-        avgSalesBadWeather,
-        weatherImpact,
-        weatherBreakdown,
-        seasonalAnalysis
-    };
-}
-
-function categorizeWeather(weather) {
-    if (!weather) return 'Neznámé';
-    
-    const w = weather.toLowerCase();
-    
-    if (w.includes('clear') || w.includes('sunny') || w.includes('jasno')) return 'Slunečno';
-    if (w.includes('cloud') || w.includes('oblačno')) return 'Oblačno';
-    if (w.includes('rain') || w.includes('déšť')) return 'Déšť';
-    if (w.includes('storm') || w.includes('bouře')) return 'Bouřka';
-    if (w.includes('snow') || w.includes('sníh')) return 'Sníh';
-    if (w.includes('fog') || w.includes('mlha')) return 'Mlha';
-    
-    return 'Ostatní';
-}
-
-function getWeatherIcon(weatherType) {
-    const icons = {
-        'Slunečno': '☀️',
-        'Oblačno': '☁️',
-        'Déšť': '🌧️',
-        'Bouřka': '⛈️',
-        'Sníh': '❄️',
-        'Mlha': '🌫️',
-        'Ostatní': '🌤️',
-        'Neznámé': '❓'
-    };
-    return icons[weatherType] || '🌤️';
-}
-
-// ========================================
-// HELPER FUNKCE PRO ANALYTICS
-// ========================================
-
-function getPerformanceColor(conversion) {
-    if (conversion >= 15) return '#28a745'; // Zelená - výborné
-    if (conversion >= 10) return '#17a2b8'; // Modrá - dobré
-    if (conversion >= 5) return '#ffc107';  // Žlutá - průměrné
-    return '#dc3545'; // Červená - špatné
-}
-
-function escapeHtml(text) {
-    if (!text) return '';
-    const div = document.createElement('div');
-    div.textContent = text;
-    return div.innerHTML;
-}
-
-// ========================================
-// ROZŠÍŘENÉ CSS STYLY PRO ANALYTICS
-// ========================================
-
-function addEnhancedAnalyticsStyles() {
-    const style = document.createElement('style');
-    style.id = 'enhanced-analytics-styles';
-    style.textContent = `
-        .monthly-trends-chart {
-            padding: 25px;
-            background: linear-gradient(135deg, #f8f9fa, #ffffff);
-            border-radius: 12px;
-            border: 1px solid #e9ecef;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-        }
-        
-        .trends-container {
-            margin: 20px 0;
-        }
-        
-        .trends-chart-wrapper {
-            background: #ffffff;
-            border-radius: 8px;
-            padding: 20px;
-            border: 1px solid #dee2e6;
-            position: relative;
-        }
-        
-        .trends-bars {
-            display: flex;
-            justify-content: space-around;
-            align-items: flex-end;
-            min-height: 250px;
-            padding: 10px 0;
-            position: relative;
-            overflow-x: auto;
-        }
-        
-        .trends-bars::before {
-            content: '';
-            position: absolute;
-            bottom: 0;
-            left: 0;
-            right: 0;
-            height: 100%;
-            background-image: 
-                linear-gradient(to top, rgba(0,0,0,0.1) 1px, transparent 1px),
-                linear-gradient(to right, rgba(0,0,0,0.05) 1px, transparent 1px);
-            background-size: 100% 25%, 50px 100%;
-            pointer-events: none;
-        }
-        
-        .trend-bar {
-            transition: all 0.3s ease;
-            cursor: pointer;
-            min-height: 5px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-        }
-        
-        .trend-bar:hover {
-            filter: brightness(1.1);
-            transform: scale(1.1);
-            z-index: 10;
-        }
-        
-        .trend-month-container {
-            min-width: 80px;
-            position: relative;
-        }
-        
-        .top-item {
-            transition: all 0.3s ease;
-            cursor: pointer;
-        }
-        
-        .top-item:hover {
-            transform: translateX(5px);
-            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-        }
-        
-        .prediction-accuracy-analysis,
-        .weather-impact-analysis {
-            background: linear-gradient(135deg, #e3f2fd, #f0f9ff);
-            padding: 25px;
-            border-radius: 12px;
-            border: 1px solid #bbdefb;
-        }
-        
-        .error-message {
-            text-align: center;
-            padding: 40px;
-            color: #dc3545;
-            background: #f8d7da;
-            border-radius: 8px;
-            margin: 20px 0;
-            border: 1px solid #f5c6cb;
-        }
-        
-        .no-data {
-            text-align: center;
-            padding: 40px;
-            color: #6c757d;
-            background: #f8f9fa;
-            border-radius: 8px;
-            margin: 20px 0;
-            border: 1px solid #e9ecef;
-        }
-        
-        .spinner {
-            width: 40px;
-            height: 40px;
-            border: 4px solid #f3f3f3;
-            border-top: 4px solid #667eea;
-            border-radius: 50%;
-            animation: spin 1s linear infinite;
-        }
-        
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
-        
-        #trendTooltip {
-            background: rgba(0,0,0,0.9) !important;
-            color: white !important;
-            padding: 10px !important;
-            border-radius: 5px !important;
-            font-size: 0.8em !important;
-            box-shadow: 0 4px 8px rgba(0,0,0,0.3) !important;
-            max-width: 200px;
-            word-wrap: break-word;
-        }
-        
-        .trends-header {
-            border-bottom: 2px solid #e9ecef;
-            padding-bottom: 15px;
-        }
-        
-        .trends-legend {
-            border: 1px solid #e9ecef;
-        }
-        
-        .trends-summary {
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-        }
-        
-        @media (max-width: 768px) {
-            .trends-bars {
-                padding: 10px;
-                min-height: 200px;
-            }
-            
-            .trend-month-container {
-                min-width: 60px;
-            }
-            
-            .trend-bar {
-                width: 15px !important;
-            }
-            
-            .trends-legend {
-                flex-direction: column;
-                gap: 10px;
-            }
-        }
-        
-        @media (max-width: 480px) {
-            .monthly-trends-chart {
-                padding: 15px;
-            }
-            
-            .trends-bars {
-                min-height: 150px;
-            }
-            
-            .trend-bar {
-                width: 12px !important;
-            }
-        }
-    `;
-    
-    // Odstranit existující styly
-    const existingStyle = document.getElementById('enhanced-analytics-styles');
-    if (existingStyle) {
-        existingStyle.remove();
-    }
-    
-    document.head.appendChild(style);
-}
-
-// ========================================
-// CSV EXPORT ROZŠÍŘENÝ
-// ========================================
-
-function exportAnalyticsToCSV() {
-    console.log('📄 Exporting comprehensive analytics to CSV...');
-    
-    try {
-        if (!globalState.historicalData || globalState.historicalData.length === 0) {
-            showNotification('❌ Žádná data k exportu', 'error');
-            return;
-        }
-        
-        const stats = calculateOverallStats();
-        const topEvents = getTopEvents(20);
-        const topCities = getTopCities(20);
-        const topCategories = getTopCategories();
-        const accuracyData = calculatePredictionAccuracy();
-        const weatherData = analyzeWeatherImpact();
-        
-        let csvContent = 'Donuland Comprehensive Analytics Export\n';
-        csvContent += `Export Date,${new Date().toLocaleDateString('cs-CZ')}\n`;
-        csvContent += `Export Time,${new Date().toLocaleTimeString('cs-CZ')}\n\n`;
-        
-        // Rozšířené celkové statistiky
-        csvContent += 'CELKOVE STATISTIKY\n';
-        csvContent += 'Metrika,Hodnota\n';
-        csvContent += `Celkem akcí,${stats.totalEvents}\n`;
-        csvContent += `Celkem prodejů,${stats.totalSales}\n`;
-        csvContent += `Průměrný prodej,${stats.averageSales.toFixed(0)}\n`;
-        csvContent += `Celkový obrat,${stats.totalRevenue}\n`;
-        csvContent += `Odhadovaný zisk,${stats.totalProfit}\n`;
-        csvContent += `Průměrná konverze,${stats.averageConversion.toFixed(2)}%\n`;
-        csvContent += `Nejlepší konverze,${stats.bestConversion.toFixed(2)}%\n`;
-        csvContent += `Celkem návštěvníků,${stats.totalVisitors}\n\n`;
-        
-        // Rozšířené top události
-        csvContent += 'TOP UDÁLOSTI (TOP 20)\n';
-        csvContent += 'Pořadí,Název,Město,Datum,Kategorie,Prodej,Návštěvníci,Konverze,Obrat,Zisk,Rating\n';
-        topEvents.forEach((event, index) => {
-            const conversion = event.visitors > 0 ? ((event.sales / event.visitors) * 100).toFixed(1) : '0';
-            const revenue = event.sales * CONFIG.DONUT_PRICE;
-            const profit = revenue - (event.sales * CONFIG.DONUT_COST);
-            csvContent += `${index + 1},"${event.eventName}","${event.city}","${formatDate(event.dateFrom)}","${event.category}",${event.sales},${event.visitors},${conversion}%,${revenue},${profit},${event.rating || 'N/A'}\n`;
-        });
-        csvContent += '\n';
-        
-        // Rozšířené top města
-        csvContent += 'TOP MĚSTA (TOP 20)\n';
-        csvContent += 'Pořadí,Město,Celkem prodejů,Akcí,Průměr/akci,Průměrná konverze,Celkový obrat,Celkový zisk\n';
-        topCities.forEach((city, index) => {
-            const avgPerEvent = city.totalSales / city.eventsCount;
-            const totalProfit = city.totalRevenue - (city.totalSales * CONFIG.DONUT_COST);
-            csvContent += `${index + 1},"${city.name}",${city.totalSales},${city.eventsCount},${avgPerEvent.toFixed(1)},${city.averageConversion.toFixed(1)}%,${city.totalRevenue},${totalProfit}\n`;
-        });
-        csvContent += '\n';
-        
-        // Rozšířené top kategorie
-        csvContent += 'TOP KATEGORIE\n';
-        csvContent += 'Pořadí,Kategorie,Celkem prodejů,Akcí,Průměr/akci,Průměrná konverze,Celkový obrat,Celkový zisk\n';
-        topCategories.forEach((category, index) => {
-            const avgPerEvent = category.totalSales / category.eventsCount;
-            const totalProfit = category.totalRevenue - (category.totalSales * CONFIG.DONUT_COST);
-            csvContent += `${index + 1},"${category.name}",${category.totalSales},${category.eventsCount},${avgPerEvent.toFixed(1)},${category.averageConversion.toFixed(1)}%,${category.totalRevenue},${totalProfit}\n`;
-        });
-        csvContent += '\n';
-        
-        // Přesnost predikcí
-        if (accuracyData && accuracyData.comparisons.length > 0) {
-            csvContent += 'PRESNOST PREDIKCI\n';
-            csvContent += 'Událost,Město,Datum,Predikce,Realita,Přesnost,Rozdíl\n';
-            accuracyData.comparisons.forEach(comp => {
-                csvContent += `"${comp.eventName}","${comp.city}","${formatDate(comp.date)}",${comp.predicted},${comp.actual},${comp.accuracy.toFixed(1)}%,${comp.difference}\n`;
-            });
-            csvContent += '\n';
-        }
-        
-        // Vliv počasí
-        if (weatherData && weatherData.totalEvents > 0) {
-            csvContent += 'VLIV POCASI\n';
-            csvContent += 'Metrika,Hodnota\n';
-            csvContent += `Celkem akcí s počasím,${weatherData.totalEvents}\n`;
-            if (weatherData.avgSalesGoodWeather !== null) {
-                csvContent += `Průměr - hezké počasí,${weatherData.avgSalesGoodWeather.toFixed(1)}\n`;
-            }
-            if (weatherData.avgSalesBadWeather !== null) {
-                csvContent += `Průměr - špatné počasí,${weatherData.avgSalesBadWeather.toFixed(1)}\n`;
-            }
-            if (weatherData.weatherImpact !== null) {
-                csvContent += `Vliv počasí,${weatherData.weatherImpact.toFixed(1)}%\n`;
-            }
-            csvContent += '\n';
-        }
-        
-        // Stáhnout soubor
-        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-        const link = document.createElement('a');
-        const filename = `donuland_complete_analytics_${new Date().toISOString().split('T')[0]}.csv`;
-        
-        link.href = URL.createObjectURL(blob);
-        link.download = filename;
-        link.click();
-        
-        showNotification('📄 Kompletní analytics exportovány do CSV', 'success');
-        console.log('✅ Complete analytics exported to CSV:', filename);
-        
-    } catch (error) {
-        console.error('❌ Error exporting complete analytics:', error);
-        showNotification('❌ Chyba při exportu analytics', 'error');
-    }
-}
-
-// ========================================
-// EVENT LISTENERS PRO KOMPLETNÍ ANALYTICS
-// ========================================
-
-// Event listener pro změnu na analytics sekci
-eventBus.on('sectionChanged', (data) => {
-    if (data.section === 'analytics') {
-        console.log('📊 Analytics section opened - initializing complete analytics...');
-        setTimeout(() => {
-            addEnhancedAnalyticsStyles();
-            initializeAnalytics();
-        }, 300);
-    }
-});
-
-// Event listener pro načtení dat
-eventBus.on('dataLoaded', () => {
-    console.log('📊 Data loaded - updating complete analytics...');
-    analyticsState.cachedStats = null; // Clear cache
-    
-    // Pokud je analytics sekce aktivní, aktualizuj
-    const analyticsSection = document.getElementById('analytics');
-    if (analyticsSection && analyticsSection.classList.contains('active')) {
-        setTimeout(() => {
-            initializeAnalytics();
-        }, 1000);
-    }
-});
-
-// Event listener pro změny událostí
-eventBus.on('eventEdited', () => {
-    console.log('📝 Event edited - updating complete analytics...');
-    analyticsState.cachedStats = null;
-    
-    const analyticsSection = document.getElementById('analytics');
-    if (analyticsSection && analyticsSection.classList.contains('active')) {
-        setTimeout(() => {
-            initializeAnalytics();
-        }, 500);
-    }
-});
-
-eventBus.on('predictionSaved', () => {
-    console.log('🔮 Prediction saved - updating analytics...');
-    analyticsState.cachedStats = null;
-    
-    const analyticsSection = document.getElementById('analytics');
-    if (analyticsSection && analyticsSection.classList.contains('active')) {
-        setTimeout(() => {
-            updatePredictionAccuracy();
-        }, 300);
-    }
-});
-
-// ========================================
-// INICIALIZACE A DEBUGGING
-// ========================================
-
-// Automatická inicializace při načtení
-document.addEventListener('DOMContentLoaded', function() {
-    console.log('📊 Initializing Part 4C - Complete Analytics...');
-    
-    // Přidat rozšířené styly pro analytics
-    addEnhancedAnalyticsStyles();
-    
-    // Auto-inicializace pokud jsou data dostupná a je aktivní analytics sekce
-    setTimeout(() => {
-        const analyticsSection = document.getElementById('analytics');
-        if (analyticsSection && analyticsSection.classList.contains('active') && 
-            globalState.historicalData && globalState.historicalData.length > 0) {
-            initializeAnalytics();
-        }
-    }, 2000);
-    
-    console.log('✅ Part 4C Complete initialized');
-});
-
-//
-        }
-    });
-}
-
-function hideAnalyticsLoading() {
-    console.log('✅ Analytics loading completed');
-}
-
-// Zobrazení zprávy o chybějících datech
-function displayNoDataMessage() {
-    const containers = [
-        'overallStats', 'topEvents', 'topCities', 'topCategories',
-        'monthlyTrends', 'predictionAccuracy', 'weatherImpact'
-    ];
-    
-    containers.forEach(containerId => {
-        const container = document.getElementById(containerId);
-        if (container) {
-            container.innerHTML = `
-                <div style="text-align: center; padding: 40px; color: #6c757d;">
-                    <div style="font-size: 3rem; margin-bottom: 20px;">📊</div>
-                    <h4>Žádná data pro analýzu</h4>
-                    <p>Načtěte historická data pro zobrazení analýz</p>
-                    <button class="btn" onclick="loadData()" style="margin-top: 15px;">
-                        🔄 Načíst data
-                    </button>
-                </div>
-            `;
-        }
-    });
-}
-
-// ========================================
-// CELKOVÉ STATISTIKY (ROZŠÍŘENÉ)
-// ========================================
-
-function updateOverallStats() {
-    console.log('📈 Updating comprehensive overall statistics...');
-    
-    const container = document.getElementById('overallStats');
-    if (!container) return;
-    
-    try {
-        const stats = calculateOverallStats();
-        
-        const html = `
-            <div class="stat-item">
-                <div class="stat-value">${stats.totalEvents}</div>
-                <div class="stat-label">Celkem akcí</div>
-            </div>
-            <div class="stat-item">
-                <div class="stat-value">${formatNumber(stats.totalSales)}</div>
-                <div class="stat-label">Celkem prodejů</div>
-            </div>
-            <div class="stat-item">
-                <div class="stat-value">${formatNumber(stats.averageSales)}</div>
-                <div class="stat-label">Průměrný prodej</div>
-            </div>
-            <div class="stat-item">
-                <div class="stat-value">${formatCurrency(stats.totalRevenue)}</div>
-                <div class="stat-label">Celkový obrat</div>
-            </div>
-            <div class="stat-item">
-                <div class="stat-value">${stats.averageConversion.toFixed(1)}%</div>
-                <div class="stat-label">Průměrná konverze</div>
-            </div>
-            <div class="stat-item">
-                <div class="stat-value">${formatNumber(stats.totalVisitors)}</div>
-                <div class="stat-label">Celkem návštěvníků</div>
-            </div>
-            <div class="stat-item">
-                <div class="stat-value">${stats.bestConversion.toFixed(1)}%</div>
-                <div class="stat-label">Nejlepší konverze</div>
-            </div>
-            <div class="stat-item">
-                <div class="stat-value">${formatNumber(stats.totalProfit)}</div>
-                <div class="stat-label">Odhadovaný zisk</div>
-            </div>
-        `;
-        
-        container.innerHTML = html;
-        console.log('✅ Comprehensive overall stats updated');
-        
-    } catch (error) {
-        console.error('❌ Error updating overall stats:', error);
-        container.innerHTML = '<div class="error-message">Chyba při načítání statistik</div>';
-    }
-}
-
-function calculateOverallStats() {
-    const data = globalState.historicalData.filter(record => 
-        record.sales > 0 && record.visitors > 0
-    );
-    
-    if (data.length === 0) {
-        return {
-            totalEvents: 0,
-            totalSales: 0,
-            averageSales: 0,
-            totalRevenue: 0,
-            averageConversion: 0,
-            totalVisitors: 0,
-            bestConversion: 0,
-            totalProfit: 0
-        };
-    }
-    
-    const totalEvents = data.length;
-    const totalSales = data.reduce((sum, record) => sum + record.sales, 0);
-    const totalVisitors = data.reduce((sum, record) => sum + record.visitors, 0);
-    const totalRevenue = totalSales * CONFIG.DONUT_PRICE;
-    const averageSales = totalSales / totalEvents;
-    const averageConversion = (totalSales / totalVisitors) * 100;
-    
-    // Nejlepší konverze
-    const conversions = data.map(record => (record.sales / record.visitors) * 100);
-    const bestConversion = Math.max(...conversions);
-    
-    // Odhadovaný zisk (revenue - náklady)
-    const totalCosts = totalSales * CONFIG.DONUT_COST;
-    const totalProfit = totalRevenue - totalCosts;
-    
-    return {
-        totalEvents,
-        totalSales,
-        averageSales,
-        totalRevenue,
-        averageConversion,
-        totalVisitors,
-        bestConversion,
-        totalProfit
-    };
-}
-
-// ========================================
-// TOP VÝSLEDKY (ROZŠÍŘENÉ)
-// ========================================
-
-function updateTopEvents() {
-    console.log('🏆 Updating enhanced top events...');
-    
-    const container = document.getElementById('topEvents');
-    if (!container) return;
-    
-    try {
-        const topEvents = getTopEvents(15); // Více událostí
-        
-        if (topEvents.length === 0) {
-            container.innerHTML = '<div class="no-data">Žádné události k zobrazení</div>';
-            return;
-        }
-        
-        let html = '<div class="top-events-header" style="margin-bottom: 15px;">';
-        html += '<h4 style="margin: 0;">🏆 Top výkonné akce</h4>';
-        html += `<p style="color: #6c757d; margin: 5px 0 0 0; font-size: 0.9em;">Seřazeno podle celkového prodeje z ${topEvents.length} nejlepších akcí</p>`;
-        html += '</div>';
-        
-        topEvents.forEach((event, index) => {
-            const conversion = event.visitors > 0 ? ((event.sales / event.visitors) * 100).toFixed(1) : '0';
-            const revenue = event.sales * CONFIG.DONUT_PRICE;
-            const profit = revenue - (event.sales * CONFIG.DONUT_COST);
-            
-            // Medaile pro top 3
-            let medal = '';
-            if (index === 0) medal = '🥇';
-            else if (index === 1) medal = '🥈';
-            else if (index === 2) medal = '🥉';
-            
-            html += `
-                <div class="top-item" style="border-left-color: ${getPerformanceColor(parseFloat(conversion))};">
-                    <div class="top-info">
-                        <h4>${medal} ${index + 1}. ${escapeHtml(event.eventName)}</h4>
-                        <p>📍 ${escapeHtml(event.city)} • 📅 ${formatDate(event.dateFrom)} • 📋 ${escapeHtml(event.category)}</p>
-                        <p style="font-size: 0.8em; color: #6c757d; margin-top: 5px;">
-                            👥 ${formatNumber(event.visitors)} návštěvníků
-                            ${event.rating ? ` • ⭐ ${event.rating}/5` : ''}
-                        </p>
-                    </div>
-                    <div class="top-stats">
-                        <div class="top-value" style="color: ${getPerformanceColor(parseFloat(conversion))};">
-                            ${formatNumber(event.sales)} ks
-                        </div>
-                        <div class="top-subvalue">
-                            🎯 ${conversion}% konverze<br>
-                            💰 ${formatCurrency(revenue)}<br>
-                            💎 ${formatCurrency(profit)} zisk
-                        </div>
-                    </div>
-                </div>
-            `;
-        });
-        
-        container.innerHTML = html;
-        console.log('✅ Enhanced top events updated');
-        
-    } catch (error) {
-        console.error('❌ Error updating top events:', error);
-        container.innerHTML = '<div class="error-message">Chyba při načítání top akcí</div>';
-    }
-}
-
-function updateTopCities() {
-    console.log('🏙️ Updating enhanced top cities...');
-    
-    const container = document.getElementById('topCities');
-    if (!container) return;
-    
-    try {
-        const topCities = getTopCities(15);
-        
-        if (topCities.length === 0) {
-            container.innerHTML = '<div class="no-data">Žádná města k zobrazení</div>';
-            return;
-        }
-        
-        let html = '<div class="top-cities-header" style="margin-bottom: 15px;">';
-        html += '<h4 style="margin: 0;">🏙️ Nejúspěšnější města</h4>';
-        html += `<p style="color: #6c757d; margin: 5px 0 0 0; font-size: 0.9em;">Seřazeno podle celkového prodeje ze ${topCities.length} měst</p>`;
-        html += '</div>';
-        
-        topCities.forEach((city, index) => {
-            const avgSalesPerEvent = city.totalSales / city.eventsCount;
-            
-            // Medaile pro top 3
-            let medal = '';
-            if (index === 0) medal = '🥇';
-            else if (index === 1) medal = '🥈';
-            else if (index === 2) medal = '🥉';
-            
-            html += `
-                <div class="top-item">
-                    <div class="top-info">
-                        <h4>${medal} ${index + 1}. ${escapeHtml(city.name)}</h4>
-                        <p>📊 ${city.eventsCount} akcí • 🎯 ${city.averageConversion.toFixed(1)}% průměrná konverze</p>
-                        <p style="font-size: 0.8em; color: #6c757d; margin-top: 5px;">
-                            📈 ${formatNumber(avgSalesPerEvent)} ks průměr/akci • 👥 ${formatNumber(city.totalVisitors)} návštěvníků
-                        </p>
-                    </div>
-                    <div class="top-stats">
-                        <div class="top-value">${formatNumber(city.totalSales)} ks</div>
-                        <div class="top-subvalue">
-                            💰 ${formatCurrency(city.totalRevenue)}<br>
-                            💎 ${formatCurrency(city.totalRevenue - (city.totalSales * CONFIG.DONUT_COST))} zisk
-                        </div>
-                    </div>
-                </div>
-            `;
-        });
-        
-        container.innerHTML = html;
-        console.log('✅ Enhanced top cities updated');
-        
-    } catch (error) {
-        console.error('❌ Error updating top cities:', error);
-        container.innerHTML = '<div class="error-message">Chyba při načítání top měst</div>';
-    }
-}
-
-function updateTopCategories() {
-    console.log('📊 Updating enhanced top categories...');
-    
-    const container = document.getElementById('topCategories');
-    if (!container) return;
-    
-    try {
-        const topCategories = getTopCategories();
-        
-        if (topCategories.length === 0) {
-            container.innerHTML = '<div class="no-data">Žádné kategorie k zobrazení</div>';
-            return;
-        }
-        
-        const categoryIcons = {
-            'food festival': '🍔',
-            'veletrh': '🍫',
-            'koncert': '🎵',
-            'kulturní akce': '🎭',
-            'sportovní': '🏃',
-            'ostatní': '📅'
-        };
-        
-        let html = '<div class="top-categories-header" style="margin-bottom: 15px;">';
-        html += '<h4 style="margin: 0;">📊 Nejúspěšnější kategorie</h4>';
-        html += `<p style="color: #6c757d; margin: 5px 0 0 0; font-size: 0.9em;">Analýza výkonnosti podle typů akcí</p>`;
-        html += '</div>';
-        
-        topCategories.forEach((category, index) => {
-            const icon = categoryIcons[category.name] || '📋';
-            const avgSalesPerEvent = category.totalSales / category.eventsCount;
-            
-            // Medaile pro top 3
-            let medal = '';
-            if (index === 0) medal = '🥇';
-            else if (index === 1) medal = '🥈';
-            else if (index === 2) medal = '🥉';
-            
-            html += `
-                <div class="top-item">
-                    <div class="top-info">
-                        <h4>${medal} ${index + 1}. ${icon} ${escapeHtml(category.name)}</h4>
-                        <p>📊 ${category.eventsCount} akcí • 🎯 ${category.averageConversion.toFixed(1)}% průměrná konverze</p>
-                        <p style="font-size: 0.8em; color: #6c757d; margin-top: 5px;">
-                            📈 ${formatNumber(avgSalesPerEvent)} ks průměr/akci • 👥 ${formatNumber(category.totalVisitors)} návštěvníků
-                        </p>
-                    </div>
-                    <div class="top-stats">
-                        <div class="top-value">${formatNumber(category.totalSales)} ks</div>
-                        <div class="top-subvalue">
-                            💰 ${formatCurrency(category.totalRevenue)}<br>
-                            💎 ${formatCurrency(category.totalRevenue - (category.totalSales * CONFIG.DONUT_COST))} zisk
-                        </div>
-                    </div>
-                </div>
-            `;
-        });
-        
-        container.innerHTML = html;
-        console.log('✅ Enhanced top categories updated');
-        
-    } catch (error) {
-        console.error('❌ Error updating top categories:', error);
-        container.innerHTML = '<div class="error-message">Chyba při načítání top kategorií</div>';
-    }
-}
-
-// ========================================
-// ROZŠÍŘENÉ DATA PROCESSING
-// ========================================
-
-function getTopEvents(limit = 15) {
-    return globalState.historicalData
-        .filter(record => record.sales > 0 && record.visitors > 0)
-        .sort((a, b) => b.sales - a.sales)
-        .slice(0, limit);
-}
-
-function getTopCities(limit = 15) {
-    const cityStats = new Map();
-    
-    globalState.historicalData.forEach(record => {
-        if (record.sales > 0 && record.visitors > 0 && record.city) {
-            const city = record.city;
-            
-            if (!cityStats.has(city)) {
-                cityStats.set(city, {
-                    name: city,
-                    totalSales: 0,
-                    totalVisitors: 0,
-                    totalRevenue: 0,
-                    eventsCount: 0
-                });
-            }
-            
-            const stats = cityStats.get(city);
-            stats.totalSales += record.sales;
-            stats.totalVisitors += record.visitors;
-            stats.totalRevenue += record.sales * CONFIG.DONUT_PRICE;
-            stats.eventsCount += 1;
-        }
-    });
-    
-    return Array.from(cityStats.values())
-        .map(city => ({
-            ...city,
-            averageConversion: (city.totalSales / city.totalVisitors) * 100
-        }))
-        .sort((a, b) => b.totalSales - a.totalSales)
-        .slice(0, limit);
-}
-
-function getTopCategories() {
-    const categoryStats = new Map();
-    
-    globalState.historicalData.forEach(record => {
-        if (record.sales > 0 && record.visitors > 0 && record.category) {
-            const category = record.category;
-            
-            if (!categoryStats.has(category)) {
-                categoryStats.set(category, {
-                    name: category,
-                    totalSales: 0,
-                    totalVisitors: 0,
-                    totalRevenue: 0,
-                    eventsCount: 0
-                });
-            }
-            
-            const stats = categoryStats.get(category);
-            stats.totalSales += record.sales;
-            stats.totalVisitors += record.visitors;
-            stats.totalRevenue += record.sales * CONFIG.DONUT_PRICE;
-            stats.eventsCount += 1;
-        }
-    });
-    
-    return Array.from(categoryStats.values())
-        .map(category => ({
-            ...category,
-            averageConversion: (category.totalSales / category.totalVisitors) * 100
-        }))
-        .sort((a, b) => b.totalSales - a.totalSales);
-}
-
-// ========================================
-// VYLEPŠENÝ MĚSÍČNÍ TRENDY GRAF
-// ========================================
-
-function displayMonthlyTrends() {
-    console.log('📈 Generating enhanced monthly trends...');
-    
-    const container = document.getElementById('monthlyTrends');
-    if (!container) return;
-    
-    try {
-        if (!globalState.historicalData || globalState.historicalData.length === 0) {
-            container.innerHTML = `
-                <div class="chart-placeholder">
-                    <div style="font-size: 3rem; margin-bottom: 20px;">📈</div>
-                    <h4>Žádná data pro měsíční trendy</h4>
-                    <p>Načtěte historická data pro zobrazení trendů</p>
-                    <button class="btn" onclick="loadData()" style="margin-top: 15px;">
-                        🔄 Načíst data
-                    </button>
-                </div>
-            `;
-            return;
-        }
-        
-        // Seskup data podle měsíců
-        const monthlyData = new Map();
-        
-        globalState.historicalData.forEach(record => {
-            if (record.dateFrom && record.sales > 0) {
-                const date = new Date(record.dateFrom);
-                const monthKey = `${date.getFullYear()}-${(date.getMonth() + 1).toString().padStart(2, '0')}`;
-                
-                if (!monthlyData.has(monthKey)) {
-                    monthlyData.set(monthKey, {
-                        month: monthKey,
-                        totalSales: 0,
-                        eventsCount: 0,
-                        totalRevenue: 0,
-                        totalVisitors: 0,
-                        totalProfit: 0
-                    });
-                }
-                
-                const monthData = monthlyData.get(monthKey);
-                monthData.totalSales += record.sales;
-                monthData.eventsCount += 1;
-                monthData.totalRevenue += (record.sales * CONFIG.DONUT_PRICE);
-                monthData.totalVisitors += record.visitors;
-                monthData.totalProfit += (record.sales * (CONFIG.DONUT_PRICE - CONFIG.DONUT_COST));
-            }
-        });
-        
-        // Seřaď podle měsíce a vezmi posledních 12
-        const sortedMonths = Array.from(monthlyData.values())
-            .sort((a, b) => a.month.localeCompare(b.month))
-            .slice(-12);
-        
-        if (sortedMonths.length === 0) {
-            container.innerHTML = `
-                <div class="chart-placeholder">
-                    <div style="font-size: 3rem; margin-bottom: 20px;">📈</div>
-                    <h4>Nedostatek dat pro trendy</h4>
-                    <p>Potřebujeme alespoň jeden měsíc s prodejními daty</p>
-                </div>
-            `;
-            return;
-        }
-        
-        let html = '<div class="monthly-trends-chart">';
-        html += '<div class="trends-header" style="text-align: center; margin-bottom: 25px;">';
-        html += '<h4 style="margin: 0 0 10px 0;">📈 Měsíční trendy prodeje a obratů</h4>';
-        html += `<p style="color: #6c757d; margin: 0; font-size: 0.9em;">Analýza posledních ${sortedMonths.length} měsíců s daty</p>`;
-        html += '</div>';
-        
-        // Graf jako interaktivní sloupce
-        html += '<div class="trends-container">';
-        html += '<div class="trends-chart-wrapper">';
-        html += '<div class="trends-bars">';
-        
-        const maxSales = Math.max(...sortedMonths.map(m => m.totalSales));
-        const maxRevenue = Math.max(...sortedMonths.map(m => m.totalRevenue));
-        const maxProfit = Math.max(...sortedMonths.map(m => m.totalProfit));
-        
-        sortedMonths.forEach((monthData, index) => {
-            const [year, month] = monthData.month.split('-');
-            const monthName = new Date(year, month - 1).toLocaleDateString('cs-CZ', { 
-                month: 'long', 
-                year: 'numeric' 
-            });
-            const shortMonthName = new Date(year, month - 1).toLocaleDateString('cs-CZ', { 
-                month: 'short'
-            });
-            
-            const salesHeight = maxSales > 0 ? (monthData.totalSales / maxSales) * 100 : 0;
-            const revenueHeight = maxRevenue > 0 ? (monthData.totalRevenue / maxRevenue) * 90 : 0;
-            const profitHeight = maxProfit > 0 ? (monthData.totalProfit / maxProfit) * 80 : 0;
-            
-            const avgConversion = monthData.totalVisitors > 0 ? 
-                ((monthData.totalSales / monthData.totalVisitors) * 100).toFixed(1) : '0';
-            
-            // Barvy pro různé metriky
-            const salesColor = `hsl(${120 + index * 15}, 70%, 55%)`;
-            const revenueColor = `hsl(${200 + index * 10}, 70%, 55%)`;
-            const profitColor = `hsl(${60 + index * 20}, 70%, 55%)`;
-            
-            html += `
-                <div class="trend-month-container" style="display: flex; flex-direction: column; align-items: center; margin: 0 5px; position: relative;">
-                    <div style="display: flex; gap: 3px; align-items: flex-end; height: 220px; margin-bottom: 15px;" 
-                         onmouseover="showTrendTooltip('${monthName}', ${monthData.totalSales}, ${monthData.totalRevenue}, ${monthData.totalProfit}, ${monthData.eventsCount}, '${avgConversion}')"
-                         onmouseout="hideTrendTooltip()">
-                        <!-- Sloupec prodejů -->
-                        <div class="trend-bar sales-bar" 
-                             style="width: 18px; 
-                                    height: ${salesHeight}%; 
-                                    background: linear-gradient(to top, ${salesColor}, ${salesColor}90);
-                                    border-radius: 3px 3px 0 0;
-                                    cursor: pointer;
-                                    transition: all 0.3s ease;
-                                    border: 2px solid ${salesColor};" 
-                             title="Prodeje: ${formatNumber(monthData.totalSales)} ks"
-                             onmouseover="this.style.transform='scale(1.1)'"
-                             onmouseout="this.style.transform='scale(1)'">
-                        </div>
-                        <!-- Sloupec obratů -->
-                        <div class="trend-bar revenue-bar" 
-                             style="width: 18px; 
-                                    height: ${revenueHeight}%; 
-                                    background: linear-gradient(to top, ${revenueColor}, ${revenueColor}90);
-                                    border-radius: 3px 3px 0 0;
-                                    cursor: pointer;
-                                    transition: all 0.3s ease;
-                                    border: 2px solid ${revenueColor};" 
-                             title="Obrat: ${formatCurrency(monthData.totalRevenue)}"
-                             onmouseover="this.style.transform='scale(1.1)'"
-                             onmouseout="this.style.transform='scale(1)'">
-                        </div>
-                        <!-- Sloupec zisků -->
-                        <div class="trend-bar profit-bar" 
-                             style="width: 18px; 
-                                    height: ${profitHeight}%; 
-                                    background: linear-gradient(to top, ${profitColor}, ${profitColor}90);
-                                    border-radius: 3px 3px 0 0;
-                                    cursor: pointer;
-                                    transition: all 0.3s ease;
-                                    border: 2px solid ${profitColor};" 
-                             title="Zisk: ${formatCurrency(monthData.totalProfit)}"
-                             onmouseover="this.style.transform='scale(1.1)'"
-                             onmouseout="this.style.transform='scale(1)'">
-                        </div>
-                    </div>
-                    
-                    <!-- Popisky -->
-                    <div style="text-align: center; font-size: 0.8em;">
-                        <div style="font-weight: 600; margin-bottom: 5px; color: #495057;">${shortMonthName}</div>
-                        <div style="color: ${salesColor}; font-size: 0.7em; font-weight: 600;">${formatNumber(monthData.totalSales)} ks</div>
-                        <div style="color: ${revenueColor}; font-size: 0.7em;">${formatCurrency(monthData.totalRevenue)}</div>
-                        <div style="color: #6c757d; font-size: 0.7em;">${monthData.eventsCount} akcí</div>
-                        <div style="color: #9c27b0; font-size: 0.7em; font-weight: 600;">${avgConversion}%</div>
-                    </div>
-                </div>
-            `;
-        });
-        
-        html += '</div>'; // trends-chart-wrapper
-        
-        // Rozšířená legenda
-        html += `
-            <div class="trends-legend" style="display: flex; justify-content: center; gap: 25px; margin: 20px 0; padding: 15px; background: rgba(248, 249, 250, 0.8); border-radius: 8px; flex-wrap: wrap;">
-                <div style="display: flex; align-items: center; gap: 8px;">
-                    <div style="width: 20px; height: 12px; background: linear-gradient(to right, hsl(135, 70%, 55%), hsl(135, 70%, 55%)90); border-radius: 3px; border: 1px solid hsl(135, 70%, 55%);"></div>
-                    <span style="font-size: 0.9em; font-weight: 500;">Prodeje (ks)</span>
-                </div>
-                <div style="display: flex; align-items: center; gap: 8px;">
-                    <div style="width: 20px; height: 12px; background: linear-gradient(to right, hsl(210, 70%, 55%), hsl(210, 70%, 55%)90); border-radius: 3px; border: 1px solid hsl(210, 70%, 55%);"></div>
-                    <span style="font-size: 0.9em; font-weight: 500;">Obraty (Kč)</span>
-                </div>
-                <div style="display: flex; align-items: center; gap: 8px;">
-                    <div style="width: 20px; height: 12px; background: linear-gradient(to right, hsl(80, 70%, 55%), hsl(80, 70%, 55%)90); border-radius: 3px; border: 1px solid hsl(80, 70%, 55%);"></div>
-                    <span style="font-size: 0.9em; font-weight: 500;">Zisky (Kč)</span>
-                </div>
-            </div>
-        `;
-        
-        html += '</div>'; // trends-container
-        
-        // Rozšířené souhrnné statistiky
-        const totalSales = sortedMonths.reduce((sum, m) => sum + m.totalSales, 0);
-        const totalRevenue = sortedMonths.reduce((sum, m) => sum + m.totalRevenue, 0);
-        const totalEvents = sortedMonths.reduce((sum, m) => sum + m.eventsCount, 0);
-        const totalVisitors = sortedMonths.reduce((sum, m) => sum + m.totalVisitors, 0);
-        const totalProfit = sortedMonths.reduce((sum, m) => sum + m.totalProfit, 0);
-        
-        const avgSalesPerMonth = totalSales / sortedMonths.length;
-        const avgRevenuePerMonth = totalRevenue / sortedMonths.length;
-        const avgEventsPerMonth = totalEvents / sortedMonths.length;
-        const avgProfitPerMonth = totalProfit / sortedMonths.length;
-        const overallConversion = totalVisitors > 0 ? ((totalSales / totalVisitors) * 100).toFixed(1) : '0';
-        
-        // Trend analýza
-        let trendDirection = '→';
-        let trendColor = '#6c757d';
-        let trendText = 'Stabilní';
-        
-        if (sortedMonths.length >= 3) {
-            const recentSales = sortedMonths.slice(-3).reduce((sum, m) => sum + m.totalSales, 0) / 3;
-            const olderSales = sortedMonths.slice(0, 3).reduce((sum, m) => sum + m.totalSales, 0) / 3;
-            
-            if (recentSales > olderSales * 1.1) {
-                trendDirection = '📈';
-                trendColor = '#28a745';
-                trendText = 'Rostoucí trend';
-            } else if (recentSales < olderSales * 0.9) {
-                trendDirection = '📉';
-                trendColor = '#dc3545';
-                trendText = 'Klesající trend';
-            }
-        }
-        
-        html += `
-            <div class="trends-summary" style="background: linear-gradient(135deg, #e3f2fd, #f0f9ff); padding: 25px; border-radius: 12px; margin-top: 25px; border: 1px solid #bbdefb;">
-                <h5 style="margin: 0 0 20px 0; color: #1976d2; text-align: center; font-size: 1.1em;">📊 Detailní shrnutí za ${sortedMonths.length} měsíců</h5>
-                
-                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 20px; margin-bottom: 20px;">
-                    <div style="text-align: center; background: rgba(255, 255, 255, 0.8); padding: 15px; border-radius: 8px; border: 1px solid rgba(25, 118, 210, 0.2);">
-                        <div style="font-size: 1.4em; font-weight: 700; color: #1976d2; margin-bottom: 5px;">${formatNumber(totalSales)}</div>
-                        <div style="font-size: 0.85em; color: #6c757d; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 3px;">Celkem prodáno</div>
-                        <div style="font-size: 0.75em; color: #9c27b0; font-weight: 600;">${formatNumber(Math.round(avgSalesPerMonth))}/měsíc</div>
-                    </div>
-                    
-                    <div style="text-align: center; background: rgba(255, 255, 255, 0.8); padding: 15px; border-radius: 8px; border: 1px solid rgba(25, 118, 210, 0.2);">
-                        <div style="font-size: 1.4em; font-weight: 700; color: #388e3c; margin-bottom: 5px;">${formatCurrency(totalRevenue)}</div>
-                        <div style="font-size: 0.85em; color: #6c757d; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 3px;">Celkový obrat</div>
-                        <div style="font-size: 0.75em; color: #9c27b0; font-weight: 600;">${formatCurrency(avgRevenuePerMonth)}/měsíc</div>
-                    </div>
-                    
-                    <div style="text-align: center; background: rgba(255, 255, 255, 0.8); padding: 15px; border-radius: 8px; border: 1px solid rgba(25, 118, 210, 0.2);">
-                        <div style="font-size: 1.4em; font-weight: 700; color: #f57c00; margin-bottom: 5px;">${formatCurrency(totalProfit)}</div>
-                        <div style="font-size: 0.85em; color: #6c757d; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 3px;">Celkový zisk</div>
-                        <div style="font-size: 0.75em; color: #9c27b0; font-weight: 600;">${formatCurrency(avgProfitPerMonth)}/měsíc</div>
-                    </div>
-                    
-                    <div style="text-align: center; background: rgba(255, 255, 255, 0.8); padding: 15px; border-radius: 8px; border: 1px solid rgba(25, 118, 210, 0.2);">
-                        <div style="font-size: 1.4em; font-weight: 700; color: #e91e63; margin-bottom: 5px;">${totalEvents}</div>
-                        <div style="font-size: 0.85em; color: #6c757d; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 3px;">Celkem akcí</div>
-                        <div style="font-size: 0.75em; color: #9c27b0; font-weight: 600;">${avgEventsPerMonth.toFixed(1)}/měsíc</div>
-                    </div>
-                    
-                    <div style="text-align: center; background: rgba(255, 255, 255, 0.8); padding: 15px; border-radius: 8px; border: 1px solid rgba(25, 118, 210, 0.2);">
-                        <div style="font-size: 1.4em; font-weight: 700; color: #9c27b0; margin-bottom: 5px;">${overallConversion}%</div>
-                        <div style="font-size: 0.85em; color: #6c757d; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 3px;">Celková konverze</div>
-                        <div style="font-size: 0.75em; color: #9c27b0; font-weight: 600;">${formatNumber(totalVisitors)} návštěvníků</div>
-                    </div>
-                    
-                    <div style="text-align: center; background: rgba(255, 255, 255, 0.8); padding: 15px; border-radius: 8px; border: 1px solid ${trendColor};">
-                        <div style="font-size: 1.4em; font-weight: 700; color: ${trendColor}; margin-bottom: 5px;">${trendDirection}</div>
-                        <div style="font-size: 0.85em; color: #6c757d; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 3px;">Trend</div>
-                        <div style="font-size: 0.75em; color: ${trendColor}; font-weight: 600;">${trendText}</div>
-                    </div>
-                </div>
-                
-                <!-- Insights -->
-                <div style="background: rgba(255, 255, 255, 0.9); padding: 15px; border-radius: 8px; margin-top: 15px;">
-                    <h6 style="margin: 0 0 10px 0; color: #495057;">💡 Klíčová pozorování:</h6>
-                    <ul style="margin: 0; padding-left: 20px; color: #6c757d; font-size: 0.9em;">
-                        <li>Nejúspěšnější měsíc: ${formatNumber(Math.max(...sortedMonths.map(m => m.totalSales)))} ks prodeje</li>
-                        <li>Průměrná návratnost: ${((totalProfit / totalRevenue) * 100).toFixed(1)}% marže</li>
-                        <li>Stabilita prodeje: ${((Math.min(...sortedMonths.map(m => m.totalSales)) / Math.max(...sortedMonths.map(m => m.totalSales))) * 100).toFixed(0)}% konzistence</li>
-                        ${trendText !== 'Stabilní' ? `<li>Trend směřování: ${trendText.toLowerCase()} v posledních 3 měsících</li>` : ''}
-                    </ul>
-                </div>
-            </div>
-        `;
-        
-        html += '</div>'; // monthly-trends-chart
-        
-        container.innerHTML = html;
-        
-        console.log(`✅ Enhanced monthly trends displayed with ${sortedMonths.length} months`);
-        
-    } catch (error) {
-        console.error('❌ Error generating enhanced monthly trends:', error);
-        container.innerHTML = '<div class="error-message">Chyba při generování pokročilých trendů</div>';
-    }
-}
-
-// Funkce pro tooltip trendů
-function showTrendTooltip(monthName, sales, revenue, profit, events, conversion) {
-    const tooltip = document.getElementById('trendTooltip');
-    if (tooltip) {
-        tooltip.innerHTML = `
-            <strong>${monthName}</strong><br>
-            🍩 Prodeje: ${formatNumber(sales)} ks<br>
-            💰 Obrat: ${formatCurrency(revenue)}<br>
-            💎 Zisk: ${formatCurrency(profit)}<br>
-            📊 Akcí: ${events}<br>
-            🎯 Konverze: ${conversion}%
-        `;
-        tooltip.style.display = 'block';
-    }
-}
-
-function hideTrendTooltip() {
-    const tooltip = document.getElementById('trendTooltip');
-    if (tooltip) {
-        tooltip.style.display = 'none';
-    }
-}
-
-// ========================================
-// ROZŠÍŘENÁ PŘESNOST PREDIKCÍ
-// ========================================
-
-function updatePredictionAccuracy() {
-    console.log('🎯 Updating enhanced prediction accuracy...');
-    
-    const container = document.getElementById('predictionAccuracy');
-    if (!container) return;
-    
-    try {
-        const accuracyData = calculatePredictionAccuracy();
-        
-        if (!accuracyData || accuracyData.comparisons.length === 0) {
-            container.innerHTML = `
-                <div style="text-align: center; padding: 40px;">
-                    <div style="font-size: 3rem; margin-bottom: 20px;">🎯</div>
-                    <h4>Analýza přesnosti predikcí</h4>
-                    <p>Pro analýzu přesnosti potřebujeme události s predikcemi i skutečnými výsledky.</p>
-                    <div style="background: #e3f2fd; padding: 15px; border-radius: 8px; margin-top: 20px;">
-                        <h6 style="margin: 0 0 10px 0;">💡 Jak zlepšit analýzu:</h6>
-                        <ul style="margin: 0; padding-left: 20px; text-align: left;">
-                            <li>Vytvořte predikce pro budoucí akce</li>
-                            <li>Po akcích aktualizujte skutečné prodeje</li>
-                            <li>Systém automaticky porovná predikce s realitou</li>
-                        </ul>
-                    </div>
-                </div>
-            `;
-            return;
-        }
-        
-        let html = '<div class="prediction-accuracy-analysis">';
-        html += '<h4 style="margin: 0 0 20px 0; text-align: center;">🎯 Přesnost AI predikcí</h4>';
-        
-        // Celkové metriky přesnosti
-        html += '<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-bottom: 25px;">';
-        
-        const avgAccuracy = accuracyData.averageAccuracy;
-        const accuracyColor = avgAccuracy >= 80 ? '#28a745' : avgAccuracy >= 60 ? '#ffc107' : '#dc3545';
-        const accuracyIcon = avgAccuracy >= 80 ? '🎯' : avgAccuracy >= 60 ? '⚠️' : '❌';
-        
-        html += `
-            <div style="background: white; padding: 20px; border-radius: 8px; text-align: center; border-left: 4px solid ${accuracyColor};">
-                <div style="font-size: 2em; margin-bottom: 10px;">${accuracyIcon}</div>
-                <div style="font-size: 1.8em; font-weight: bold; color: ${accuracyColor}; margin-bottom: 5px;">${avgAccuracy.toFixed(1)}%</div>
-                <div style="color: #6c757d; font-size: 0.9em;">Průměrná přesnost</div>
-                <div style="color: #6c757d; font-size: 0.8em; margin-top: 5px;">${accuracyData.comparisons.length} porovnání</div>
-            </div>
-            
-            <div style="background: white; padding: 20px; border-radius: 8px; text-align: center;">
-                <div style="font-size: 2em; margin-bottom: 10px;">📈</div>
-                <div style="font-size: 1.5em; font-weight: bold; color: #17a2b8; margin-bottom: 5px;">${formatNumber(Math.abs(accuracyData.averageDifference))}</div>
-                <div style="color: #6c757d; font-size: 0.9em;">Průměrná odchylka</div>
-                <div style="color: #6c757d; font-size: 0.8em; margin-top: 5px;">ks prodeje</div>
-            </div>
-            
-            <div style="background: white; padding: 20px; border-radius: 8px; text-align: center;">
-                <div style="font-size: 2em; margin-bottom: 10px;">${accuracyData.overestimations > accuracyData.underestimations ? '📊' : '📉'}</div>
-                <div style="font-size: 1.5em; font-weight: bold; color: #9c27b0; margin-bottom: 5px;">${accuracyData.overestimations}</div>
-                <div style="color: #6c757d; font-size: 0.9em;">Nadhodnocení</div>
-                <div style="color: #6c757d; font-size: 0.8em; margin-top: 5px;">vs ${accuracyData.underestimations} podhodnocení</div>
-            </div>
-        `;
-        
-        html += '</div>';
-        
-        // Detailní přehled porovnání
-        html += '<div style="background: white; padding: 20px; border-radius: 8px; margin-bottom: 20px;">';
-        html += '<h5 style="margin: 0 0 15px 0;">📋 Detailní porovnání predikcí</h5>';
-        
-        accuracyData.comparisons.slice(0, 10).forEach((comp, index) => {
-            const accuracy = comp.accuracy;
-            const accuracyColor = accuracy >= 80 ? '#28a745' : accuracy >= 60 ? '#ffc107' : '#dc3545';
-            const difference = comp.predicted - comp.actual;
-            const differenceIcon = difference > 0 ? '📈' : difference < 0 ? '📉' : '✅';
-            const differenceText = difference > 0 ? `+${Math.abs(difference)}` : `-${Math.abs(difference)}`;
-            
-            html += `
-                <div style="display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px solid #e9ecef;">
-                    <div style="flex: 1;">
-                        <div style="font-weight: 600; color: #495057;">${escapeHtml(comp.eventName)}</div>
-                        <div style="font-size: 0.8em; color: #6c757d;">${formatDate(comp.date)} • ${escapeHtml(comp.city)}</div>
-                    </div>
-                    <div style="text-align: center; margin: 0 20px;">
-                        <div style="font-size: 0.9em; color: #6c757d;">Predikce vs Realita</div>
-                        <div style="font-weight: 600;">${formatNumber(comp.predicted)} vs ${formatNumber(comp.actual)} ks</div>
-                    </div>
-                    <div style="text-align: right;">
-                        <div style="font-weight: 600; color: ${accuracyColor};">${accuracy.toFixed(1)}%</div>
-                        <div style="font-size: 0.8em; color: #6c757d;">${differenceIcon} ${differenceText} ks</div>
-                    </div>
-                </div>
-            `;
-        });
-        
-        html += '</div>';
-        
-        // Doporučení pro zlepšení
-        html += '<div style="background: #e3f2fd; padding: 20px; border-radius: 8px;">';
-        html += '<h5 style="margin: 0 0 15px 0; color: #1976d2;">💡 Doporučení pro zlepšení přesnosti</h5>';
-        html += '<ul style="margin: 0; padding-left: 20px; color: #495057;">';
-        
-        if (avgAccuracy < 70) {
-            html += '<li>Přesnost je nižší než optimální - zvažte aktualizaci predikčních faktorů</li>';
-        }
-        
-        if (accuracyData.overestimations > accuracyData.underestimations * 1.5) {
-            html += '<li>AI často nadhodnocuje - snižte predikční faktory o 10-15%</li>';
-        } else if (accuracyData.underestimations > accuracyData.overestimations * 1.5) {
-            html += '<li>AI často podhodnocuje - zvyšte predikční faktory o 10-15%</li>';
-        }
-        
-        html += '<li>Pokračujte v aktualizaci skutečných prodejů pro zlepšení učení AI</li>';
-        html += '<li>Více dat = přesnější predikce - organizujte více akcí pro lepší analýzu</li>';
-        html += '</ul>';
-        html += '</div>';
-        
-        html += '</div>'; // prediction-accuracy-analysis
-        
-        container.innerHTML = html;
-        console.log('✅ Enhanced prediction accuracy updated');
-        
-    } catch (error) {
-        console.error('❌ Error updating prediction accuracy:', error);
-        container.innerHTML = '<div class="error-message">Chyba při analýze přesnosti predikcí</div>';
-    }
-}
-
-function calculatePredictionAccuracy() {
-    try {
-        const savedPredictions = JSON.parse(localStorage.getItem('donuland_predictions') || '[]');
-        const savedEdits = JSON.parse(localStorage.getItem('donuland_event_edits') || '{}');
-        
-        const comparisons = [];
-        
-        // Najít predikce které mají skutečné výsledky
-        savedPredictions.forEach(prediction => {
-            if (prediction.formData && prediction.prediction) {
-                const eventName = prediction.formData.eventName;
-                
-                // Zkusit najít skutečný prodej v editacích
-                if (savedEdits[eventName] && savedEdits[eventName].sales) {
-                    const actualSales = savedEdits[eventName].sales;
-                    const predictedSales = prediction.prediction.predictedSales;
-                    
-                    if (actualSales > 0 && predictedSales > 0) {
-                        const accuracy = (Math.min(actualSales, predictedSales) / Math.max(actualSales, predictedSales)) * 100;
-                        
-                        comparisons.push({
-                            eventName: eventName,
-                            city: prediction.formData.city,
-                            date: prediction.formData.eventDateFrom,
-                            predicted: predictedSales,
-                            actual: actualSales,
-                            accuracy: accuracy,
-                            difference: predictedSales - actualSales
-                        });
-                    }
-                }
-                
-                // Nebo najít v historických datech
-                const historicalMatch = globalState.historicalData.find(record => 
-                    record.eventName === eventName && record.sales > 0
-                );
-                
-                if (historicalMatch && !savedEdits[eventName]) {
-                    const actualSales = historicalMatch.sales;
-                    const predictedSales = prediction.prediction.predictedSales;
-                    
-                    if (actualSales > 0 && predictedSales > 0) {
-                        const accuracy = (Math.min(actualSales, predictedSales) / Math.max(actualSales, predictedSales)) * 100;
-                        
-                        comparisons.push({
-                            eventName: eventName,
-                            city: prediction.formData.city,
-                            date: prediction.formData.eventDateFrom,
-                            predicted: predictedSales,
-                            actual: actualSales,
-                            accuracy: accuracy,
-                            difference: predictedSales - actualSales
-                        });
-                    }
-                }
-            }
-        });
-        
-        if (comparisons.length === 0) {
-            return null;
-        }
-        
-        const averageAccuracy = comparisons.reduce((sum, comp) => sum + comp.accuracy, 0) / comparisons.length;
-        const averageDifference = comparisons.reduce((sum, comp) => sum + comp.difference, 0) / comparisons.length;
-        const overestimations = comparisons.filter(comp => comp.difference > 0).length;
-        const underestimations = comparisons.filter(comp => comp.difference < 0).length;
-        
-        return {
-            comparisons: comparisons.sort((a, b) => new Date(b.date) - new Date(a.date)),
-            averageAccuracy,
-            averageDifference,
-            overestimations,
-            underestimations
-        };
-        
-    } catch (error) {
-        console.error('❌ Error calculating prediction accuracy:', error);
-        return null;
-    }
-}
-
-// ========================================
-// KOMPLETNÍ VLIV POČASÍ
-// ========================================
-
-function updateWeatherImpact() {
-    console.log('🌤️ Updating comprehensive weather impact analysis...');
-    
-    const container = document.getElementById('weatherImpact');
-    if (!container) return;
-    
-    try {
-        const weatherData = analyzeWeatherImpact();
-        
-        if (!weatherData || weatherData.totalEvents === 0) {
-            container.innerHTML = `
-                <div style="text-align: center; padding: 40px;">
-                    <div style="font-size: 3rem; margin-bottom: 20px;">🌤️</div>
-                    <h4>Analýza vlivu počasí na prodej</h4>
-                    <p>Nedostatek dat o počasí pro komplexní analýzu.</p>
-                    <div style="background: #fff3cd; padding: 15px; border-radius: 8px; margin-top: 20px;">
-                        <h6 style="margin: 0 0 10px 0;">📡 Info o počasí:</h6>
-                        <ul style="margin: 0; padding-left: 20px; text-align: left;">
-                            <li>Počasí se automaticky načítá pro venkovní akce</li>
-                            <li>AI zohledňuje vliv počasí na prodej donutů</li>
-                            <li>Zvláště důležité pro čokoládové donuty (teplota)</li>
-                        </ul>
-                    </div>
-                </div>
-            `;
-            return;
-        }
-        
-        let html = '<div class="weather-impact-analysis">';
-        html += '<h4 style="margin: 0 0 20px 0; text-align: center;">🌤️ Komplexní analýza vlivu počasí</h4>';
-        
-        html += '<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin: 20px 0;">';
-        
-        // Celkové statistiky počasí
-        html += `
-            <div style="background: white; padding: 15px; border-radius: 8px; text-align: center; border-left: 4px solid #17a2b8;">
-                <div style="font-size: 1.5em; font-weight: bold; color: #17a2b8;">${weatherData.totalEvents}</div>
-                <div style="color: #6c757d; font-size: 0.9em;">Akcí s daty o počasí</div>
-            </div>
-        `;
-        
-        if (weatherData.avgSalesGoodWeather !== null) {
-            html += `
-                <div style="background: white; padding: 15px; border-radius: 8px; text-align: center; border-left: 4px solid #28a745;">
-                    <div style="font-size: 1.5em; font-weight: bold; color: #28a745;">${formatNumber(weatherData.avgSalesGoodWeather)}</div>
-                    <div style="color: #6c757d; font-size: 0.9em;">Ø prodej - hezké počasí</div>
-                    <div style="color: #6c757d; font-size: 0.8em;">${weatherData.goodWeatherEvents} akcí</div>
-                </div>
-            `;
-        }
-        
-        if (weatherData.avgSalesBadWeather !== null) {
-            html += `
-                <div style="background: white; padding: 15px; border-radius: 8px; text-align: center; border-left: 4px solid #dc3545;">
-                    <div style="font-size: 1.5em; font-weight: bold; color: #dc3545;">${formatNumber(weatherData.avgSalesBadWeather)}</div>
-                    <div style="color: #6c757d; font-size: 0.9em;">Ø prodej - špatné počasí</div>
-                    <div style="color: #6c757d; font-size: 0.8em;">${weatherData.badWeatherEvents} akcí</div>
-                </div>
-            `;
-        }
-        
-        if (weatherData.weatherImpact !== null) {
-            const impactColor = weatherData.weatherImpact > 0 ? '#28a745' : '#dc3545';
-            const impactIcon = weatherData.weatherImpact > 0 ? '📈' : '📉';
-            
-            html += `
-                <div style="background: white; padding: 15px; border-radius: 8px; text-align: center; border-left: 4px solid ${impactColor};">
-                    <div style="font-size: 1.5em; font-weight: bold; color: ${impactColor};">${impactIcon} ${Math.abs(weatherData.weatherImpact).toFixed(1)}%</div>
-                    <div style="color: #6c757d; font-size: 0.9em;">Vliv počasí</div>
-                    <div style="color: #6c757d; font-size: 0.8em;">${weatherData.weatherImpact > 0 ? 'pozitivní' : 'negativní'}</div>
-                </div>
-            `; trends-bars
-        
-        // Tooltip pro detaily
-        html += '<div id="trendTooltip" style="display: none; position: absolute; background: rgba(0,0,0,0.9); color: white; padding: 10px; border-radius: 5px; font-size: 0.8em; z-index: 1000; pointer-events: none;"></div>';
-        
-        html += '</div>'; //
+console.log('⏳ Ready for Part 4D: Calendar & Analytics Integration');
