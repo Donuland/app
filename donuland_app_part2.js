@@ -222,6 +222,12 @@ function parseSheetData(csvText) {
             record.competition = parseInt(getColumnValue(values, 'W')) || 2;
             record.rating = parseFloat(getColumnValue(values, 'X')) || 0;
             record.notes = getColumnValue(values, 'Y') || '';
+            record.businessModel = getColumnValue(values, 'I');
+            record.price = parseFloat(getColumnValue(values, 'L')) || 110;
+            record.rent = getColumnValue(values, 'O');
+            record.employees = parseInt(getColumnValue(values, 'R')) || 2;
+            record.transport = parseFloat(getColumnValue(values, 'U')) || 0;
+            record.otherCosts = parseFloat(getColumnValue(values, 'V')) || 0;
             
             if (record.eventName && record.city && record.dateFrom) {
                 record.rowIndex = i;
@@ -345,13 +351,17 @@ function validateAndCleanData(rawData) {
 }
 
 // Normalizace dat
+// NAHRADIT funkci normalizeDateString() v donuland_app_part2.js:
+
 function normalizeDateString(dateStr) {
     if (!dateStr) return null;
     
+    console.log(`🔍 Parsing date: "${dateStr}"`);
+    
     const formats = [
-        /(\d{1,2})\.(\d{1,2})\.(\d{4})/,  // DD.MM.YYYY
+        /(\d{1,2})\.(\d{1,2})\.(\d{4})/,  // DD.MM.YYYY (české datum)
         /(\d{1,2})\/(\d{1,2})\/(\d{4})/,  // DD/MM/YYYY  
-        /(\d{4})-(\d{1,2})-(\d{1,2})/,    // YYYY-MM-DD
+        /(\d{4})-(\d{1,2})-(\d{1,2})/,    // YYYY-MM-DD (už správný)
         /(\d{1,2})-(\d{1,2})-(\d{4})/,    // DD-MM-YYYY
     ];
     
@@ -359,19 +369,30 @@ function normalizeDateString(dateStr) {
         const match = dateStr.match(format);
         if (match) {
             if (format.source.includes('\\d{4}-')) {
-                return `${match[1]}-${match[2].padStart(2, '0')}-${match[3].padStart(2, '0')}`;
+                // YYYY-MM-DD formát - už je správný
+                console.log(`✅ Already ISO format: ${dateStr}`);
+                return dateStr;
             } else {
-                return `${match[3]}-${match[2].padStart(2, '0')}-${match[1].padStart(2, '0')}`;
+                // DD.MM.YYYY nebo DD/MM/YYYY - převést na YYYY-MM-DD
+                const day = match[1].padStart(2, '0');
+                const month = match[2].padStart(2, '0');
+                const year = match[3];
+                const isoDate = `${year}-${month}-${day}`;
+                console.log(`🔄 Converted: "${dateStr}" → "${isoDate}"`);
+                return isoDate;
             }
         }
     }
     
+    // Pokud žádný formát nesedí, zkus přímo Date parsing
     const date = new Date(dateStr);
     if (!isNaN(date.getTime())) {
-        return date.toISOString().split('T')[0];
+        const result = date.toISOString().split('T')[0];
+        console.log(`📅 Date parsing fallback: "${dateStr}" → "${result}"`);
+        return result;
     }
     
-    console.warn('⚠️ Could not parse date:', dateStr);
+    console.warn(`⚠️ Could not parse date: "${dateStr}"`);
     return null;
 }
 
@@ -390,39 +411,14 @@ function normalizeCategory(category) {
     
     const normalized = category.toLowerCase().trim();
     
+    // ✅ JEDNODUCHÝ mapping jen pro zkrácení názvů
     const categoryMap = {
-        'food': 'food festival',
-        'food festival': 'food festival',
-        'foodfestival': 'food festival',
-        'festival': 'food festival',
-        'food fest': 'food festival',
-        
-        'veletrh': 'veletrh',
-        'cokofest': 'veletrh',
-        'čokofest': 'veletrh',
-        'trh': 'veletrh',
-        'výstava': 'veletrh',
-        
-        'koncert': 'koncert',
-        'hudba': 'koncert',
-        'festival hudby': 'koncert',
-        'hudební': 'koncert',
-        
-        'kultura': 'kulturní akce',
-        'kulturní': 'kulturní akce',
-        'kulturní akce': 'kulturní akce',
-        'divadlo': 'kulturní akce',
-        'galerie': 'kulturní akce',
-        
-        'sport': 'sportovní',
-        'sportovní': 'sportovní',
+        'sportovní akce (dospělí)': 'sportovní',
         'sportovní akce': 'sportovní',
-        'maraton': 'sportovní',
-        'běh': 'sportovní',
-        
-        'ostatní': 'ostatní',
-        'jiné': 'ostatní',
-        'other': 'ostatní'
+        'veletrh': 'veletrh',
+        'food festival': 'food festival', 
+        'koncert': 'koncert',
+        'ostatní': 'ostatní'
     };
     
     return categoryMap[normalized] || 'ostatní';
