@@ -629,71 +629,18 @@ eventBus.emit('part4aLoaded', {
     fixes: ['burger-festival-mapping', 'sheets-column-f-categories', 'functional-dropdowns', 'event-listeners']
 });
 /* ========================================
-   DONULAND PART 4B - EVENT PROCESSING & STATUS
-   Opravy pro správné určování statusů a zpracování událostí
+   DONULAND PART 4B - KRITICKÁ OPRAVA DATUMŮ
+   Fix pro +1 den problém v kalendáři
    ======================================== */
 
-console.log('🔧 Loading Donuland Part 4B - Event Processing Fixes...');
+console.log('🔧 Loading Donuland Part 4B - DATE FIX...');
 
 // ========================================
-// KRITICKÁ OPRAVA: determineEventStatus()
-// ========================================
-
-// NOVÁ funkce pro přesné určení statusu události podle dnešního data
-function determineEventStatus(dateFrom, dateTo) {
-    try {
-        const today = new Date();
-        today.setHours(0, 0, 0, 0); // Resetuj čas na půlnoc pro přesné porovnání
-        
-        // Parsování dat s lepším error handlingem
-        let eventStart, eventEnd;
-        
-        try {
-            eventStart = new Date(dateFrom);
-            eventStart.setHours(0, 0, 0, 0);
-        } catch (e) {
-            console.warn('⚠️ Invalid dateFrom:', dateFrom);
-            return 'unknown';
-        }
-        
-        try {
-            eventEnd = dateTo ? new Date(dateTo) : eventStart;
-            eventEnd.setHours(23, 59, 59, 999); // Konec dne
-        } catch (e) {
-            console.warn('⚠️ Invalid dateTo:', dateTo);
-            eventEnd = new Date(eventStart);
-            eventEnd.setHours(23, 59, 59, 999);
-        }
-        
-        // Kontrola validity dat
-        if (isNaN(eventStart.getTime()) || isNaN(eventEnd.getTime())) {
-            console.warn('⚠️ Invalid date for status determination:', { dateFrom, dateTo });
-            return 'unknown';
-        }
-        
-        // KLÍČOVÁ LOGIKA: Přesné určení statusu podle dnešního data
-        if (eventEnd < today) {
-            return 'completed';  // Akce už skončila
-        } else if (eventStart <= today && today <= eventEnd) {
-            return 'ongoing';    // Akce právě probíhá
-        } else if (eventStart > today) {
-            return 'planned';    // Akce je v budoucnosti
-        } else {
-            return 'unknown';    // Fallback
-        }
-        
-    } catch (error) {
-        console.error('❌ Error determining event status:', error);
-        return 'unknown';
-    }
-}
-
-// ========================================
-// KRITICKÁ OPRAVA: isDateInRange() PRO SPRÁVNÉ DATUM ROZSAHY
+// KRITICKÁ OPRAVA: +1 DEN PROBLÉM
 // ========================================
 
 // KOMPLETNĚ PŘEPSANÁ funkce pro kontrolu rozsahu dat (FIX timezone problémů)
-// NAHRADIT funkci getEventsForDate() v donuland_app_part4.js:
+// NAHRADIT funkce isDateInRange() + getEventsForDate() v donuland_app_part4.js:
 
 function getEventsForDate(date) {
     // ✅ KRITICKÁ OPRAVA: Použít konzistentní formát data
@@ -878,11 +825,65 @@ function isDateInISORange(checkDateISO, fromDateISO, toDateISO) {
     
     return inRange;
 }
+
 // ========================================
-// HELPER FUNKCE - OPRAVENÉ
+// OPRAVA: URČOVÁNÍ STATUSU UDÁLOSTI
 // ========================================
 
-// OPRAVENÁ funkce pro vytvoření konzistentního klíče události
+// PŘEPSANÁ funkce pro správné určení statusu
+function determineEventStatus(dateFrom, dateTo) {
+    try {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0); // Resetuj čas na půlnoc
+        
+        // ✅ OPRAVA: Parsování dat v ISO formátu
+        let eventStart, eventEnd;
+        
+        try {
+            eventStart = new Date(dateFrom);
+            eventStart.setHours(0, 0, 0, 0);
+        } catch (e) {
+            console.warn('⚠️ Invalid dateFrom:', dateFrom);
+            return 'unknown';
+        }
+        
+        try {
+            eventEnd = dateTo ? new Date(dateTo) : eventStart;
+            eventEnd.setHours(23, 59, 59, 999); // Konec dne
+        } catch (e) {
+            console.warn('⚠️ Invalid dateTo:', dateTo);
+            eventEnd = new Date(eventStart);
+            eventEnd.setHours(23, 59, 59, 999);
+        }
+        
+        // Kontrola validity dat
+        if (isNaN(eventStart.getTime()) || isNaN(eventEnd.getTime())) {
+            console.warn('⚠️ Invalid date for status determination:', { dateFrom, dateTo });
+            return 'unknown';
+        }
+        
+        // ✅ KLÍČOVÁ LOGIKA: Přesné určení statusu
+        if (eventEnd < today) {
+            return 'completed';  // Akce už skončila
+        } else if (eventStart <= today && today <= eventEnd) {
+            return 'ongoing';    // Akce právě probíhá
+        } else if (eventStart > today) {
+            return 'planned';    // Akce je v budoucnosti
+        } else {
+            return 'unknown';    // Fallback
+        }
+        
+    } catch (error) {
+        console.error('❌ Error determining event status:', error);
+        return 'unknown';
+    }
+}
+
+// ========================================
+// HELPER FUNKCE
+// ========================================
+
+// Vytvoření konzistentního klíče události
 function createEventKey(eventName, city, dateFrom) {
     if (!eventName || !city || !dateFrom) {
         console.warn('⚠️ Incomplete data for event key:', { eventName, city, dateFrom });
@@ -903,184 +904,15 @@ function createEventKey(eventName, city, dateFrom) {
     return key;
 }
 
-// Helper funkce pro převod statusu na text (pro UI)
-function getStatusText(status) {
-    const statusMap = {
-        'completed': 'Dokončeno',
-        'ongoing': 'Probíhá',
-        'planned': 'Plánováno',
-        'unknown': 'Neznámý'
-    };
-    return statusMap[status] || status;
-}
-
-// Helper funkce pro převod zdroje na text (pro UI)
-function getSourceText(source) {
-    const sourceMap = {
-        'sheets': 'Google Sheets',
-        'prediction': 'AI Predikce',
-        'manual': 'Manuálně přidáno'
-    };
-    return sourceMap[source] || source;
-}
-
 // ========================================
-// OPRAVA: BAREVNÝ SYSTÉM S PRAVÝMI STATUSY
+// DEBUG FUNKCE PRO TESTOVÁNÍ
 // ========================================
 
-// OPRAVENÁ funkce pro získání barvy akce s lepší logikou statusů
-function getEventColor(eventName, date) {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const eventDate = new Date(date);
-    eventDate.setHours(0, 0, 0, 0);
+// Debug funkce pro testování date fix
+function debugDateFix() {
+    console.group('🔍 DEBUG: Date Fix Test');
     
-    // OPRAVA: Přesnější určení statusu události pro barvu
-    let eventStatus = 'planned';
-    if (eventDate < today) {
-        eventStatus = 'completed';
-    } else if (eventDate.toDateString() === today.toDateString()) {
-        eventStatus = 'ongoing';
-    }
-    
-    // DOKONČENÉ AKCE - konzistentní zelená barva s ✅ ikonou
-    if (eventStatus === 'completed') {
-        return {
-            background: '#d4edda',
-            border: '#28a745',
-            textColor: '#155724',
-            icon: '✅'
-        };
-    }
-    
-    // PROBÍHAJÍCÍ AKCE - oranžová barva s 🔥 ikonou
-    if (eventStatus === 'ongoing') {
-        return {
-            background: '#fff3cd',
-            border: '#ffc107',
-            textColor: '#856404',
-            icon: '🔥'
-        };
-    }
-    
-    // PLÁNOVANÉ AKCE - unikátní barvy podle názvu (zachovává váš systém)
-    const eventKey = eventName.toLowerCase().trim();
-    
-    if (!calendarState.eventColors.has(eventKey)) {
-        // Inicializace palety pokud není
-        if (calendarState.colorPalette.length === 0) {
-            calendarState.colorPalette = generateColorPalette();
-        }
-        
-        // OPRAVA: Lepší hash funkce pro konzistentnější barvy
-        const hash = improvedHashString(eventKey);
-        const colorIndex = hash % calendarState.colorPalette.length;
-        const color = calendarState.colorPalette[colorIndex];
-        
-        calendarState.eventColors.set(eventKey, {
-            background: color,
-            border: color,
-            textColor: '#ffffff',
-            icon: '🔮'
-        });
-        
-        console.log(`🎨 Assigned color ${color} to event: ${eventName}`);
-    }
-    
-    return calendarState.eventColors.get(eventKey);
-}
-
-// Vylepšená hash funkce pro lepší distribuci barev
-function improvedHashString(str) {
-    let hash = 0;
-    let char;
-    
-    if (str.length === 0) return hash;
-    
-    for (let i = 0; i < str.length; i++) {
-        char = str.charCodeAt(i);
-        hash = ((hash << 5) - hash) + char;
-        hash = hash & hash; // Převést na 32bit integer
-    }
-    
-    // Přidání další vrstvy randomizace pro lepší distribuci
-    hash = hash * 9301 + 49297;
-    hash = hash % 233280;
-    
-    return Math.abs(hash);
-}
-
-// Generování palety barev (zachovává váš systém)
-function generateColorPalette() {
-    const colors = [];
-    
-    // Základní sytá paleta pro nejčastější akce
-    const baseColors = [
-        '#4285f4', '#ea4335', '#34a853', '#fbbc04', '#9c27b0', 
-        '#ff6f00', '#795548', '#607d8b', '#e91e63', '#8bc34a',
-        '#ff5722', '#3f51b5', '#009688', '#673ab7', '#2196f3',
-        '#ff9800', '#4caf50', '#f44336', '#ffeb3b', '#9e9e9e',
-        '#00bcd4', '#ffc107', '#d32f2f', '#388e3c', '#1976d2'
-    ];
-    
-    colors.push(...baseColors);
-    
-    // Generuj další barvy pomocí HSL
-    for (let hue = 0; hue < 360; hue += 12) {
-        colors.push(`hsl(${hue}, 70%, 55%)`);
-        colors.push(`hsl(${hue}, 85%, 45%)`);
-        colors.push(`hsl(${hue}, 60%, 65%)`);
-    }
-    
-    console.log(`🎨 Generated color palette with ${colors.length} colors`);
-    return colors;
-}
-
-// ========================================
-// DEBUG FUNKCE PRO TESTOVÁNÍ PART 4B
-// ========================================
-
-// Debug funkce pro testování event processingu
-function debugEventProcessing() {
-    console.group('🔍 DEBUG: Event Processing Analysis');
-    
-    if (!globalState.historicalData || globalState.historicalData.length === 0) {
-        console.log('❌ No historical data available for debugging');
-        console.groupEnd();
-        return;
-    }
-    
-    // Test kategorizace
-    console.group('📋 Category Normalization Test');
-    const testCategories = ['Burger Festival', 'ČokoFest', 'Food festival', 'koncert', 'sport'];
-    testCategories.forEach(cat => {
-        const normalized = normalizeCategory(cat);
-        console.log(`"${cat}" → "${normalized}"`);
-    });
-    console.groupEnd();
-    
-    // Test status determination
-    console.group('📊 Status Determination Test');
-    const yesterday = new Date();
-    yesterday.setDate(yesterday.getDate() - 1);
-    const today = new Date();
-    const tomorrow = new Date();
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    
-    const testDates = [
-        { name: 'Yesterday', date: yesterday.toISOString().split('T')[0] },
-        { name: 'Today', date: today.toISOString().split('T')[0] },
-        { name: 'Tomorrow', date: tomorrow.toISOString().split('T')[0] }
-    ];
-    
-    testDates.forEach(test => {
-        const status = determineEventStatus(test.date, test.date);
-        console.log(`${test.name} (${test.date}): ${status}`);
-    });
-    console.groupEnd();
-    
-    // Test date range fix
-    console.group('📅 Date Range Fix Test');
+    // Test ISO date comparison
     const testCases = [
         {
             name: 'Food Day Festival - 28.6.',
@@ -1102,20 +934,51 @@ function debugEventProcessing() {
             fromDate: '2025-06-28',
             toDate: '2025-06-29',
             expected: false
+        },
+        {
+            name: 'Food Day Festival - 27.6.',
+            checkDate: '2025-06-27',
+            fromDate: '2025-06-28',
+            toDate: '2025-06-29',
+            expected: false
         }
     ];
     
     testCases.forEach(test => {
-        const result = isDateInRange(test.checkDate, test.fromDate, test.toDate);
+        const result = isDateInISORange(test.checkDate, test.fromDate, test.toDate);
         const status = result === test.expected ? '✅ PASS' : '❌ FAIL';
         console.log(`${status} ${test.name}: ${result} (expected: ${test.expected})`);
+    });
+    
+    // Test status determination
+    console.group('📊 Status Determination Test');
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+    const today = new Date();
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    
+    const statusTests = [
+        { name: 'Yesterday', date: yesterday.toISOString().split('T')[0], expected: 'completed' },
+        { name: 'Today', date: today.toISOString().split('T')[0], expected: 'ongoing' },
+        { name: 'Tomorrow', date: tomorrow.toISOString().split('T')[0], expected: 'planned' }
+    ];
+    
+    statusTests.forEach(test => {
+        const status = determineEventStatus(test.date, test.date);
+        const result = status === test.expected ? '✅ PASS' : '❌ FAIL';
+        console.log(`${result} ${test.name} (${test.date}): ${status} (expected: ${test.expected})`);
     });
     console.groupEnd();
     
     console.groupEnd();
     
     return {
-        totalRecords: globalState.historicalData.length,
+        testResults: testCases.map(t => ({
+            name: t.name,
+            result: isDateInISORange(t.checkDate, t.fromDate, t.toDate),
+            expected: t.expected
+        })),
         timestamp: new Date().toISOString()
     };
 }
@@ -1125,19 +988,17 @@ function debugEventProcessing() {
 // ========================================
 
 if (typeof window !== 'undefined') {
-    window.donulandPart4BDebug = {
-        debugEventProcessing,
-        testCategoryNormalization: (category) => normalizeCategory(category),
-        testStatusDetermination: (dateFrom, dateTo) => determineEventStatus(dateFrom, dateTo),
+    window.donulandDateFixDebug = {
+        debugDateFix,
+        testISO: (checkDate, fromDate, toDate) => isDateInISORange(checkDate, fromDate, toDate),
+        testStatus: (dateFrom, dateTo) => determineEventStatus(dateFrom, dateTo),
         testEventKey: (name, city, date) => createEventKey(name, city, date),
-        getEventsForToday: () => getEventsForDate(new Date()),
-        testDateRange: (checkDate, fromDate, toDate) => isDateInRange(checkDate, fromDate, toDate),
         testFoodDayFestival: () => {
             const results = {
-                '27.6': isDateInRange('2025-06-27', '2025-06-28', '2025-06-29'),
-                '28.6': isDateInRange('2025-06-28', '2025-06-28', '2025-06-29'),
-                '29.6': isDateInRange('2025-06-29', '2025-06-28', '2025-06-29'),
-                '30.6': isDateInRange('2025-06-30', '2025-06-28', '2025-06-29')
+                '27.6': isDateInISORange('2025-06-27', '2025-06-28', '2025-06-29'),
+                '28.6': isDateInISORange('2025-06-28', '2025-06-28', '2025-06-29'),
+                '29.6': isDateInISORange('2025-06-29', '2025-06-28', '2025-06-29'),
+                '30.6': isDateInISORange('2025-06-30', '2025-06-28', '2025-06-29')
             };
             console.table(results);
             return results;
@@ -1145,38 +1006,19 @@ if (typeof window !== 'undefined') {
     };
 }
 
-// ========================================
-// INICIALIZACE PART 4B
-// ========================================
+console.log('✅ Donuland Part 4B - DATE FIX loaded successfully');
+console.log('🔧 CRITICAL FIX: ✅ +1 day problem solved ✅ ISO string comparison ✅ Proper timezone handling');
+console.log('🧪 Test: window.donulandDateFixDebug.testFoodDayFestival() to verify fix');
+console.log('📅 Key changes: Direct ISO string comparison instead of Date object parsing');
 
-document.addEventListener('DOMContentLoaded', function() {
-    console.log('📋 Initializing Part 4B - Event Processing...');
-    
-    // Auto-test pokud je debug mode
-    setTimeout(() => {
-        if (globalState.debugMode) {
-            console.log('🧪 Running automatic Part 4B tests...');
-            debugEventProcessing();
-        }
-    }, 2000);
-    
-    console.log('✅ Part 4B - Event Processing initialized');
-});
-
-console.log('✅ Donuland Part 4B loaded successfully');
-console.log('📋 Features: ✅ FIXED Status Determination ✅ FIXED Date Range Logic ✅ PROPER Event Filtering');
-console.log('🔧 CRITICAL FIXES: ✅ Real-time status calculation ✅ Timezone-safe date parsing ✅ Correct event deduplication');
-console.log('🧪 Debug: window.donulandPart4BDebug.testFoodDayFestival() to verify date fix');
-console.log('🎨 Color System: ✅ Completed = Green ✅ ✅ Planned = Unique Colors 🔮');
-console.log('⏳ Ready for Part 4C: Calendar Rendering & Month View');
-
-// Event pro signalizaci dokončení části 4B
-eventBus.emit('part4bLoaded', { 
-    timestamp: Date.now(),
-    version: '1.0.0-fixed',
-    features: ['fixed-status-determination', 'fixed-date-range', 'proper-event-filtering', 'enhanced-deduplication'],
-    fixes: ['real-time-status', 'timezone-safe-dates', 'burger-festival-mapping', 'correct-filtering']
-});
+// Event pro signalizaci dokončení date fix
+if (typeof eventBus !== 'undefined') {
+    eventBus.emit('dateFixLoaded', { 
+        timestamp: Date.now(),
+        version: '1.0.0-fixed',
+        fixes: ['plus-one-day-fix', 'iso-string-comparison', 'timezone-safe-parsing']
+    });
+}
 /* ========================================
    DONULAND PART 4C - CALENDAR RENDERING & MONTH VIEW
    Vykreslování kalendáře a zobrazení měsíčního přehledu
