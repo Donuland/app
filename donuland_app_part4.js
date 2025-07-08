@@ -693,92 +693,35 @@ function determineEventStatus(dateFrom, dateTo) {
 // ========================================
 
 // KOMPLETNĚ PŘEPSANÁ funkce pro kontrolu rozsahu dat (FIX timezone problémů)
-function isDateInRange(checkDate, fromDate, toDate) {
-    if (!fromDate) {
-        if (globalState.debugMode) {
-            console.warn('⚠️ Missing fromDate for range check:', { checkDate, fromDate, toDate });
-        }
-        return false;
-    }
-    
-    // Pokud není toDate, použij fromDate (jednodenní akce)
-    const actualToDate = toDate && toDate.trim() ? toDate : fromDate;
-    
-    try {
-        // KLÍČOVÁ OPRAVA: Vytvoř všechna data v LOCAL timezone s pevným časem
-        // Poledne eliminuje timezone problémy
-        const checkDateObj = new Date(checkDate + 'T12:00:00');
-        const fromDateObj = new Date(fromDate + 'T12:00:00');
-        const toDateObj = new Date(actualToDate + 'T12:00:00');
-        
-        // Resetuj všechna data na stejný čas pro konzistentní porovnání
-        checkDateObj.setHours(12, 0, 0, 0);
-        fromDateObj.setHours(12, 0, 0, 0);
-        toDateObj.setHours(12, 0, 0, 0);
-        
-        // Kontrola validity dat
-        if (isNaN(checkDateObj.getTime()) || isNaN(fromDateObj.getTime()) || isNaN(toDateObj.getTime())) {
-            if (globalState.debugMode) {
-                console.warn('⚠️ Invalid dates in range check:', { 
-                    checkDate, fromDate, actualToDate,
-                    checkValid: !isNaN(checkDateObj.getTime()),
-                    fromValid: !isNaN(fromDateObj.getTime()),
-                    toValid: !isNaN(toDateObj.getTime())
-                });
-            }
-            return false;
-        }
-        
-        // KRITICKÁ LOGIKA: Datum musí být mezi from a to (VČETNĚ okrajů)
-        const inRange = checkDateObj >= fromDateObj && checkDateObj <= toDateObj;
-        
-        if (globalState.debugMode && inRange) {
-            console.log(`📅 Date in range: ${checkDate} is between ${fromDate} and ${actualToDate}`);
-        }
-        
-        return inRange;
-        
-    } catch (error) {
-        console.warn('⚠️ Date parsing error in range check:', { 
-            checkDate, fromDate, actualToDate, error: error.message 
-        });
-        return false;
-    }
-}
+// NAHRADIT funkci getEventsForDate() v donuland_app_part4.js:
 
-// ========================================
-// OPRAVA: getEventsForDate() S SPRÁVNÝMI STATUSY
-// ========================================
-
-// ZCELA PŘEPSANÁ funkce pro získání událostí s OPRAVENÝMI statusy
 function getEventsForDate(date) {
-    const dateStr = date.toISOString().split('T')[0];
-    const eventMap = new Map(); // Pro detekci duplicit
+    // ✅ KRITICKÁ OPRAVA: Použít konzistentní formát data
+    const dateStr = date.toISOString().split('T')[0]; // YYYY-MM-DD formát
+    const eventMap = new Map();
     
     if (globalState.debugMode) {
         console.log(`📅 Getting events for date: ${dateStr}`);
     }
     
     try {
-        // 1. HISTORICKÉ AKCE z Google Sheets - KOMPLETNÍ OPRAVA
+        // 1. HISTORICKÉ AKCE z Google Sheets 
         if (globalState.historicalData && globalState.historicalData.length > 0) {
             globalState.historicalData.forEach(record => {
-                if (isDateInRange(dateStr, record.dateFrom, record.dateTo)) {
+                // ✅ OPRAVA: Přímé porovnání ISO stringů místo Date objektů
+                if (isDateInISORange(dateStr, record.dateFrom, record.dateTo)) {
                     const eventKey = createEventKey(record.eventName, record.city, record.dateFrom);
                     
-                    // KRITICKÁ OPRAVA: SPRÁVNÉ určení statusu podle SKUTEČNÉHO data
                     const status = determineEventStatus(record.dateFrom, record.dateTo);
-                    
-                    // KRITICKÁ OPRAVA: Použij opravenou normalizeCategory z Part 4A
                     const normalizedCategory = normalizeCategory(record.category);
                     
                     const event = {
                         id: `historical-${record.rowIndex || Date.now()}`,
                         type: 'historical',
-                        status: status,  // ← OPRAVENO: Skutečný status místo "completed"
+                        status: status,
                         title: record.eventName,
                         city: record.city,
-                        category: normalizedCategory, // ← OPRAVENO: Správná normalizace
+                        category: normalizedCategory,
                         sales: record.sales,
                         visitors: record.visitors,
                         rating: record.rating,
@@ -792,38 +735,32 @@ function getEventsForDate(date) {
                     eventMap.set(eventKey, event);
                     
                     if (globalState.debugMode) {
-                        console.log(`📊 Historical event: ${event.title} - Status: ${status} - Category: ${normalizedCategory}`);
+                        console.log(`📊 Found historical event: ${event.title} for ${dateStr}`);
                     }
                 }
             });
         }
         
-        // 2. ULOŽENÉ PREDIKCE z localStorage - OPRAVENÉ
+        // 2. ULOŽENÉ PREDIKCE z localStorage
         try {
             const savedPredictions = JSON.parse(localStorage.getItem('donuland_predictions') || '[]');
             savedPredictions.forEach(prediction => {
-                if (prediction.formData && isDateInRange(dateStr, prediction.formData.eventDateFrom, prediction.formData.eventDateTo)) {
+                if (prediction.formData && isDateInISORange(dateStr, prediction.formData.eventDateFrom, prediction.formData.eventDateTo)) {
                     const eventKey = createEventKey(
                         prediction.formData.eventName, 
                         prediction.formData.city, 
                         prediction.formData.eventDateFrom
                     );
                     
-                    // KONTROLA DUPLICIT: Zkontroluj, zda už existuje historická akce se stejným klíčem
                     if (eventMap.has(eventKey)) {
-                        // SLOUČENÍ: Přidej predikci k existující historické akci
+                        // Sloučení s existující historickou akcí
                         const existingEvent = eventMap.get(eventKey);
                         existingEvent.hasPrediction = true;
                         existingEvent.predictionData = prediction;
                         existingEvent.predictedSales = prediction.prediction?.predictedSales;
                         existingEvent.confidence = prediction.prediction?.confidence;
-                        
-                        if (globalState.debugMode) {
-                            console.log(`🔗 Merged prediction with historical event: ${existingEvent.title}`);
-                        }
                     } else {
-                        // NOVÁ PREDIKCE: Vytvoř novou predikční akci
-                        // KRITICKÁ OPRAVA: SPRÁVNÉ určení statusu podle data
+                        // Nová predikční akce
                         const status = determineEventStatus(
                             prediction.formData.eventDateFrom, 
                             prediction.formData.eventDateTo
@@ -832,7 +769,7 @@ function getEventsForDate(date) {
                         const event = {
                             id: `prediction-${prediction.id || Date.now()}`,
                             type: 'prediction',
-                            status: status,  // ← OPRAVENO: Skutečný status místo "planned"
+                            status: status,
                             title: prediction.formData.eventName,
                             city: prediction.formData.city,
                             category: prediction.formData.category,
@@ -848,10 +785,6 @@ function getEventsForDate(date) {
                         };
                         
                         eventMap.set(eventKey, event);
-                        
-                        if (globalState.debugMode) {
-                            console.log(`🔮 Prediction event: ${event.title} - Status: ${status}`);
-                        }
                     }
                 }
             });
@@ -859,21 +792,20 @@ function getEventsForDate(date) {
             console.warn('⚠️ Error processing predictions:', error);
         }
         
-        // 3. MANUÁLNĚ PŘIDANÉ UDÁLOSTI - OPRAVENÉ
+        // 3. MANUÁLNĚ PŘIDANÉ UDÁLOSTI
         try {
             const manualEvents = JSON.parse(localStorage.getItem('donuland_manual_events') || '[]');
             manualEvents.forEach(event => {
-                if (isDateInRange(dateStr, event.dateFrom, event.dateTo)) {
+                if (isDateInISORange(dateStr, event.dateFrom, event.dateTo)) {
                     const eventKey = createEventKey(event.eventName, event.city, event.dateFrom);
                     
                     if (!eventMap.has(eventKey)) {
-                        // KRITICKÁ OPRAVA: SPRÁVNÉ určení statusu podle data
                         const status = determineEventStatus(event.dateFrom, event.dateTo);
                         
                         const newEvent = {
                             id: `manual-${event.id || Date.now()}`,
                             type: 'manual',
-                            status: status,  // ← OPRAVENO: Skutečný status
+                            status: status,
                             title: event.eventName,
                             city: event.city,
                             category: event.category || 'ostatní',
@@ -887,10 +819,6 @@ function getEventsForDate(date) {
                         };
                         
                         eventMap.set(eventKey, newEvent);
-                        
-                        if (globalState.debugMode) {
-                            console.log(`✏️ Manual event: ${newEvent.title} - Status: ${status}`);
-                        }
                     }
                 }
             });
@@ -902,29 +830,24 @@ function getEventsForDate(date) {
         console.warn('⚠️ Error getting events for date:', dateStr, error);
     }
     
-    // APLIKACE FILTRŮ - OPRAVENÉ s podporou z Part 4A
+    // APLIKACE FILTRŮ
     const filteredEvents = Array.from(eventMap.values()).filter(event => {
-        // Filtr města - case insensitive
         if (calendarState.filters.city) {
             const filterCity = calendarState.filters.city.toLowerCase().trim();
             const eventCity = (event.city || '').toLowerCase().trim();
             if (eventCity !== filterCity) return false;
         }
         
-        // Filtr kategorie - přesné porovnání
         if (calendarState.filters.category) {
             if (event.category !== calendarState.filters.category) return false;
         }
         
-        // KRITICKÁ OPRAVA: Filtr statusu - zahrnout "ongoing" do "planned"
         if (calendarState.filters.status) {
             if (calendarState.filters.status === 'planned') {
-                // "Planned" zahrnuje i "ongoing" akce
                 if (event.status !== 'planned' && event.status !== 'ongoing') return false;
             } else if (calendarState.filters.status === 'completed') {
                 if (event.status !== 'completed') return false;
             } else {
-                // Přesné porovnání pro ostatní statusy
                 if (event.status !== calendarState.filters.status) return false;
             }
         }
@@ -933,17 +856,28 @@ function getEventsForDate(date) {
     });
     
     if (globalState.debugMode && filteredEvents.length > 0) {
-        console.log(`📅 Events for ${dateStr} after filtering:`, filteredEvents.map(e => ({
-            title: e.title,
-            status: e.status,
-            category: e.category,
-            source: e.source
-        })));
+        console.log(`📅 Events for ${dateStr} after filtering:`, filteredEvents.map(e => e.title));
     }
     
     return filteredEvents;
 }
 
+// ✅ NOVÁ HELPER FUNKCE: Porovnávání ISO stringů místo Date objektů
+function isDateInISORange(checkDateISO, fromDateISO, toDateISO) {
+    if (!fromDateISO) return false;
+    
+    const actualToDateISO = toDateISO && toDateISO.trim() ? toDateISO : fromDateISO;
+    
+    // ✅ KRITICKÁ OPRAVA: Přímé porovnání ISO stringů
+    // "2025-01-18" >= "2025-01-18" && "2025-01-18" <= "2025-01-18"
+    const inRange = checkDateISO >= fromDateISO && checkDateISO <= actualToDateISO;
+    
+    if (globalState.debugMode && inRange) {
+        console.log(`✅ Date in range: ${checkDateISO} is in ${fromDateISO} - ${actualToDateISO}`);
+    }
+    
+    return inRange;
+}
 // ========================================
 // HELPER FUNKCE - OPRAVENÉ
 // ========================================
