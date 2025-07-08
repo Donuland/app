@@ -3686,3 +3686,794 @@ console.log(`
 
 Ready for Part 5: Google Sheets export! 🎯
 `);
+/* ========================================
+   DONULAND PART 4A - KRITICKÉ OPRAVY
+   Datum parsing a kategorie podle skutečných dat ze Sheets
+   ======================================== */
+
+console.log('🔧 Loading Donuland Part 4A - CRITICAL FIXES...');
+
+// ========================================
+// KRITICKÁ OPRAVA 1: DATUM PARSING
+// ========================================
+
+// KOMPLETNĚ PŘEPSANÁ funkce pro parsing českých dat ze Sheets
+function parseSheetDate(dateStr) {
+    if (!dateStr || !dateStr.trim()) return null;
+    
+    console.log(`📅 Parsing date: "${dateStr}"`);
+    
+    // KLÍČOVÁ OPRAVA: Rozpoznání formátů ze Sheets
+    // Formáty ze Sheets: "18.1.2025", "28.6.2025", "8.2.2025"
+    const czechDatePattern = /^(\d{1,2})\.(\d{1,2})\.(\d{4})$/;
+    const match = dateStr.trim().match(czechDatePattern);
+    
+    if (match) {
+        const day = match[1].padStart(2, '0');
+        const month = match[2].padStart(2, '0'); 
+        const year = match[3];
+        const isoDate = `${year}-${month}-${day}`;
+        
+        // KRITICKÁ OPRAVA: Validace data s poledním časem (eliminuje timezone problémy)
+        const testDate = new Date(isoDate + 'T12:00:00');
+        if (!isNaN(testDate.getTime())) {
+            console.log(`✅ Czech date converted: "${dateStr}" → "${isoDate}"`);
+            return isoDate;
+        } else {
+            console.warn(`⚠️ Invalid date created: "${isoDate}"`);
+            return null;
+        }
+    }
+    
+    // Fallback - možná už je v ISO formátu
+    const isoPattern = /^\d{4}-\d{2}-\d{2}$/;
+    if (isoPattern.test(dateStr.trim())) {
+        console.log(`✅ Already ISO format: "${dateStr}"`);
+        return dateStr.trim();
+    }
+    
+    console.warn(`⚠️ Could not parse date: "${dateStr}"`);
+    return null;
+}
+
+// ========================================
+// KRITICKÁ OPRAVA 2: KATEGORIE ZE SHEETS
+// ========================================
+
+// NOVÁ funkce - přesné kategorie podle skutečných dat ze Sheets sloupce F
+function normalizeCategory(category) {
+    if (!category || !category.trim()) return 'Ostatní';
+    
+    const original = category.trim();
+    console.log(`🏷️ Processing category: "${original}"`);
+    
+    // PŘESNÉ mapování podle Google Sheets sloupce F:
+    // Skutečné hodnoty ze Sheets: "Sportovní akce (dospělí)", "veletrh", "food festival"
+    const categoryMap = {
+        // Sportovní akce varianty
+        'Sportovní akce (dospělí)': 'Sportovní akce',
+        'sportovní akce (dospělí)': 'Sportovní akce',
+        'SPORTOVNÍ AKCE (DOSPĚLÍ)': 'Sportovní akce',
+        'sportovní akce': 'Sportovní akce',
+        'sportovní': 'Sportovní akce',
+        
+        // Veletrh varianty  
+        'veletrh': 'Veletrh',
+        'Veletrh': 'Veletrh',
+        'VELETRH': 'Veletrh',
+        
+        // Food festival varianty
+        'food festival': 'Food Festival',
+        'Food festival': 'Food Festival', 
+        'FOOD FESTIVAL': 'Food Festival',
+        'food': 'Food Festival',
+        'Food': 'Food Festival',
+        
+        // Další možné kategorie
+        'koncert': 'Koncert',
+        'Koncert': 'Koncert',
+        'KONCERT': 'Koncert',
+        
+        'kulturní akce': 'Kulturní akce',
+        'Kulturní akce': 'Kulturní akce',
+        'kulturní': 'Kulturní akce',
+        
+        // Ostatní
+        'ostatní': 'Ostatní',
+        'Ostatní': 'Ostatní'
+    };
+    
+    // Zkus najít přesnou shodu
+    if (categoryMap[original]) {
+        const normalized = categoryMap[original];
+        console.log(`🏷️ Category mapped: "${original}" → "${normalized}"`);
+        return normalized;
+    }
+    
+    // Pokud nenajde přesnou shodu, vrať originál (ale s velkým písmenem)
+    const capitalized = original.charAt(0).toUpperCase() + original.slice(1).toLowerCase();
+    console.log(`🏷️ Category kept as-is: "${original}" → "${capitalized}"`);
+    return capitalized;
+}
+
+// ========================================
+// KRITICKÁ OPRAVA 3: DATUM RANGE CHECK
+// ========================================
+
+// OPRAVENÁ funkce pro kontrolu zda datum patří do rozsahu události
+function isDateInEventRange(checkDateISO, eventDateFrom, eventDateTo) {
+    if (!eventDateFrom) return false;
+    
+    // Parse event dates pomocí OPRAVENÉ funkce
+    const parsedFrom = parseSheetDate(eventDateFrom);
+    if (!parsedFrom) {
+        if (globalState.debugMode) {
+            console.warn(`⚠️ Cannot parse dateFrom: "${eventDateFrom}"`);
+        }
+        return false;
+    }
+    
+    // Pro dateTo - pokud není nebo je prázdné, použij dateFrom (jednodenní akce)
+    let parsedTo = parsedFrom;
+    if (eventDateTo && eventDateTo.trim() && eventDateTo !== eventDateFrom) {
+        const parsed = parseSheetDate(eventDateTo);
+        if (parsed) {
+            parsedTo = parsed;
+        }
+    }
+    
+    // KLÍČOVÁ OPRAVA: Přímé porovnání ISO stringů (nejbezpečnější způsob)
+    const inRange = checkDateISO >= parsedFrom && checkDateISO <= parsedTo;
+    
+    if (globalState.debugMode && inRange) {
+        console.log(`✅ Date "${checkDateISO}" is in range ${parsedFrom} - ${parsedTo}`);
+    }
+    
+    return inRange;
+}
+
+// ========================================
+// KRITICKÁ OPRAVA 4: STATUS DETERMINATION
+// ========================================
+
+// OPRAVENÁ funkce pro určení statusu události podle dnešního data
+function determineEventStatus(dateFrom, dateTo) {
+    try {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0); // Půlnoc pro přesné porovnání
+        
+        // Parse start date
+        const parsedDateFrom = parseSheetDate(dateFrom);
+        if (!parsedDateFrom) {
+            console.warn('⚠️ Invalid dateFrom for status:', dateFrom);
+            return 'unknown';
+        }
+        
+        const eventStart = new Date(parsedDateFrom + 'T00:00:00');
+        
+        // Parse end date (může být prázdné pro jednodenní akce)
+        let eventEnd = new Date(eventStart);
+        if (dateTo && dateTo.trim() && dateTo !== dateFrom) {
+            const parsedDateTo = parseSheetDate(dateTo);
+            if (parsedDateTo) {
+                eventEnd = new Date(parsedDateTo + 'T23:59:59');
+            } else {
+                eventEnd.setHours(23, 59, 59, 999);
+            }
+        } else {
+            eventEnd.setHours(23, 59, 59, 999);
+        }
+        
+        // Kontrola validity
+        if (isNaN(eventStart.getTime()) || isNaN(eventEnd.getTime())) {
+            console.warn('⚠️ Invalid dates for status determination:', { dateFrom, dateTo });
+            return 'unknown';
+        }
+        
+        // KLÍČOVÁ LOGIKA: Určení statusu
+        if (eventEnd < today) {
+            return 'completed';  // Akce už skončila
+        } else if (eventStart <= today && today <= eventEnd) {
+            return 'ongoing';    // Akce právě probíhá
+        } else if (eventStart > today) {
+            return 'planned';    // Akce je v budoucnosti
+        } else {
+            return 'unknown';
+        }
+        
+    } catch (error) {
+        console.error('❌ Error determining event status:', error);
+        return 'unknown';
+    }
+}
+
+// ========================================
+// OPRAVA 5: ZÍSKÁNÍ UNIKÁTNÍCH KATEGORIÍ
+// ========================================
+
+// NOVÁ funkce - správné kategorie ze Sheets
+function getUniqueCategories() {
+    const categories = new Set();
+    
+    if (globalState.historicalData && globalState.historicalData.length > 0) {
+        globalState.historicalData.forEach(record => {
+            if (record.category && record.category.trim()) {
+                // Použij OPRAVENOU normalizaci
+                const normalized = normalizeCategory(record.category);
+                categories.add(normalized);
+            }
+        });
+    }
+    
+    // Přidej kategorie z predikcí
+    try {
+        const savedPredictions = JSON.parse(localStorage.getItem('donuland_predictions') || '[]');
+        savedPredictions.forEach(prediction => {
+            if (prediction.formData && prediction.formData.category) {
+                categories.add(prediction.formData.category);
+            }
+        });
+    } catch (error) {
+        console.warn('⚠️ Error loading prediction categories:', error);
+    }
+    
+    // Přidej kategorie z manuálních událostí
+    try {
+        const manualEvents = JSON.parse(localStorage.getItem('donuland_manual_events') || '[]');
+        manualEvents.forEach(event => {
+            if (event.category) {
+                const normalized = normalizeCategory(event.category);
+                categories.add(normalized);
+            }
+        });
+    } catch (error) {
+        console.warn('⚠️ Error loading manual event categories:', error);
+    }
+    
+    const result = Array.from(categories).sort();
+    console.log(`📋 Found ${result.length} unique categories:`, result);
+    
+    return result;
+}
+
+// ========================================
+// OPRAVA 6: ZÍSKÁNÍ UNIKÁTNÍCH MĚST
+// ========================================
+
+// NOVÁ funkce - města ze Sheets
+function getUniqueCities() {
+    const cities = new Set();
+    
+    if (globalState.historicalData && globalState.historicalData.length > 0) {
+        globalState.historicalData.forEach(record => {
+            if (record.city && record.city.trim()) {
+                cities.add(record.city.trim());
+            }
+        });
+    }
+    
+    // Přidej města z predikcí
+    try {
+        const savedPredictions = JSON.parse(localStorage.getItem('donuland_predictions') || '[]');
+        savedPredictions.forEach(prediction => {
+            if (prediction.formData && prediction.formData.city) {
+                cities.add(prediction.formData.city.trim());
+            }
+        });
+    } catch (error) {
+        console.warn('⚠️ Error loading prediction cities:', error);
+    }
+    
+    // Přidej města z manuálních událostí
+    try {
+        const manualEvents = JSON.parse(localStorage.getItem('donuland_manual_events') || '[]');
+        manualEvents.forEach(event => {
+            if (event.city) {
+                cities.add(event.city.trim());
+            }
+        });
+    } catch (error) {
+        console.warn('⚠️ Error loading manual event cities:', error);
+    }
+    
+    const result = Array.from(cities).sort();
+    console.log(`🏙️ Found ${result.length} unique cities:`, result);
+    
+    return result;
+}
+
+// ========================================
+// HELPER FUNKCE
+// ========================================
+
+// Helper funkce pro vytvoření event key
+function createEventKey(eventName, city, dateFrom) {
+    if (!eventName || !city || !dateFrom) {
+        console.warn('⚠️ Incomplete data for event key:', { eventName, city, dateFrom });
+        return `incomplete-${Date.now()}-${Math.random()}`;
+    }
+    
+    // Normalizace pro deduplikaci
+    const normalizedName = eventName.toLowerCase().trim().replace(/\s+/g, '-');
+    const normalizedCity = city.toLowerCase().trim().replace(/\s+/g, '-');
+    const normalizedDate = parseSheetDate(dateFrom) || dateFrom;
+    
+    const key = `${normalizedName}-${normalizedCity}-${normalizedDate}`.replace(/[^a-z0-9-]/g, '');
+    
+    if (globalState.debugMode) {
+        console.log(`🔑 Event key created: "${eventName}" + "${city}" + "${dateFrom}" → "${key}"`);
+    }
+    
+    return key;
+}
+
+// ========================================
+// DEBUG FUNKCE PRO TESTOVÁNÍ
+// ========================================
+
+// Debug funkce pro testování Part 4A oprav
+function debugPart4AFixes() {
+    console.group('🔍 DEBUG: Part 4A Fixes Test');
+    
+    // Test datum parsing
+    console.group('📅 Date Parsing Test');
+    const testDates = [
+        '18.1.2025',   // Food Day Festival - 28.6.
+        '25.1.2025',   // Čínský Nový rok - 25.1.
+        '8.2.2025',    // Svátek zamilovaných - 8.2.
+        '9.2.2025',    // Masopust - 9.2.
+        '14.2.2025'    // Valentýn - 14.2.
+    ];
+    
+    testDates.forEach(dateStr => {
+        const parsed = parseSheetDate(dateStr);
+        const status = parsed ? '✅ PASS' : '❌ FAIL';
+        console.log(`${status} "${dateStr}" → "${parsed}"`);
+    });
+    console.groupEnd();
+    
+    // Test kategorie normalizace
+    console.group('🏷️ Category Normalization Test');
+    const testCategories = [
+        'Sportovní akce (dospělí)',
+        'veletrh', 
+        'food festival',
+        'koncert',
+        'ostatní'
+    ];
+    
+    testCategories.forEach(cat => {
+        const normalized = normalizeCategory(cat);
+        console.log(`"${cat}" → "${normalized}"`);
+    });
+    console.groupEnd();
+    
+    // Test status determination
+    console.group('📊 Status Test');
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+    const today = new Date();
+    const tomorrow = new Date(); 
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    
+    const testStatusDates = [
+        { name: 'Yesterday', date: yesterday.toISOString().split('T')[0].split('-').reverse().join('.') },
+        { name: 'Today', date: today.toISOString().split('T')[0].split('-').reverse().join('.') },
+        { name: 'Tomorrow', date: tomorrow.toISOString().split('T')[0].split('-').reverse().join('.') }
+    ];
+    
+    testStatusDates.forEach(test => {
+        const status = determineEventStatus(test.date, test.date);
+        console.log(`${test.name} (${test.date}): ${status}`);
+    });
+    console.groupEnd();
+    
+    console.groupEnd();
+    
+    return {
+        dateParsingOK: testDates.every(d => parseSheetDate(d) !== null),
+        categoryMappingOK: testCategories.every(c => normalizeCategory(c) !== 'Ostatní'),
+        timestamp: new Date().toISOString()
+    };
+}
+
+// ========================================
+// EXPORT DEBUG FUNKCÍ
+// ========================================
+
+if (typeof window !== 'undefined') {
+    window.donulandPart4ADebugFixed = {
+        debugFixes: debugPart4AFixes,
+        testDateParse: (dateStr) => parseSheetDate(dateStr),
+        testCategoryNormalize: (category) => normalizeCategory(category),
+        testStatus: (dateFrom, dateTo) => determineEventStatus(dateFrom, dateTo),
+        testEventKey: (name, city, date) => createEventKey(name, city, date),
+        testDateRange: (checkDate, fromDate, toDate) => isDateInEventRange(checkDate, fromDate, toDate),
+        getCategories: getUniqueCategories,
+        getCities: getUniqueCities
+    };
+}
+
+console.log('✅ Donuland Part 4A FIXES loaded successfully');
+console.log('🔧 CRITICAL FIXES: ✅ Czech date parsing (DD.MM.YYYY) ✅ Exact categories from Sheets ✅ Proper status determination');
+console.log('📋 Key improvements: Fixed timezone issues, accurate category mapping, working date ranges');
+console.log('🧪 Debug: window.donulandPart4ADebugFixed.debugFixes() to test all fixes');
+console.log('📊 Data source: Google Sheets columns D(city), E(event), F(category) - now correctly processed');
+
+// Event pro signalizaci dokončení Part 4A
+if (typeof eventBus !== 'undefined') {
+    eventBus.emit('part4aFixed', { 
+        timestamp: Date.now(),
+        version: '4A-FIXED',
+        fixes: ['date-parsing', 'category-mapping', 'status-determination', 'data-ranges', 'unique-values']
+    });
+}
+/* ========================================
+   DONULAND PART 4B - OPRAVA BAREVNÉHO SYSTÉMU
+   Unikátní barvy pro každou akci (ne podle kategorie!)
+   ======================================== */
+
+console.log('🔧 Loading Donuland Part 4B - UNIQUE COLORS FOR EVENTS...');
+
+// ========================================
+// KRITICKÁ OPRAVA: UNIKÁTNÍ BARVY PRO KAŽDOU AKCI
+// ========================================
+
+// OPRAVENÁ funkce pro barvy událostí - každá akce má svou barvu
+function getEventColor(eventName, status, category) {
+    // PRIORITA 1: Status barvy pouze pro dokončené a probíhající
+    if (status === 'completed') {
+        return {
+            background: '#d4edda',
+            border: '#28a745',
+            textColor: '#155724',
+            icon: '✅'
+        };
+    }
+    
+    if (status === 'ongoing') {
+        return {
+            background: '#fff3cd', 
+            border: '#ffc107',
+            textColor: '#856404',
+            icon: '🔥'
+        };
+    }
+    
+    // PRIORITA 2: UNIKÁTNÍ BARVY PRO KAŽDOU AKCI (planned i ostatní)
+    // Klíč podle názvu akce - stejná akce = stejná barva ve všech dnech
+    const eventKey = eventName.toLowerCase().trim();
+    
+    if (!calendarState.eventColors.has(eventKey)) {
+        // Ujisti se, že color palette existuje
+        if (!calendarState.colorPalette || calendarState.colorPalette.length === 0) {
+            calendarState.colorPalette = generateColorPalette();
+        }
+        
+        const hash = hashString(eventKey);
+        const colorIndex = hash % calendarState.colorPalette.length;
+        const baseColor = calendarState.colorPalette[colorIndex];
+        
+        // Vytvoř světlejší background a tmavší border pro lepší čitelnost
+        calendarState.eventColors.set(eventKey, {
+            background: baseColor + '25', // 25% opacity pro background
+            border: baseColor,
+            textColor: '#ffffff',
+            icon: getEventIcon(category)
+        });
+        
+        console.log(`🎨 Assigned unique color ${baseColor} to event: "${eventName}"`);
+    }
+    
+    return calendarState.eventColors.get(eventKey);
+}
+
+// ========================================
+// OPRAVA: IKONY PODLE KATEGORIE (ne barvy)
+// ========================================
+
+// Funkce pro ikony podle kategorie (barvy zůstávají unikátní)
+function getEventIcon(category) {
+    const categoryIcons = {
+        'Sportovní akce': '🏃',
+        'Veletrh': '🍫',
+        'Food Festival': '🍔',
+        'Koncert': '🎵',
+        'Kulturní akce': '🎭',
+        'Ostatní': '📅'
+    };
+    
+    return categoryIcons[category] || '🔮';
+}
+
+// ========================================
+// OPRAVA: VYLEPŠENÁ PALETA BAREV
+// ========================================
+
+// Vylepšená paleta s více kontrastními barvami
+function generateColorPalette() {
+    console.log('🎨 Generating enhanced unique color palette...');
+    
+    const colors = [];
+    
+    // Základní sytá paleta s dobrým kontrastem
+    const baseColors = [
+        // Modré odstíny
+        '#2196F3', '#3F51B5', '#1976D2', '#0288D1', '#0097A7',
+        // Zelené odstíny  
+        '#4CAF50', '#8BC34A', '#388E3C', '#689F38', '#558B2F',
+        // Červené/oranžové odstíny
+        '#F44336', '#FF5722', '#FF9800', '#FF6F00', '#E65100',
+        // Fialové odstíny
+        '#9C27B0', '#673AB7', '#8E24AA', '#7B1FA2', '#6A1B9A',
+        // Růžové odstíny
+        '#E91E63', '#AD1457', '#C2185B', '#880E4F',
+        // Hnědé/šedé odstíny
+        '#795548', '#5D4037', '#607D8B', '#455A64',
+        // Tyrkysové odstíny
+        '#009688', '#00695C', '#26A69A', '#00ACC1',
+        // Žluté/zlaté odstíny (pro lepší kontrast s bílým textem)
+        '#FFA000', '#FF8F00', '#F57C00', '#EF6C00'
+    ];
+    
+    colors.push(...baseColors);
+    
+    // Přidej HSL barvy s vysokým kontrastem
+    for (let hue = 0; hue < 360; hue += 15) {
+        // Vysoká saturace a střední světlost pro dobrý kontrast
+        colors.push(`hsl(${hue}, 80%, 50%)`);
+        colors.push(`hsl(${hue}, 70%, 45%)`);
+        colors.push(`hsl(${hue}, 90%, 55%)`);
+    }
+    
+    console.log(`🎨 Generated color palette with ${colors.length} unique colors`);
+    return colors;
+}
+
+// ========================================
+// OPRAVA: VYLEPŠENÁ HASH FUNKCE
+// ========================================
+
+// Vylepšená hash funkce pro lepší distribuci barev
+function hashString(str) {
+    let hash = 0;
+    let char;
+    
+    if (str.length === 0) return hash;
+    
+    for (let i = 0; i < str.length; i++) {
+        char = str.charCodeAt(i);
+        hash = ((hash << 5) - hash) + char;
+        hash = hash & hash; // Převést na 32bit integer
+    }
+    
+    // Více vrstev randomizace pro lepší distribuci
+    hash = hash * 9301 + 49297;
+    hash = hash % 233280;
+    hash = Math.abs(hash);
+    
+    // Přidej další randomizaci pro lepší rozložení
+    hash = (hash * 16807) % 2147483647;
+    
+    return hash;
+}
+
+// ========================================
+// OPRAVA: EVENT ELEMENT S UNIKÁTNÍMI BARVAMI
+// ========================================
+
+// OPRAVENÁ funkce pro vytvoření event elementu
+function createEventElement(event, date) {
+    const eventElement = document.createElement('div');
+    eventElement.className = 'event-item';
+    
+    // KLÍČOVÁ OPRAVA: Používej název akce pro unikátní barvy
+    const colorInfo = getEventColor(event.title, event.status, event.category);
+    
+    if (globalState.debugMode) {
+        console.log(`🎨 Event "${event.title}" assigned color:`, colorInfo);
+    }
+    
+    // Aplikace barev
+    eventElement.style.background = colorInfo.background;
+    eventElement.style.borderLeft = `4px solid ${colorInfo.border}`;
+    eventElement.style.color = colorInfo.textColor;
+    eventElement.style.fontWeight = '600';
+    eventElement.style.fontSize = '0.75rem';
+    eventElement.style.padding = '4px 6px';
+    eventElement.style.marginBottom = '2px';
+    eventElement.style.borderRadius = '4px';
+    eventElement.style.cursor = 'pointer';
+    eventElement.style.transition = 'all 0.2s ease';
+    eventElement.style.boxShadow = '0 1px 3px rgba(0,0,0,0.1)';
+    
+    // Text události s ikonou
+    let eventText = event.title;
+    let statusIcon = colorInfo.icon;
+    
+    // Speciální označení pro události s predikcí
+    if (event.hasPrediction) {
+        statusIcon = '🔮';
+        eventElement.style.background = `linear-gradient(45deg, ${colorInfo.background}, rgba(33, 150, 243, 0.2))`;
+        eventElement.classList.add('has-prediction');
+    }
+    
+    // Zkrácení textu pro lepší zobrazení
+    const maxLength = 15;
+    if (eventText.length > maxLength) {
+        eventText = eventText.substring(0, maxLength - 3) + '...';
+    }
+    
+    eventElement.textContent = `${statusIcon} ${eventText}`;
+    
+    // Vylepšený tooltip
+    const tooltipInfo = createEventTooltip(event);
+    eventElement.title = tooltipInfo;
+    
+    // CSS třídy pro styling
+    eventElement.classList.add(event.status || 'unknown');
+    eventElement.classList.add(event.type || 'unknown');
+    eventElement.setAttribute('data-category', event.category || 'Ostatní');
+    eventElement.setAttribute('data-event-name', event.title);
+    
+    // Hover efekty
+    setupEventHoverEffects(eventElement);
+    
+    // Click handler pro editaci události
+    eventElement.addEventListener('click', (e) => {
+        e.stopPropagation();
+        console.log('📅 Event clicked:', event);
+        openEventModal(event);
+    });
+    
+    return eventElement;
+}
+
+// ========================================
+// OPRAVA: HOVER EFEKTY
+// ========================================
+
+// Vylepšené hover efekty
+function setupEventHoverEffects(eventElement) {
+    eventElement.addEventListener('mouseenter', () => {
+        eventElement.style.transform = 'scale(1.05) translateY(-1px)';
+        eventElement.style.zIndex = '10';
+        eventElement.style.boxShadow = '0 4px 12px rgba(0,0,0,0.2)';
+        eventElement.style.borderLeftWidth = '5px';
+    });
+    
+    eventElement.addEventListener('mouseleave', () => {
+        eventElement.style.transform = 'scale(1) translateY(0)';
+        eventElement.style.zIndex = '1';
+        eventElement.style.boxShadow = '0 1px 3px rgba(0,0,0,0.1)';
+        eventElement.style.borderLeftWidth = '4px';
+    });
+}
+
+// ========================================
+// OPRAVA: VÍCE UDÁLOSTÍ INDIKÁTOR
+// ========================================
+
+// Vylepšený indikátor pro více událostí
+function createMoreEventsIndicator(dayData) {
+    const additionalEvents = dayData.events.length - 4;
+    
+    const moreIndicator = document.createElement('div');
+    moreIndicator.className = 'event-item more-events';
+    moreIndicator.textContent = `+${additionalEvents} dalších`;
+    
+    // Styling pro "více událostí"
+    moreIndicator.style.background = 'linear-gradient(135deg, #6c757d, #495057)';
+    moreIndicator.style.color = '#ffffff';
+    moreIndicator.style.fontWeight = '600';
+    moreIndicator.style.padding = '4px 6px';
+    moreIndicator.style.borderRadius = '4px';
+    moreIndicator.style.fontSize = '0.7rem';
+    moreIndicator.style.cursor = 'pointer';
+    moreIndicator.style.textAlign = 'center';
+    moreIndicator.style.border = '2px solid #495057';
+    moreIndicator.style.marginTop = '2px';
+    moreIndicator.style.transition = 'all 0.2s ease';
+    
+    // Hover efekt
+    moreIndicator.addEventListener('mouseenter', () => {
+        moreIndicator.style.background = 'linear-gradient(135deg, #495057, #343a40)';
+        moreIndicator.style.transform = 'scale(1.05)';
+    });
+    
+    moreIndicator.addEventListener('mouseleave', () => {
+        moreIndicator.style.background = 'linear-gradient(135deg, #6c757d, #495057)';
+        moreIndicator.style.transform = 'scale(1)';
+    });
+    
+    moreIndicator.addEventListener('click', (e) => {
+        e.stopPropagation();
+        showDayEventsPopup(dayData.date, dayData.events);
+    });
+    
+    return moreIndicator;
+}
+
+// ========================================
+// DEBUG FUNKCE PRO TESTOVÁNÍ
+// ========================================
+
+// Debug funkce pro testování unikátních barev
+function debugUniqueColors() {
+    console.group('🔍 DEBUG: Unique Colors System Test');
+    
+    // Test různých akcí - každá by měla mít jinou barvu
+    const testEvents = [
+        'Food Day Festival',
+        'Burger Festival', 
+        'ČokoFest',
+        'Street Food Festival',
+        'Sportovní akce',
+        'Koncert v parku',
+        'Výstavní trh',
+        'Farmářské trhy'
+    ];
+    
+    console.log('🎨 Testing unique colors for events:');
+    testEvents.forEach(eventName => {
+        const colorInfo = getEventColor(eventName, 'planned', 'Food Festival');
+        console.log(`"${eventName}": ${colorInfo.border} (${colorInfo.icon})`);
+    });
+    
+    // Test stejných akcí - měly by mít stejnou barvu
+    console.log('\n🔄 Testing consistency (same event should have same color):');
+    const sameEventColors = [
+        getEventColor('Food Day Festival', 'planned', 'Food Festival'),
+        getEventColor('Food Day Festival', 'planned', 'Food Festival'),
+        getEventColor('Food Day Festival', 'ongoing', 'Food Festival')
+    ];
+    
+    const colorsMatch = sameEventColors.every(color => 
+        color.border === sameEventColors[0].border
+    );
+    
+    console.log(`Same event consistency: ${colorsMatch ? '✅ PASS' : '❌ FAIL'}`);
+    
+    console.groupEnd();
+    
+    return {
+        paletteSize: calendarState.colorPalette?.length || 0,
+        cachedColors: calendarState.eventColors?.size || 0,
+        consistency: colorsMatch
+    };
+}
+
+// ========================================
+// EXPORT DEBUG FUNKCÍ
+// ========================================
+
+if (typeof window !== 'undefined') {
+    window.donulandPart4BColorsFixed = {
+        debugUniqueColors: debugUniqueColors,
+        testEventColor: (name, status, category) => getEventColor(name, status, category),
+        clearColorCache: () => {
+            calendarState.eventColors.clear();
+            console.log('🧹 Color cache cleared');
+        },
+        getColorStats: () => ({
+            paletteSize: calendarState.colorPalette?.length || 0,
+            cachedColors: calendarState.eventColors?.size || 0,
+            colors: Array.from(calendarState.eventColors.entries())
+        })
+    };
+}
+
+console.log('✅ Donuland Part 4B UNIQUE COLORS loaded successfully');
+console.log('🎨 SYSTEM: Each event gets unique color by name - same event = same color across all days');
+console.log('🌈 Status colors: Completed=Green ✅, Ongoing=Orange 🔥, Others=Unique colors per event 🔮');
+console.log('🧪 Debug: window.donulandPart4BColorsFixed.debugUniqueColors() to test color system');
+console.log('📋 This should fix the gray planned events issue - each event will have its own color!');
+
+// Event pro signalizaci dokončení Part 4B
+if (typeof eventBus !== 'undefined') {
+    eventBus.emit('part4bColorsFixed', { 
+        timestamp: Date.now(),
+        version: '4B-COLORS-FIXED',
+        fixes: ['unique-event-colors', 'multi-day-consistency', 'enhanced-palette', 'better-contrast']
+    });
+}
