@@ -1,4 +1,66 @@
-/* ========================================
+// Aktualizace seznamu událostí měsíce
+function updateMonthEventsList() {
+    console.log('📋 Updating month events list...');
+    
+    const monthEvents = document.getElementById('monthEvents');
+    if (!monthEvents) return;
+    
+    // Filtrování událostí pro aktuální měsíc
+    const monthStart = new Date(calendarState.currentYear, calendarState.currentMonth, 1);
+    const monthEnd = new Date(calendarState.currentYear, calendarState.currentMonth + 1, 0);
+    
+    const currentMonthEvents = calendarState.filteredEvents.filter(event => {
+        // OPRAVA: Správné parsování dat pro filtrování
+        const eventStart = parseLocalDate(event.startDate);
+        const eventEnd = parseLocalDate(event.endDate);
+        
+        // Událost se dotýká aktuálního měsíce
+        return (eventStart <= monthEnd && eventEnd >= monthStart);
+    });
+    
+    if (currentMonthEvents.length === 0) {
+        monthEvents.innerHTML = `
+            <div class="events-placeholder">
+                <p>📅 Žádné události v tomto měsíci</p>
+                <p><small>Zkuste změnit filtry nebo přidat novou akci</small></p>
+            </div>
+        `;
+        return;
+    }
+    
+    // Seřazení podle data
+    currentMonthEvents.sort((a, b) => {
+        const dateA = parseLocalDate(a.startDate);
+        const dateB = parseLocalDate(b.startDate);
+        return dateA - dateB;
+    });
+    
+    // Vytvoření tabulky událostí
+    let html = `
+        <div class="month-events-table">
+            <div class="table-header">
+                <div class="col-date">Datum</div>
+                <div class="col-event">Akce</div>
+                <div class="col-stats">Statistiky</div>
+                <div class="col-business">Business</div>
+                <div class="col-actions">Akce</div>
+            </div>
+    `;
+    
+    currentMonthEvents.forEach(event => {
+        html += createMonthEventRow(event);
+    });
+    
+    html += '</div>';
+    
+    // Statistiky měsíce
+    const monthStats = calculateMonthStats(currentMonthEvents);
+    html += createMonthStatsSection(monthStats);
+    
+    monthEvents.innerHTML = html;
+    
+    console.log(`📊 Month events list updated: ${currentMonthEvents.length} events`);
+}/* ========================================
    DONULAND MANAGEMENT SYSTEM - PART 4
    Kalendář akcí pro dodavatele donutů
    ======================================== */
@@ -383,13 +445,14 @@ function groupEventsByDate(events) {
     const grouped = {};
     
     events.forEach(event => {
-        const startDate = new Date(event.startDate);
-        const endDate = new Date(event.endDate);
+        // OPRAVA: Správné parsování dat pro zobrazení
+        const startDate = parseLocalDate(event.startDate);
+        const endDate = parseLocalDate(event.endDate);
         
         // Pro vícedenní události - přidat do všech dnů
         const currentDate = new Date(startDate);
         while (currentDate <= endDate) {
-            const dateKey = currentDate.toISOString().split('T')[0];
+            const dateKey = formatDateToISO(currentDate);
             
             if (!grouped[dateKey]) {
                 grouped[dateKey] = [];
@@ -437,9 +500,13 @@ function getContrastColor(backgroundColor) {
 
 // Tooltip pro událost
 function getEventTooltip(event) {
-    const startDate = new Date(event.startDate).toLocaleDateString('cs-CZ');
-    const endDate = new Date(event.endDate).toLocaleDateString('cs-CZ');
-    const dateText = startDate === endDate ? startDate : `${startDate} - ${endDate}`;
+    // OPRAVA: Správné formátování dat pro tooltip
+    const startDate = parseLocalDate(event.startDate);
+    const endDate = parseLocalDate(event.endDate);
+    
+    const startText = startDate.toLocaleDateString('cs-CZ');
+    const endText = endDate.toLocaleDateString('cs-CZ');
+    const dateText = startText === endText ? startText : `${startText} - ${endText}`;
     
     let tooltip = `${event.title}\n${dateText}\n${event.city}\nKategorie: ${event.category}`;
     
@@ -498,6 +565,21 @@ function initializeCalendarFilters() {
     }
     
     console.log('✅ Calendar filters initialized');
+}
+
+// Funkce volaná z HTML při změně filtrů
+function filterCalendar() {
+    console.log('🔍 Filter change triggered from HTML');
+    
+    const statusFilter = document.getElementById('statusFilter');
+    const categoryFilter = document.getElementById('categoryFilter');
+    const sourceFilter = document.getElementById('sourceFilter');
+    
+    if (statusFilter) calendarState.filters.status = statusFilter.value;
+    if (categoryFilter) calendarState.filters.category = categoryFilter.value;
+    if (sourceFilter) calendarState.filters.source = sourceFilter.value;
+    
+    applyCalendarFilters();
 }
 
 // Naplnění možností filtrů
@@ -630,10 +712,17 @@ function goToToday() {
 function showDayModal(date) {
     console.log('📅 Showing day modal for:', date.toLocaleDateString('cs-CZ'));
     
+    // OPRAVA: Správné porovnání dat pro denní události
+    const targetDateStr = formatDateToISO(date);
+    
     const dayEvents = calendarState.filteredEvents.filter(event => {
-        const startDate = new Date(event.startDate);
-        const endDate = new Date(event.endDate);
-        return date >= startDate && date <= endDate;
+        const eventStart = parseLocalDate(event.startDate);
+        const eventEnd = parseLocalDate(event.endDate);
+        const eventStartStr = formatDateToISO(eventStart);
+        const eventEndStr = formatDateToISO(eventEnd);
+        
+        // Událost se dotýká vybraného dne
+        return targetDateStr >= eventStartStr && targetDateStr <= eventEndStr;
     });
     
     if (dayEvents.length === 0) {
@@ -709,9 +798,13 @@ function createDayEventItem(event) {
     const item = document.createElement('div');
     item.className = 'day-event-item';
     
-    const startDate = new Date(event.startDate).toLocaleDateString('cs-CZ');
-    const endDate = new Date(event.endDate).toLocaleDateString('cs-CZ');
-    const dateText = startDate === endDate ? startDate : `${startDate} - ${endDate}`;
+    // OPRAVA: Správné formátování dat
+    const startDate = parseLocalDate(event.startDate);
+    const endDate = parseLocalDate(event.endDate);
+    
+    const startText = startDate.toLocaleDateString('cs-CZ');
+    const endText = endDate.toLocaleDateString('cs-CZ');
+    const dateText = startText === endText ? startText : `${startText} - ${endText}`;
     
     const statusIcon = {
         'completed': '✅',
@@ -757,8 +850,18 @@ function createDayEventItem(event) {
 
 // Modal pro detail události
 function showEventModal(eventId) {
-    const event = calendarState.events.find(e => e.id === eventId);
+    // OPRAVA: Hledání události podle ID
+    let event = null;
+    
+    if (typeof eventId === 'string') {
+        event = calendarState.events.find(e => e.id === eventId);
+    } else if (typeof eventId === 'object') {
+        // Pokud byla předána celá událost
+        event = eventId;
+    }
+    
     if (!event) {
+        console.error('❌ Event not found:', eventId);
         showNotification('❌ Událost nenalezena', 'error');
         return;
     }
@@ -780,11 +883,15 @@ function showEventModal(eventId) {
         return;
     }
     
+    // OPRAVA: Správné formátování dat pro zobrazení
+    const startDate = parseLocalDate(event.startDate);
+    const endDate = parseLocalDate(event.endDate);
+    
     // Naplnění dat
     modalTitle.textContent = `${getSourceLabel(event.source)} - ${event.title}`;
     modalEventName.value = event.title;
-    modalEventDateFrom.value = new Date(event.startDate).toLocaleDateString('cs-CZ');
-    modalEventDateTo.value = new Date(event.endDate).toLocaleDateString('cs-CZ');
+    modalEventDateFrom.value = startDate.toLocaleDateString('cs-CZ');
+    modalEventDateTo.value = endDate.toLocaleDateString('cs-CZ');
     modalEventCity.value = event.city;
     modalSales.value = event.data.sales || event.data.predictedSales || '';
     modalNotes.value = event.data.notes || '';
@@ -861,8 +968,10 @@ function updateMonthEventsList() {
 
 // Vytvoření řádku události v měsíčním přehledu
 function createMonthEventRow(event) {
-    const startDate = new Date(event.startDate);
-    const endDate = new Date(event.endDate);
+    // OPRAVA: Správné parsování dat
+    const startDate = parseLocalDate(event.startDate);
+    const endDate = parseLocalDate(event.endDate);
+    
     const dateText = startDate.toLocaleDateString('cs-CZ', { day: '2-digit', month: '2-digit' });
     const fullDateText = startDate.toLocaleDateString('cs-CZ') === endDate.toLocaleDateString('cs-CZ') 
         ? startDate.toLocaleDateString('cs-CZ')
