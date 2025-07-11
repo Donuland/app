@@ -1969,12 +1969,7 @@ body {
     }
 }
 
-/* ========================================
-   DARK MODE PREPARATION
-   ======================================== */
-@media (prefers-color-scheme: dark) {
-    /* Zde by byly dark mode styly, pokud by byly potřeba */
-}
+
 /* ========================================
    DONULAND PART 4C - CSS styly pro kalendář
    Přidat na konec style.css
@@ -3665,4 +3660,10 @@ kbd:last-of-type {
         background: #2a2a2a;
         color: #ffffff;
     }
+}
+/* ========================================
+   DARK MODE PREPARATION
+   ======================================== */
+@media (prefers-color-scheme: dark) {
+    /* Zde by byly dark mode styly, pokud by byly potřeba */
 }
