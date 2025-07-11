@@ -2776,3 +2776,893 @@ body {
         border: 1px solid var(--gray-400);
     }
 }
+/* ========================================
+   DONULAND PART 4D - Dodatečné CSS styly
+   Přidat na konec style.css souboru
+   ======================================== */
+
+/* ========================================
+   CALENDAR ACTION BAR
+   ======================================== */
+
+.calendar-action-bar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: var(--gray-100);
+    border-radius: var(--radius-md);
+    padding: var(--spacing-md);
+    margin-bottom: var(--spacing-lg);
+    gap: var(--spacing-md);
+    flex-wrap: wrap;
+    box-shadow: var(--shadow-sm);
+    border: 1px solid var(--gray-200);
+}
+
+.action-bar-left,
+.action-bar-right {
+    display: flex;
+    gap: var(--spacing-sm);
+    flex-wrap: wrap;
+}
+
+.action-bar-center {
+    flex: 1;
+    max-width: 400px;
+    min-width: 250px;
+}
+
+/* ========================================
+   BULK ACTIONS TOOLBAR
+   ======================================== */
+
+.bulk-actions-toolbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: linear-gradient(135deg, #fff3cd, #ffeaa7);
+    border: 1px solid var(--warning-color);
+    border-radius: var(--radius-md);
+    padding: var(--spacing-md) var(--spacing-lg);
+    margin-bottom: var(--spacing-lg);
+    animation: slideDown 0.3s ease-out;
+    box-shadow: var(--shadow-sm);
+}
+
+@keyframes slideDown {
+    from {
+        transform: translateY(-10px);
+        opacity: 0;
+    }
+    to {
+        transform: translateY(0);
+        opacity: 1;
+    }
+}
+
+.bulk-info {
+    font-weight: 600;
+    color: #856404;
+    font-size: var(--font-size-sm);
+}
+
+.bulk-buttons {
+    display: flex;
+    gap: var(--spacing-sm);
+    flex-wrap: wrap;
+}
+
+.btn-small {
+    padding: var(--spacing-xs) var(--spacing-sm);
+    font-size: var(--font-size-xs);
+    border-radius: var(--radius-sm);
+    border: none;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    font-weight: 500;
+    background: var(--white);
+    color: var(--gray-700);
+    border: 1px solid var(--gray-300);
+}
+
+.btn-small:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    border-color: var(--primary-color);
+    background: var(--gray-100);
+}
+
+.btn-small:focus {
+    outline: 2px solid var(--primary-color);
+    outline-offset: 2px;
+}
+
+/* ========================================
+   SEARCH KOMPONENTA
+   ======================================== */
+
+.calendar-search {
+    width: 100%;
+}
+
+.search-input-container {
+    position: relative;
+    display: flex;
+    align-items: center;
+}
+
+#eventSearch {
+    width: 100%;
+    padding: var(--spacing-sm) var(--spacing-md);
+    padding-right: 40px;
+    border: 2px solid var(--gray-300);
+    border-radius: var(--radius-md);
+    font-size: var(--font-size-sm);
+    transition: all 0.3s ease;
+    background: var(--white);
+}
+
+#eventSearch:focus {
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+    outline: none;
+}
+
+#eventSearch::placeholder {
+    color: var(--gray-500);
+}
+
+.clear-search-btn {
+    position: absolute;
+    right: 8px;
+    background: none;
+    border: none;
+    font-size: var(--font-size-lg);
+    color: var(--gray-400);
+    cursor: pointer;
+    padding: 4px;
+    border-radius: 50%;
+    transition: all 0.3s ease;
+    width: 24px;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.clear-search-btn:hover {
+    background: var(--gray-200);
+    color: var(--gray-600);
+    transform: rotate(90deg);
+}
+
+.clear-search-btn:focus {
+    outline: 2px solid var(--primary-color);
+    outline-offset: 2px;
+}
+
+.search-stats {
+    margin-top: var(--spacing-xs);
+    font-size: var(--font-size-xs);
+    color: var(--gray-600);
+    font-style: italic;
+    text-align: center;
+}
+
+/* ========================================
+   QUICK ADD MODAL
+   ======================================== */
+
+.quick-add-modal .modal-content {
+    max-width: 600px;
+    width: 95%;
+}
+
+.quick-form {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-md);
+}
+
+.form-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--spacing-md);
+}
+
+.quick-form .form-group {
+    margin-bottom: 0;
+}
+
+.quick-form .form-group label {
+    display: block;
+    margin-bottom: var(--spacing-xs);
+    font-weight: 600;
+    color: var(--gray-700);
+    font-size: var(--font-size-sm);
+}
+
+.quick-form input,
+.quick-form select,
+.quick-form textarea {
+    width: 100%;
+    padding: var(--spacing-sm);
+    border: 1px solid var(--gray-300);
+    border-radius: var(--radius-sm);
+    font-size: var(--font-size-sm);
+    transition: all 0.3s ease;
+}
+
+.quick-form input:focus,
+.quick-form select:focus,
+.quick-form textarea:focus {
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+    outline: none;
+    transform: translateY(-1px);
+}
+
+.quick-form input[required]:invalid {
+    border-color: var(--error-color);
+}
+
+.quick-form input[required]:valid {
+    border-color: var(--success-color);
+}
+
+/* ========================================
+   MONTH SELECTOR MODAL
+   ======================================== */
+
+.month-selector-modal .modal-content {
+    max-width: 500px;
+    width: 95%;
+}
+
+.month-year-selector {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-xl);
+}
+
+.year-selector,
+.month-selector {
+    text-align: center;
+}
+
+.year-selector h4,
+.month-selector h4 {
+    margin-bottom: var(--spacing-md);
+    color: var(--gray-800);
+    font-size: var(--font-size-lg);
+}
+
+.year-buttons {
+    display: flex;
+    justify-content: center;
+    gap: var(--spacing-sm);
+}
+
+.year-btn,
+.month-btn {
+    padding: var(--spacing-sm) var(--spacing-lg);
+    border: 2px solid var(--gray-300);
+    border-radius: var(--radius-sm);
+    background: var(--white);
+    cursor: pointer;
+    transition: all 0.3s ease;
+    font-weight: 500;
+    color: var(--gray-700);
+}
+
+.year-btn:hover,
+.month-btn:hover {
+    border-color: var(--primary-color);
+    background: var(--gray-100);
+    transform: translateY(-2px);
+}
+
+.year-btn.active,
+.month-btn.active {
+    border-color: var(--primary-color);
+    background: var(--primary-color);
+    color: var(--white);
+    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+}
+
+.months-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: var(--spacing-sm);
+    max-width: 400px;
+    margin: 0 auto;
+}
+
+.month-btn {
+    padding: var(--spacing-md);
+    font-size: var(--font-size-sm);
+}
+
+/* ========================================
+   KEYBOARD SHORTCUTS MODAL
+   ======================================== */
+
+.shortcuts-modal .modal-content {
+    max-width: 700px;
+    width: 95%;
+}
+
+.shortcuts-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: var(--spacing-xl);
+}
+
+.shortcuts-section {
+    background: var(--gray-100);
+    padding: var(--spacing-lg);
+    border-radius: var(--radius-md);
+    border-left: 4px solid var(--primary-color);
+}
+
+.shortcuts-section h4 {
+    margin-bottom: var(--spacing-md);
+    color: var(--gray-800);
+    font-size: var(--font-size-lg);
+    padding-bottom: var(--spacing-xs);
+    border-bottom: 1px solid var(--gray-300);
+}
+
+.shortcut-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: var(--spacing-sm) 0;
+    border-bottom: 1px solid var(--gray-200);
+}
+
+.shortcut-item:last-child {
+    border-bottom: none;
+}
+
+.shortcut-item span {
+    color: var(--gray-700);
+    font-size: var(--font-size-sm);
+}
+
+kbd {
+    background: var(--white);
+    border: 1px solid var(--gray-400);
+    border-radius: 4px;
+    padding: 2px 6px;
+    font-family: monospace;
+    font-size: var(--font-size-xs);
+    box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+    margin-right: 4px;
+}
+
+kbd:last-of-type {
+    margin-right: var(--spacing-sm);
+}
+
+/* ========================================
+   STATISTICS MODAL
+   ======================================== */
+
+.stats-modal .modal-content {
+    max-width: 900px;
+    width: 95%;
+    max-height: 90vh;
+    overflow-y: auto;
+}
+
+.stats-modal .modal-content.large {
+    max-width: 1000px;
+}
+
+.stats-overview {
+    margin-bottom: var(--spacing-xl);
+}
+
+.stats-row {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: var(--spacing-lg);
+    margin-bottom: var(--spacing-lg);
+}
+
+.stats-overview .stat-card {
+    background: var(--white);
+    padding: var(--spacing-lg);
+    border-radius: var(--radius-md);
+    text-align: center;
+    box-shadow: var(--shadow-sm);
+    border-left: 4px solid var(--primary-color);
+    transition: all 0.3s ease;
+}
+
+.stats-overview .stat-card:hover {
+    transform: translateY(-3px);
+    box-shadow: var(--shadow-md);
+}
+
+.stats-overview .stat-number {
+    font-size: var(--font-size-2xl);
+    font-weight: 700;
+    color: var(--primary-color);
+    margin-bottom: var(--spacing-xs);
+    line-height: 1;
+}
+
+.stats-overview .stat-label {
+    font-weight: 600;
+    color: var(--gray-600);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    font-size: var(--font-size-sm);
+}
+
+.stats-details {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: var(--spacing-xl);
+}
+
+.stats-section {
+    background: var(--gray-100);
+    padding: var(--spacing-lg);
+    border-radius: var(--radius-md);
+    border-top: 4px solid var(--primary-color);
+}
+
+.stats-section h4 {
+    margin-bottom: var(--spacing-md);
+    color: var(--gray-800);
+    font-size: var(--font-size-lg);
+    text-align: center;
+}
+
+.top-stats {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-sm);
+}
+
+.top-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: var(--spacing-sm);
+    background: var(--white);
+    border-radius: var(--radius-sm);
+    box-shadow: var(--shadow-sm);
+}
+
+.top-label {
+    font-weight: 500;
+    color: var(--gray-700);
+}
+
+.top-value {
+    font-weight: 600;
+    color: var(--primary-color);
+}
+
+.breakdown-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-xs);
+}
+
+.breakdown-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: var(--spacing-sm);
+    background: var(--white);
+    border-radius: var(--radius-sm);
+    box-shadow: var(--shadow-sm);
+    transition: all 0.3s ease;
+}
+
+.breakdown-item:hover {
+    transform: translateX(3px);
+    box-shadow: var(--shadow-md);
+}
+
+.breakdown-item span:first-child {
+    color: var(--gray-700);
+    font-weight: 500;
+}
+
+.breakdown-item span:last-child {
+    color: var(--primary-color);
+    font-weight: 600;
+}
+
+/* ========================================
+   EVENT CHECKBOXES (pro bulk selection)
+   ======================================== */
+
+.event-checkbox {
+    position: absolute;
+    top: 4px;
+    right: 4px;
+    width: 16px;
+    height: 16px;
+    cursor: pointer;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+}
+
+.calendar-day:hover .event-checkbox,
+.event-checkbox:checked {
+    opacity: 1;
+}
+
+.month-event-item .event-checkbox {
+    position: static;
+    margin-left: auto;
+    opacity: 1;
+}
+
+.event-checkbox:focus {
+    outline: 2px solid var(--primary-color);
+    outline-offset: 2px;
+}
+
+/* ========================================
+   HELP BUTTON
+   ======================================== */
+
+.help-button {
+    background: var(--info-color);
+    color: var(--white);
+    border: none;
+    padding: var(--spacing-xs) var(--spacing-sm);
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    transition: all 0.3s ease;
+    font-size: var(--font-size-xs);
+}
+
+.help-button:hover {
+    background: var(--info-color);
+    transform: translateY(-1px);
+    box-shadow: 0 2px 8px rgba(23, 162, 184, 0.3);
+}
+
+/* ========================================
+   LOADING STATES
+   ======================================== */
+
+.calendar-loading {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 200px;
+    color: var(--gray-500);
+    font-size: var(--font-size-lg);
+}
+
+.calendar-loading .spinner {
+    width: 40px;
+    height: 40px;
+    border: 3px solid var(--gray-200);
+    border-top: 3px solid var(--primary-color);
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+    margin-right: var(--spacing-md);
+}
+
+/* ========================================
+   ACCESSIBILITY IMPROVEMENTS
+   ======================================== */
+
+.calendar-action-bar,
+.bulk-actions-toolbar {
+    border: 1px solid transparent;
+}
+
+.calendar-action-bar:focus-within,
+.bulk-actions-toolbar:focus-within {
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 2px rgba(102, 126, 234, 0.1);
+}
+
+/* High contrast mode support */
+@media (prefers-contrast: high) {
+    .btn-small {
+        border-width: 2px;
+    }
+    
+    .stats-overview .stat-card,
+    .breakdown-item,
+    .top-item {
+        border: 2px solid var(--gray-400);
+    }
+    
+    .event-checkbox {
+        border: 2px solid var(--gray-600);
+    }
+}
+
+/* ========================================
+   RESPONSIVE DESIGN PRO PART 4D
+   ======================================== */
+
+@media (max-width: 1024px) {
+    .calendar-action-bar {
+        flex-direction: column;
+        align-items: stretch;
+    }
+    
+    .action-bar-left,
+    .action-bar-center,
+    .action-bar-right {
+        width: 100%;
+        justify-content: center;
+    }
+    
+    .shortcuts-grid {
+        grid-template-columns: 1fr;
+    }
+    
+    .stats-details {
+        grid-template-columns: 1fr;
+    }
+    
+    .stats-row {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+@media (max-width: 768px) {
+    .bulk-actions-toolbar {
+        flex-direction: column;
+        gap: var(--spacing-sm);
+        text-align: center;
+    }
+    
+    .bulk-buttons {
+        justify-content: center;
+    }
+    
+    .calendar-action-bar {
+        padding: var(--spacing-sm);
+    }
+    
+    .action-bar-left,
+    .action-bar-right {
+        gap: var(--spacing-xs);
+    }
+    
+    .btn-small {
+        padding: var(--spacing-xs);
+        font-size: var(--font-size-xs);
+    }
+    
+    .form-row {
+        grid-template-columns: 1fr;
+    }
+    
+    .months-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+    
+    .year-buttons {
+        flex-direction: column;
+        align-items: center;
+    }
+    
+    .stats-row {
+        grid-template-columns: 1fr;
+    }
+    
+    .shortcuts-modal .modal-content,
+    .stats-modal .modal-content {
+        width: 98%;
+        margin: 10px;
+    }
+}
+
+@media (max-width: 480px) {
+    .calendar-action-bar {
+        gap: var(--spacing-xs);
+    }
+    
+    .search-input-container input {
+        font-size: var(--font-size-xs);
+        padding: var(--spacing-xs) var(--spacing-sm);
+    }
+    
+    .clear-search-btn {
+        right: 4px;
+        width: 20px;
+        height: 20px;
+        font-size: var(--font-size-sm);
+    }
+    
+    .bulk-actions-toolbar {
+        padding: var(--spacing-sm);
+    }
+    
+    .bulk-info {
+        font-size: var(--font-size-xs);
+    }
+    
+    .months-grid {
+        grid-template-columns: 1fr;
+        gap: var(--spacing-xs);
+    }
+    
+    .month-btn {
+        padding: var(--spacing-sm);
+        font-size: var(--font-size-xs);
+    }
+    
+    .shortcuts-section {
+        padding: var(--spacing-md);
+    }
+    
+    .shortcut-item {
+        flex-direction: column;
+        align-items: flex-start;
+        text-align: left;
+        gap: var(--spacing-xs);
+    }
+    
+    kbd {
+        font-size: 10px;
+        padding: 1px 4px;
+    }
+    
+    .stats-section {
+        padding: var(--spacing-md);
+    }
+    
+    .breakdown-item,
+    .top-item {
+        padding: var(--spacing-xs);
+        font-size: var(--font-size-xs);
+    }
+}
+
+/* ========================================
+   ANIMATIONS A TRANSITIONS
+   ======================================== */
+
+@keyframes fadeInUp {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.month-event-item,
+.breakdown-item,
+.top-item {
+    animation: fadeInUp 0.3s ease-out;
+}
+
+.month-event-item:nth-child(odd) {
+    animation-delay: 0.1s;
+}
+
+.month-event-item:nth-child(even) {
+    animation-delay: 0.2s;
+}
+
+@keyframes scaleIn {
+    from {
+        transform: scale(0.8);
+        opacity: 0;
+    }
+    to {
+        transform: scale(1);
+        opacity: 1;
+    }
+}
+
+.stats-overview .stat-card {
+    animation: scaleIn 0.4s ease-out;
+}
+
+.stats-overview .stat-card:nth-child(1) { animation-delay: 0.1s; }
+.stats-overview .stat-card:nth-child(2) { animation-delay: 0.2s; }
+.stats-overview .stat-card:nth-child(3) { animation-delay: 0.3s; }
+.stats-overview .stat-card:nth-child(4) { animation-delay: 0.4s; }
+
+/* Reduced motion support */
+@media (prefers-reduced-motion: reduce) {
+    .calendar-action-bar,
+    .bulk-actions-toolbar,
+    .month-event-item,
+    .breakdown-item,
+    .top-item,
+    .stats-overview .stat-card {
+        animation: none;
+        transition: none;
+    }
+    
+    .btn-small:hover,
+    .breakdown-item:hover {
+        transform: none;
+    }
+}
+
+/* ========================================
+   PRINT STYLES PRO PART 4D
+   ======================================== */
+
+@media print {
+    .calendar-action-bar,
+    .bulk-actions-toolbar,
+    .help-button,
+    .clear-search-btn,
+    .event-checkbox,
+    .modal {
+        display: none !important;
+    }
+    
+    .stats-overview,
+    .stats-details {
+        page-break-inside: avoid;
+    }
+    
+    .stats-section {
+        break-inside: avoid;
+        box-shadow: none;
+        border: 1px solid var(--gray-400);
+    }
+    
+    .month-event-item {
+        break-inside: avoid;
+        border: 1px solid var(--gray-300);
+        margin-bottom: var(--spacing-sm);
+    }
+}
+
+/* ========================================
+   DARK MODE PREPARATION
+   ======================================== */
+
+@media (prefers-color-scheme: dark) {
+    /* Budoucí dark mode styly pro Part 4D komponenty */
+    .calendar-action-bar {
+        background: #2a2a2a;
+        border: 1px solid #404040;
+    }
+    
+    .bulk-actions-toolbar {
+        background: linear-gradient(135deg, #3a3a3a, #2a2a2a);
+        border-color: #ffc107;
+    }
+    
+    #eventSearch {
+        background: #2a2a2a;
+        border-color: #404040;
+        color: #ffffff;
+    }
+    
+    #eventSearch::placeholder {
+        color: #888888;
+    }
+    
+    .stats-overview .stat-card,
+    .breakdown-item,
+    .top-item {
+        background: #2a2a2a;
+        color: #ffffff;
+    }
+    
+    .shortcuts-section,
+    .stats-section {
+        background: #2a2a2a;
+        color: #ffffff;
+    }
+}
