@@ -318,7 +318,7 @@ function validateAndCleanData(rawData) {
                 dateTo: normalizeDateString(row.dateTo) || normalizeDateString(row.dateFrom),
                 city: normalizeCity(row.city),
                 eventName: row.eventName.trim(),
-                category: normalizeCategory(row.category),
+                category: row.category ? row.category.trim() : 'ostatní',
                 sales: Math.max(0, row.sales || 0),
                 visitors: Math.max(0, row.visitors || 0),
                 competition: Math.min(3, Math.max(1, row.competition || 2)),
