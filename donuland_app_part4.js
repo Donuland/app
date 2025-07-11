@@ -5,6 +5,10 @@
 
 console.log('🍩 Donuland Part 4A loading...');
 
+// Flag pro kontrolu inicializace - PŘIDAT NA ZAČÁTEK
+let part4Initialized = false;
+let part4DInitialized = false;
+
 // Globální stav kalendáře
 const calendarState = {
     currentMonth: new Date().getMonth(),
