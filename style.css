@@ -3622,48 +3622,4 @@ kbd:last-of-type {
     }
 }
 
-/* ========================================
-   DARK MODE PREPARATION
-   ======================================== */
 
-@media (prefers-color-scheme: dark) {
-    /* Budoucí dark mode styly pro Part 4D komponenty */
-    .calendar-action-bar {
-        background: #2a2a2a;
-        border: 1px solid #404040;
-    }
-    
-    .bulk-actions-toolbar {
-        background: linear-gradient(135deg, #3a3a3a, #2a2a2a);
-        border-color: #ffc107;
-    }
-    
-    #eventSearch {
-        background: #2a2a2a;
-        border-color: #404040;
-        color: #ffffff;
-    }
-    
-    #eventSearch::placeholder {
-        color: #888888;
-    }
-    
-    .stats-overview .stat-card,
-    .breakdown-item,
-    .top-item {
-        background: #2a2a2a;
-        color: #ffffff;
-    }
-    
-    .shortcuts-section,
-    .stats-section {
-        background: #2a2a2a;
-        color: #ffffff;
-    }
-}
-/* ========================================
-   DARK MODE PREPARATION
-   ======================================== */
-@media (prefers-color-scheme: dark) {
-    /* Zde by byly dark mode styly, pokud by byly potřeba */
-}
