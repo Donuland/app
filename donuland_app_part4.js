@@ -1317,8 +1317,6 @@ console.log('🔧 Extended: All Part 4A functions now work with filters');
 
 console.log('🍩 Donuland Part 4C loading...');
 
-// Flag pro kontrolu inicializace
-let calendarInitialized = false;
 
 // ========================================
 // BULK OPERATIONS (Hromadné operace)
