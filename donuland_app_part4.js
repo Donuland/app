@@ -1310,3 +1310,1107 @@ console.log('✅ Donuland Part 4B CLEAN loaded successfully');
 console.log('🔍 Filter features: Category, Status, Source, Text search');
 console.log('📋 Monthly overview: Event list, Statistics');
 console.log('🔧 Extended: All Part 4A functions now work with filters');
+/* ========================================
+   DONULAND PART 4C - Pokročilé funkce kalendáře
+   Přidat na konec Part 4A + 4B (donuland_app_part4.js)
+   ======================================== */
+
+console.log('🍩 Donuland Part 4C loading...');
+
+// Flag pro kontrolu inicializace
+let calendarInitialized = false;
+
+// ========================================
+// BULK OPERATIONS (Hromadné operace)
+// ========================================
+
+// Stav bulk operací
+const bulkOperations = {
+    selectedEvents: new Set(),
+    
+    // Toggle výběr události
+    toggleEventSelection(eventId) {
+        if (this.selectedEvents.has(eventId)) {
+            this.selectedEvents.delete(eventId);
+        } else {
+            this.selectedEvents.add(eventId);
+        }
+        this.updateSelectionUI();
+    },
+    
+    // Výběr všech filtrovaných událostí
+    selectAll() {
+        this.selectedEvents.clear();
+        filteredEvents.forEach(event => {
+            this.selectedEvents.add(event.id);
+        });
+        this.updateSelectionUI();
+    },
+    
+    // Zrušit všechny výběry
+    clearSelection() {
+        this.selectedEvents.clear();
+        this.updateSelectionUI();
+    },
+    
+    // Aktualizace UI výběru
+    updateSelectionUI() {
+        const bulkActions = document.getElementById('bulkActions');
+        const selectedCount = document.getElementById('selectedCount');
+        
+        if (bulkActions && selectedCount) {
+            if (this.selectedEvents.size > 0) {
+                bulkActions.style.display = 'flex';
+                selectedCount.textContent = this.selectedEvents.size;
+            } else {
+                bulkActions.style.display = 'none';
+            }
+        }
+        
+        // Aktualizace checkboxů v UI
+        document.querySelectorAll('.event-checkbox').forEach(checkbox => {
+            const eventId = checkbox.dataset.eventId;
+            checkbox.checked = this.selectedEvents.has(eventId);
+        });
+    },
+    
+    // Export vybraných událostí
+    exportSelected() {
+        if (this.selectedEvents.size === 0) {
+            if (typeof showNotification === 'function') {
+                showNotification('❌ Nejsou vybrány žádné události', 'error');
+            }
+            return;
+        }
+        
+        const selectedEventData = calendarState.events.filter(event => 
+            this.selectedEvents.has(event.id)
+        );
+        
+        exportEventsToCSV(selectedEventData);
+        this.clearSelection();
+        
+        if (typeof showNotification === 'function') {
+            showNotification(`📄 ${selectedEventData.length} událostí exportováno`, 'success');
+        }
+    },
+    
+    // Smazání vybraných událostí
+    deleteSelected() {
+        if (this.selectedEvents.size === 0) {
+            if (typeof showNotification === 'function') {
+                showNotification('❌ Nejsou vybrány žádné události', 'error');
+            }
+            return;
+        }
+        
+        if (!confirm(`Opravdu chcete smazat ${this.selectedEvents.size} vybraných událostí?`)) {
+            return;
+        }
+        
+        // Odstranit z calendarState.events
+        calendarState.events = calendarState.events.filter(event => 
+            !this.selectedEvents.has(event.id)
+        );
+        
+        // Aktualizovat filtrované události
+        filteredEvents = filteredEvents.filter(event => 
+            !this.selectedEvents.has(event.id)
+        );
+        
+        const deletedCount = this.selectedEvents.size;
+        this.clearSelection();
+        
+        // Refresh kalendář
+        displayFilteredEventsInCalendar();
+        updateMonthEventsList();
+        
+        if (typeof showNotification === 'function') {
+            showNotification(`🗑️ ${deletedCount} událostí smazáno`, 'success');
+        }
+    }
+};
+
+// ========================================
+// EXPORT FUNKCIONALITA
+// ========================================
+
+// Export událostí do CSV
+function exportEventsToCSV(events = calendarState.events, filename = null) {
+    if (!events || events.length === 0) {
+        if (typeof showNotification === 'function') {
+            showNotification('❌ Žádné události k exportu', 'error');
+        }
+        return;
+    }
+    
+    console.log(`📄 Exporting ${events.length} events to CSV...`);
+    
+    // CSV hlavička
+    const csvHeaders = [
+        'Název akce',
+        'Kategorie', 
+        'Město',
+        'Datum od',
+        'Datum do',
+        'Návštěvníci',
+        'Prodej/Predikce',
+        'Konverze',
+        'Zdroj',
+        'Stav',
+        'Poznámky'
+    ];
+    
+    // CSV řádky
+    const csvRows = events.map(event => {
+        const visitors = event.data.visitors || 0;
+        const sales = event.data.sales || event.data.predictedSales || 0;
+        const conversion = visitors > 0 ? ((sales / visitors) * 100).toFixed(2) : '0';
+        
+        return [
+            escapeCSVValue(event.title),
+            escapeCSVValue(event.category),
+            escapeCSVValue(event.city),
+            event.startDate.toLocaleDateString('cs-CZ'),
+            event.endDate.toLocaleDateString('cs-CZ'),
+            visitors,
+            sales,
+            conversion + '%',
+            event.source === 'historical' ? 'Historická data' : 'Predikce',
+            event.status === 'completed' ? 'Dokončeno' : 'Naplánováno',
+            escapeCSVValue(event.data.notes || '')
+        ].join(',');
+    });
+    
+    const csvContent = [csvHeaders.join(','), ...csvRows].join('\n');
+    
+    // Download CSV
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    
+    const defaultFilename = filename || `donuland_kalendar_${new Date().toISOString().split('T')[0]}.csv`;
+    
+    link.href = URL.createObjectURL(blob);
+    link.download = defaultFilename;
+    link.click();
+    
+    URL.revokeObjectURL(link.href);
+    
+    console.log(`✅ Events exported to CSV: ${defaultFilename}`);
+}
+
+// Helper pro escapování CSV hodnot
+function escapeCSVValue(value) {
+    if (!value) return '';
+    
+    const stringValue = value.toString();
+    
+    // Pokud obsahuje čárku, uvozovky nebo nový řádek, obalit uvozovkami
+    if (stringValue.includes(',') || stringValue.includes('"') || stringValue.includes('\n')) {
+        // Escapovat uvozovky zdvojením
+        return '"' + stringValue.replace(/"/g, '""') + '"';
+    }
+    
+    return stringValue;
+}
+
+// ========================================
+// QUICK ADD EVENT (Rychlé přidání akce)
+// ========================================
+
+// Zobrazení modalu pro rychlé přidání akce
+function showQuickAddModal(date = null) {
+    console.log('⚡ Opening quick add modal...');
+    
+    const modal = document.createElement('div');
+    modal.className = 'modal quick-add-modal';
+    modal.style.display = 'flex';
+    
+    const defaultDate = date || new Date();
+    const dateString = defaultDate.toISOString().split('T')[0];
+    
+    modal.innerHTML = `
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>⚡ Rychlé přidání akce</h3>
+                <button class="modal-close" onclick="this.closest('.modal').remove()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="quick-form">
+                    <div class="form-group">
+                        <label>Název akce *</label>
+                        <input type="text" id="quickEventName" placeholder="Název akce..." required>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>Kategorie *</label>
+                        <select id="quickCategory" required>
+                            <option value="">Vyberte kategorii</option>
+                            <option value="food festival">Food festival</option>
+                            <option value="veletrh">Veletrh</option>
+                            <option value="koncert">Koncert</option>
+                            <option value="kulturní akce">Kulturní akce</option>
+                            <option value="sportovní">Sportovní akce</option>
+                            <option value="ostatní">Ostatní</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>Město *</label>
+                        <input type="text" id="quickCity" placeholder="Město..." required>
+                    </div>
+                    
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Datum od *</label>
+                            <input type="date" id="quickDateFrom" value="${dateString}" required>
+                        </div>
+                        <div class="form-group">
+                            <label>Datum do *</label>
+                            <input type="date" id="quickDateTo" value="${dateString}" required>
+                        </div>
+                    </div>
+                    
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Návštěvníci</label>
+                            <input type="number" id="quickVisitors" placeholder="1000" min="50">
+                        </div>
+                        <div class="form-group">
+                            <label>Predikovaný prodej</label>
+                            <input type="number" id="quickSales" placeholder="150" min="0">
+                        </div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>Poznámka</label>
+                        <textarea id="quickNotes" rows="2" placeholder="Volitelná poznámka..."></textarea>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-save" onclick="saveQuickEvent()">⚡ Přidat akci</button>
+                <button class="btn" onclick="this.closest('.modal').remove()">Zrušit</button>
+            </div>
+        </div>
+    `;
+    
+    document.body.appendChild(modal);
+    
+    // Focus na první input
+    const nameInput = document.getElementById('quickEventName');
+    if (nameInput) {
+        setTimeout(() => nameInput.focus(), 100);
+    }
+    
+    // Zavření na ESC
+    const escHandler = (e) => {
+        if (e.key === 'Escape') {
+            modal.remove();
+            document.removeEventListener('keydown', escHandler);
+        }
+    };
+    document.addEventListener('keydown', escHandler);
+    
+    // Zavření na click mimo
+    modal.addEventListener('click', (e) => {
+        if (e.target === modal) {
+            modal.remove();
+        }
+    });
+}
+
+// Uložení rychlé události
+function saveQuickEvent() {
+    const modal = document.querySelector('.quick-add-modal');
+    if (!modal) return;
+    
+    console.log('💾 Saving quick event...');
+    
+    // Sběr dat z formuláře
+    const eventName = document.getElementById('quickEventName').value.trim();
+    const category = document.getElementById('quickCategory').value;
+    const city = document.getElementById('quickCity').value.trim();
+    const dateFrom = document.getElementById('quickDateFrom').value;
+    const dateTo = document.getElementById('quickDateTo').value;
+    const visitors = parseInt(document.getElementById('quickVisitors').value) || 0;
+    const sales = parseInt(document.getElementById('quickSales').value) || 0;
+    const notes = document.getElementById('quickNotes').value.trim();
+    
+    // Validace
+    if (!eventName || !category || !city || !dateFrom || !dateTo) {
+        if (typeof showNotification === 'function') {
+            showNotification('❌ Vyplňte všechna povinná pole', 'error');
+        }
+        return;
+    }
+    
+    if (new Date(dateTo) < new Date(dateFrom)) {
+        if (typeof showNotification === 'function') {
+            showNotification('❌ Datum do musí být stejné nebo pozdější než datum od', 'error');
+        }
+        return;
+    }
+    
+    // Vytvoření nové události
+    const newEvent = {
+        id: 'quick_' + Date.now(),
+        title: eventName,
+        startDate: new Date(dateFrom + 'T12:00:00'),
+        endDate: new Date(dateTo + 'T12:00:00'),
+        category: category,
+        city: city,
+        status: 'planned',
+        source: 'manual',
+        color: getUniqueEventColor(),
+        data: {
+            visitors: visitors,
+            predictedSales: sales,
+            notes: notes,
+            confidence: 0,
+            businessModel: 'owner',
+            price: 110
+        }
+    };
+    
+    // Přidání do kalendáře
+    calendarState.events.push(newEvent);
+    filteredEvents.push(newEvent);
+    
+    // Refresh UI
+    displayFilteredEventsInCalendar();
+    updateMonthEventsList();
+    
+    // Zavření modalu
+    modal.remove();
+    
+    if (typeof showNotification === 'function') {
+        showNotification(`✅ Akce "${eventName}" byla přidána`, 'success');
+    }
+    
+    console.log('✅ Quick event added:', newEvent);
+}
+
+// ========================================
+// MONTH SELECTOR (Výběr měsíce/roku)
+// ========================================
+
+// Zobrazení selektoru měsíce
+function showMonthSelector() {
+    console.log('📅 Opening month selector...');
+    
+    const modal = document.createElement('div');
+    modal.className = 'modal month-selector-modal';
+    modal.style.display = 'flex';
+    
+    const currentYear = calendarState.currentYear;
+    const currentMonth = calendarState.currentMonth;
+    
+    const monthNames = [
+        'Leden', 'Únor', 'Březen', 'Duben', 'Květen', 'Červen',
+        'Červenec', 'Srpen', 'Září', 'Říjen', 'Listopad', 'Prosinec'
+    ];
+    
+    modal.innerHTML = `
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>📅 Přejít na měsíc</h3>
+                <button class="modal-close" onclick="this.closest('.modal').remove()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="month-year-selector">
+                    <div class="year-selector">
+                        <h4>Rok</h4>
+                        <div class="year-buttons">
+                            ${[currentYear - 1, currentYear, currentYear + 1].map(year => `
+                                <button class="year-btn ${year === currentYear ? 'active' : ''}" 
+                                        data-year="${year}">${year}</button>
+                            `).join('')}
+                        </div>
+                    </div>
+                    
+                    <div class="month-selector">
+                        <h4>Měsíc</h4>
+                        <div class="months-grid">
+                            ${monthNames.map((name, index) => `
+                                <button class="month-btn ${index === currentMonth ? 'active' : ''}" 
+                                        data-month="${index}">${name}</button>
+                            `).join('')}
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-save" onclick="applyMonthSelection()">📅 Přejít</button>
+                <button class="btn" onclick="this.closest('.modal').remove()">Zrušit</button>
+            </div>
+        </div>
+    `;
+    
+    document.body.appendChild(modal);
+    
+    // Event listenery pro výběr
+    modal.querySelectorAll('.year-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            modal.querySelectorAll('.year-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+        });
+    });
+    
+    modal.querySelectorAll('.month-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            modal.querySelectorAll('.month-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+        });
+    });
+    
+    // Zavření na click mimo
+    modal.addEventListener('click', (e) => {
+        if (e.target === modal) {
+            modal.remove();
+        }
+    });
+}
+
+// Aplikace výběru měsíce
+function applyMonthSelection() {
+    const modal = document.querySelector('.month-selector-modal');
+    if (!modal) return;
+    
+    const activeYear = modal.querySelector('.year-btn.active');
+    const activeMonth = modal.querySelector('.month-btn.active');
+    
+    if (activeYear && activeMonth) {
+        const year = parseInt(activeYear.dataset.year);
+        const month = parseInt(activeMonth.dataset.month);
+        
+        calendarState.currentYear = year;
+        calendarState.currentMonth = month;
+        
+        updateCurrentMonthDisplay();
+        generateCalendarGrid();
+        displayFilteredEventsInCalendar();
+        updateMonthEventsList();
+        
+        modal.remove();
+        
+        if (typeof showNotification === 'function') {
+            showNotification(`📅 Přešli jste na ${activeMonth.textContent} ${year}`, 'success', 2000);
+        }
+    }
+}
+
+// ========================================
+// KEYBOARD SHORTCUTS (Klávesové zkratky)
+// ========================================
+
+// Zobrazení nápovědy klávesových zkratek
+function showKeyboardShortcuts() {
+    console.log('⌨️ Opening keyboard shortcuts help...');
+    
+    const modal = document.createElement('div');
+    modal.className = 'modal shortcuts-modal';
+    modal.style.display = 'flex';
+    
+    modal.innerHTML = `
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>⌨️ Klávesové zkratky</h3>
+                <button class="modal-close" onclick="this.closest('.modal').remove()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="shortcuts-grid">
+                    <div class="shortcuts-section">
+                        <h4>🗓️ Navigace</h4>
+                        <div class="shortcut-item">
+                            <div><kbd>←</kbd> <kbd>→</kbd></div>
+                            <span>Předchozí/následující měsíc</span>
+                        </div>
+                        <div class="shortcut-item">
+                            <div><kbd>T</kbd></div>
+                            <span>Přejít na dnešní měsíc</span>
+                        </div>
+                        <div class="shortcut-item">
+                            <div><kbd>G</kbd></div>
+                            <span>Výběr měsíce/roku</span>
+                        </div>
+                    </div>
+                    
+                    <div class="shortcuts-section">
+                        <h4>📝 Události</h4>
+                        <div class="shortcut-item">
+                            <div><kbd>Ctrl</kbd> + <kbd>N</kbd></div>
+                            <span>Rychlé přidání akce</span>
+                        </div>
+                        <div class="shortcut-item">
+                            <div><kbd>Ctrl</kbd> + <kbd>A</kbd></div>
+                            <span>Vybrat všechny události</span>
+                        </div>
+                        <div class="shortcut-item">
+                            <div><kbd>Delete</kbd></div>
+                            <span>Smazat vybrané události</span>
+                        </div>
+                    </div>
+                    
+                    <div class="shortcuts-section">
+                        <h4>🔍 Vyhledávání</h4>
+                        <div class="shortcut-item">
+                            <div><kbd>Ctrl</kbd> + <kbd>F</kbd></div>
+                            <span>Zaměřit vyhledávání</span>
+                        </div>
+                        <div class="shortcut-item">
+                            <div><kbd>Esc</kbd></div>
+                            <span>Vymazat vyhledávání/filtry</span>
+                        </div>
+                    </div>
+                    
+                    <div class="shortcuts-section">
+                        <h4>📤 Export</h4>
+                        <div class="shortcut-item">
+                            <div><kbd>Ctrl</kbd> + <kbd>E</kbd></div>
+                            <span>Export všech událostí</span>
+                        </div>
+                        <div class="shortcut-item">
+                            <div><kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>E</kbd></div>
+                            <span>Export vybraných událostí</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn" onclick="this.closest('.modal').remove()">Zavřít</button>
+            </div>
+        </div>
+    `;
+    
+    document.body.appendChild(modal);
+    
+    // Zavření na click mimo
+    modal.addEventListener('click', (e) => {
+        if (e.target === modal) {
+            modal.remove();
+        }
+    });
+}
+
+// Setup klávesových zkratek
+function setupCalendarKeyboardShortcuts() {
+    // Kontrola, zda už nejsou nastaveny
+    if (window.calendarKeyboardSetup) {
+        return;
+    }
+    
+    console.log('⌨️ Setting up calendar keyboard shortcuts...');
+    
+    document.addEventListener('keydown', (e) => {
+        // Pouze pokud není focus v input fieldu
+        if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT') {
+            return;
+        }
+        
+        // Pouze v kalendáři
+        if (typeof globalState !== 'undefined' && globalState.currentSection !== 'calendar') {
+            return;
+        }
+        
+        // Ctrl/Cmd + N - Quick add event
+        if ((e.ctrlKey || e.metaKey) && e.key === 'n') {
+            e.preventDefault();
+            showQuickAddModal();
+        }
+        
+        // Ctrl/Cmd + E - Export události
+        if ((e.ctrlKey || e.metaKey) && e.key === 'e' && !e.shiftKey) {
+            e.preventDefault();
+            exportEventsToCSV(filteredEvents);
+        }
+        
+        // Ctrl/Cmd + Shift + E - Export vybrané události
+        if ((e.ctrlKey || e.metaKey) && e.key === 'E' && e.shiftKey) {
+            e.preventDefault();
+            bulkOperations.exportSelected();
+        }
+        
+        // Ctrl/Cmd + F - Focus na search
+        if ((e.ctrlKey || e.metaKey) && e.key === 'f') {
+            e.preventDefault();
+            const searchInput = document.getElementById('eventSearch');
+            if (searchInput) {
+                searchInput.focus();
+                searchInput.select();
+            }
+        }
+        
+        // Ctrl/Cmd + A - Select all
+        if ((e.ctrlKey || e.metaKey) && e.key === 'a') {
+            e.preventDefault();
+            bulkOperations.selectAll();
+        }
+        
+        // G - Go to month selector
+        if (e.key === 'g' || e.key === 'G') {
+            showMonthSelector();
+        }
+        
+        // T - Go to today
+        if (e.key === 't' || e.key === 'T') {
+            goToToday();
+        }
+        
+        // ← → - Navigate months
+        if (e.key === 'ArrowLeft') {
+            changeMonth(-1);
+        }
+        
+        if (e.key === 'ArrowRight') {
+            changeMonth(1);
+        }
+        
+        // Delete - Delete selected events
+        if (e.key === 'Delete' || e.key === 'Backspace') {
+            if (bulkOperations.selectedEvents.size > 0) {
+                e.preventDefault();
+                bulkOperations.deleteSelected();
+            }
+        }
+        
+        // Escape - Clear selection and search
+        if (e.key === 'Escape') {
+            bulkOperations.clearSelection();
+            
+            // Clear search
+            const searchInput = document.getElementById('eventSearch');
+            if (searchInput && searchInput.value) {
+                searchInput.value = '';
+                searchEvents('');
+            }
+            
+            // Reset filtry
+            resetCalendarFilters();
+        }
+    });
+    
+    window.calendarKeyboardSetup = true;
+    console.log('✅ Calendar keyboard shortcuts setup complete');
+}
+
+// ========================================
+// SEARCH FUNCTIONALITY (Pokročilé vyhledávání)
+// ========================================
+
+// Globální vyhledávání v událostech
+function searchEvents(query) {
+    const trimmedQuery = query.trim().toLowerCase();
+    
+    if (!trimmedQuery) {
+        // Použij existující filtry pokud není query
+        filterCalendar();
+        return;
+    }
+    
+    console.log(`🔍 Searching events for: "${query}"`);
+    
+    // Pokročilé vyhledávání s operátory
+    if (query.includes(':')) {
+        filteredEvents = advancedSearch(query);
+    } else {
+        // Jednoduché vyhledávání
+        filteredEvents = calendarState.events.filter(event => {
+            const searchableText = [
+                event.title,
+                event.category,
+                event.city,
+                event.data.notes || ''
+            ].join(' ').toLowerCase();
+            
+            return searchableText.includes(trimmedQuery);
+        });
+    }
+    
+    // Aplikovat stávající filtry
+    filteredEvents = filteredEvents.filter(event => {
+        if (calendarFilters.category && event.category !== calendarFilters.category) {
+            return false;
+        }
+        
+        if (calendarFilters.status && event.status !== calendarFilters.status) {
+            return false;
+        }
+        
+        if (calendarFilters.source) {
+            if (calendarFilters.source === 'historical' && event.source !== 'historical') {
+                return false;
+            }
+            if (calendarFilters.source === 'prediction' && event.source === 'historical') {
+                return false;
+            }
+        }
+        
+        return true;
+    });
+    
+    displayFilteredEventsInCalendar();
+    updateMonthEventsList();
+    
+    // Update search stats
+    const searchStats = document.getElementById('searchStats');
+    if (searchStats) {
+        if (trimmedQuery) {
+            searchStats.textContent = `🔍 Nalezeno ${filteredEvents.length} výsledků pro "${query}"`;
+            searchStats.style.display = 'block';
+        } else {
+            searchStats.style.display = 'none';
+        }
+    }
+    
+    console.log(`🔍 Search completed: ${filteredEvents.length} results`);
+}
+
+// Pokročilé vyhledávání s operátory
+function advancedSearch(query) {
+    const trimmedQuery = query.trim().toLowerCase();
+    
+    if (!trimmedQuery) {
+        return calendarState.events;
+    }
+    
+    // Parse search operators
+    const operators = {
+        category: null,
+        city: null,
+        status: null,
+        date: null,
+        text: []
+    };
+    
+    // Split query by spaces and parse operators
+    const tokens = trimmedQuery.split(' ');
+    
+    tokens.forEach(token => {
+        if (token.startsWith('category:')) {
+            operators.category = token.substring(9);
+        } else if (token.startsWith('city:')) {
+            operators.city = token.substring(5);
+        } else if (token.startsWith('status:')) {
+            operators.status = token.substring(7);
+        } else if (token.startsWith('date:')) {
+            operators.date = token.substring(5);
+        } else if (token.length > 0) {
+            operators.text.push(token);
+        }
+    });
+    
+    // Filter events based on operators
+    return calendarState.events.filter(event => {
+        // Category filter
+        if (operators.category && !event.category.toLowerCase().includes(operators.category)) {
+            return false;
+        }
+        
+        // City filter
+        if (operators.city && !event.city.toLowerCase().includes(operators.city)) {
+            return false;
+        }
+        
+        // Status filter
+        if (operators.status && event.status !== operators.status) {
+            return false;
+        }
+        
+        // Date filter
+        if (operators.date) {
+            const eventDate = event.startDate.toISOString().split('T')[0];
+            if (!eventDate.includes(operators.date)) {
+                return false;
+            }
+        }
+        
+        // Text search in title and notes
+        if (operators.text.length > 0) {
+            const searchableText = [
+                event.title,
+                event.data.notes || ''
+            ].join(' ').toLowerCase();
+            
+            return operators.text.every(term => searchableText.includes(term));
+        }
+        
+        return true;
+    });
+}
+
+// ========================================
+// UI INJECTION (Vložení UI komponent)
+// ========================================
+
+// Vytvoření action bar pro kalendář
+function createCalendarActionBar() {
+    if (document.querySelector('.calendar-action-bar')) {
+        return; // Už existuje
+    }
+    
+    const actionBar = document.createElement('div');
+    actionBar.className = 'calendar-action-bar';
+    
+    actionBar.innerHTML = `
+        <div class="action-bar-left">
+            <button class="btn btn-small" onclick="showQuickAddModal()" title="Ctrl+N">
+                ⚡ Rychlá akce
+            </button>
+            <button class="btn btn-small" onclick="showMonthSelector()" title="G">
+                📅 Přejít na měsíc
+            </button>
+        </div>
+        
+        <div class="action-bar-center">
+            <div class="calendar-search">
+                <div class="search-input-container">
+                    <input type="text" id="eventSearch" placeholder="🔍 Hledat události..." 
+                           autocomplete="off" spellcheck="false">
+                    <button id="clearSearch" class="clear-search-btn" title="Vymazat vyhledávání">&times;</button>
+                </div>
+                <div id="searchStats" class="search-stats" style="display: none;"></div>
+            </div>
+        </div>
+        
+        <div class="action-bar-right">
+            <button class="btn btn-small" onclick="exportEventsToCSV(filteredEvents)" title="Ctrl+E">
+                📄 Export
+            </button>
+            <button class="btn btn-small" onclick="showKeyboardShortcuts()">
+                ⌨️ Zkratky
+            </button>
+            <button class="btn btn-small" onclick="bulkOperations.selectAll()">
+                ☑️ Vybrat vše
+            </button>
+        </div>
+    `;
+    
+    return actionBar;
+}
+
+// Vytvoření bulk actions toolbar
+function createBulkActionsToolbar() {
+    if (document.getElementById('bulkActions')) {
+        return; // Už existuje
+    }
+    
+    const toolbar = document.createElement('div');
+    toolbar.id = 'bulkActions';
+    toolbar.className = 'bulk-actions-toolbar';
+    toolbar.style.display = 'none';
+    
+    toolbar.innerHTML = `
+        <div class="bulk-info">
+            <span id="selectedCount">0</span> vybraných událostí
+        </div>
+        <div class="bulk-buttons">
+            <button class="btn btn-small" onclick="bulkOperations.exportSelected()">
+                📄 Export vybraných
+            </button>
+            <button class="btn btn-small btn-delete" onclick="bulkOperations.deleteSelected()">
+                🗑️ Smazat vybrané
+            </button>
+            <button class="btn btn-small" onclick="bulkOperations.clearSelection()">
+                ❌ Zrušit výběr
+            </button>
+        </div>
+    `;
+    
+    return toolbar;
+}
+
+// Inicializace event search
+function initializeEventSearch() {
+    const searchInput = document.getElementById('eventSearch');
+    if (!searchInput) return;
+    
+    let searchTimeout;
+    
+    searchInput.addEventListener('input', (e) => {
+        clearTimeout(searchTimeout);
+        searchTimeout = setTimeout(() => {
+            searchEvents(e.target.value);
+        }, 300);
+    });
+    
+    // Clear search
+    const clearSearch = document.getElementById('clearSearch');
+    if (clearSearch) {
+        clearSearch.addEventListener('click', () => {
+            searchInput.value = '';
+            searchEvents('');
+        });
+    }
+}
+
+// Vložení rozšířených UI komponent
+function injectEnhancedCalendarUI() {
+    const calendarSection = document.getElementById('calendar');
+    if (!calendarSection) {
+        console.log('⚠️ Calendar section not found');
+        return;
+    }
+    
+    console.log('🎨 Injecting enhanced calendar UI...');
+    
+    // Najít kalendářovou kartu
+    const calendarCards = calendarSection.querySelectorAll('.card');
+    const calendarCard = calendarCards[1]; // Druhá karta (první je controls)
+    
+    if (calendarCard) {
+        // Přidat action bar jako první element v kartě
+        if (!document.querySelector('.calendar-action-bar')) {
+            const actionBar = createCalendarActionBar();
+            const firstChild = calendarCard.firstElementChild;
+            calendarCard.insertBefore(actionBar, firstChild);
+            console.log('✅ Action bar injected');
+        }
+        
+        // Přidat bulk actions toolbar na konec karty
+        if (!document.getElementById('bulkActions')) {
+            const bulkActions = createBulkActionsToolbar();
+            calendarCard.appendChild(bulkActions);
+            console.log('✅ Bulk actions toolbar injected');
+        }
+    }
+    
+    console.log('✅ Enhanced calendar UI injected');
+}
+
+// ========================================
+// ROZŠÍŘENÍ INICIALIZACE
+// ========================================
+
+// Rozšíření hlavní inicializace o Part 4C
+const originalInitializeCalendar = initializeCalendar;
+initializeCalendar = function() {
+    if (calendarInitialized) {
+        console.log('⚠️ Calendar already initialized, skipping...');
+        return;
+    }
+    
+    console.log('🔧 Initializing calendar with advanced features...');
+    
+    // Původní inicializace (Part 4A + 4B)
+    originalInitializeCalendar();
+    
+    // Part 4C rozšíření
+    setTimeout(() => {
+        // Inject UI komponenty
+        injectEnhancedCalendarUI();
+        
+        // Initialize search
+        initializeEventSearch();
+        
+        // Setup keyboard shortcuts
+        setupCalendarKeyboardShortcuts();
+        
+        calendarInitialized = true;
+        console.log('✅ Calendar Part 4C enhancements loaded');
+        
+        // Show welcome notification
+        if (typeof showNotification === 'function') {
+            showNotification('🎉 Kalendář je připraven! Zkuste Ctrl+N pro rychlé přidání akce', 'success', 5000);
+        }
+    }, 1000);
+};
+
+// ========================================
+// EVENT LISTENERS
+// ========================================
+
+// Event listeners pro Part 4C
+if (typeof eventBus !== 'undefined') {
+    eventBus.on('calendarRequested', () => {
+        setTimeout(() => {
+            if (!calendarInitialized) {
+                initializeCalendar();
+            }
+        }, 500);
+    });
+    
+    eventBus.on('dataLoaded', () => {
+        setTimeout(() => {
+            if (typeof globalState !== 'undefined' && globalState.currentSection === 'calendar') {
+                loadCalendarEvents();
+                filteredEvents = [...calendarState.events];
+                displayFilteredEventsInCalendar();
+                updateMonthEventsList();
+                bulkOperations.clearSelection();
+            }
+        }, 500);
+    });
+    
+    eventBus.on('predictionSaved', () => {
+        setTimeout(() => {
+            if (typeof globalState !== 'undefined' && globalState.currentSection === 'calendar') {
+                loadCalendarEvents();
+                filteredEvents = [...calendarState.events];
+                displayFilteredEventsInCalendar();
+                updateMonthEventsList();
+            }
+        }, 500);
+    });
+}
+
+// ========================================
+// GLOBAL EXPORTS
+// ========================================
+
+// Exportovat funkce pro HTML onclick handlers
+if (typeof window !== 'undefined') {
+    window.showQuickAddModal = showQuickAddModal;
+    window.saveQuickEvent = saveQuickEvent;
+    window.showMonthSelector = showMonthSelector;
+    window.applyMonthSelection = applyMonthSelection;
+    window.showKeyboardShortcuts = showKeyboardShortcuts;
+    window.exportEventsToCSV = exportEventsToCSV;
+    window.bulkOperations = bulkOperations;
+    window.searchEvents = searchEvents;
+    
+    // Debug object
+    window.donulandCalendarDebug = {
+        calendarState,
+        calendarFilters,
+        filteredEvents,
+        bulkOperations,
+        searchEvents,
+        advancedSearch,
+        exportEventsToCSV,
+        initializeCalendar,
+        getStats: () => ({
+            totalEvents: calendarState.events.length,
+            filteredEvents: filteredEvents.length,
+            selectedEvents: bulkOperations.selectedEvents.size,
+            initialized: calendarInitialized
+        })
+    };
+}
+
+console.log('✅ Donuland Part 4C loaded successfully');
+console.log('🗓️ Advanced Calendar Features:');
+console.log('  ✅ Bulk Operations (select multiple events)');
+console.log('  ✅ Quick Add Event (Ctrl+N)');
+console.log('  ✅ Advanced Search (with operators like category:food)');
+console.log('  ✅ Keyboard Shortcuts (Ctrl+N, Ctrl+E, G, T, arrows)');
+console.log('  ✅ Month/Year Selector (G key)');
+console.log('  ✅ CSV Export functionality');
+console.log('⌨️  Press F12 → Console → try: window.donulandCalendarDebug');
+
+// Emit completion event
+if (typeof eventBus !== 'undefined') {
+    eventBus.emit('part4CLoaded', { 
+        timestamp: Date.now(),
+        version: '1.0.0',
+        features: [
+            'bulk-operations',
+            'quick-add-event', 
+            'advanced-search-with-operators',
+            'keyboard-shortcuts',
+            'month-year-selector',
+            'csv-export',
+            'enhanced-ui-injection'
+        ]
+    });
+}
