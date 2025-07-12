@@ -10,7 +10,7 @@ console.log('🍩 Donuland Part 4A CLEAN loading...');
 // ========================================
 
 // Kontrolní flagy pro prevenci duplikací
-// let calendarInitialized = false; // Moved to Part 4C to avoid conflicts
+let calendarInitialized = false; 
 
 // Globální stav kalendáře
 const calendarState = {
