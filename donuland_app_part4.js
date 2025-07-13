@@ -153,7 +153,7 @@ function loadCalendarEvents() {
                     title: record.eventName || 'Neznámá akce',
                     startDate: startDate,
                     endDate: endDate,
-                    category: record.category || 'ostatní',
+                    category: record.category ? record.category.trim() : 'ostatní',
                     city: record.city || '',
                     status: endDate < today ? 'completed' : 'planned',
                     source: 'historical',
