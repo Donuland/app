@@ -405,25 +405,6 @@ function normalizeCity(city) {
         .toLowerCase()
         .replace(/^./, c => c.toUpperCase());
 }
-
-function normalizeCategory(category) {
-    if (!category) return 'ostatní';
-    
-    const normalized = category.toLowerCase().trim();
-    
-    // ✅ JEDNODUCHÝ mapping jen pro zkrácení názvů
-    const categoryMap = {
-        'sportovní akce (dospělí)': 'sportovní',
-        'sportovní akce': 'sportovní',
-        'veletrh': 'veletrh',
-        'food festival': 'food festival', 
-        'koncert': 'koncert',
-        'ostatní': 'ostatní'
-    };
-    
-    return categoryMap[normalized] || 'ostatní';
-}
-
 // Autocomplete pro názvy akcí
 function populateAutocompleteOptions() {
     console.log('📝 Populating autocomplete options...');
