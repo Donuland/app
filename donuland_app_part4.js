@@ -1,21 +1,61 @@
 /* ========================================
-   DONULAND PART 4A - Základní kalendář
-   Čistá verze bez duplikací a konfliktů
+   DONULAND PART 4A - Základní kalendář (OPRAVENÁ VERZE)
+   Včetně blacklist a správného statusu podle data
    ======================================== */
 
-console.log('🍩 Donuland Part 4A CLEAN loading...');
+console.log('🍩 Donuland Part 4A FIXED loading...');
 
 // ========================================
 // KONTROLA INICIALIZACE
 // ========================================
 
-// Kontrolní flag pro prevenci duplikací
 if (typeof window.calendarPart4ALoaded === 'undefined') {
     window.calendarPart4ALoaded = true;
 } else {
     console.log('⚠️ Part 4A already loaded, skipping...');
-    // Zde můžeme ukončit, ale necháme běžet pro případ reloadu
 }
+
+// ========================================
+// BLACKLIST SYSTÉM PRO SMAZANÉ UDÁLOSTI
+// ========================================
+
+const deletedEventsManager = {
+    // Získání blacklistu z localStorage
+    getDeletedEvents() {
+        try {
+            return JSON.parse(localStorage.getItem('donuland_deleted_events') || '[]');
+        } catch (error) {
+            console.warn('Error loading deleted events blacklist:', error);
+            return [];
+        }
+    },
+    
+    // Přidání události do blacklistu
+    addToBlacklist(eventId) {
+        const deletedEvents = this.getDeletedEvents();
+        if (!deletedEvents.includes(eventId)) {
+            deletedEvents.push(eventId);
+            localStorage.setItem('donuland_deleted_events', JSON.stringify(deletedEvents));
+            console.log(`🗑️ Added to blacklist: ${eventId}`);
+        }
+    },
+    
+    // Kontrola, zda je událost v blacklistu
+    isDeleted(eventId) {
+        return this.getDeletedEvents().includes(eventId);
+    },
+    
+    // Odstranění z blacklistu (pro případ potřeby obnovení)
+    removeFromBlacklist(eventId) {
+        const deletedEvents = this.getDeletedEvents();
+        const index = deletedEvents.indexOf(eventId);
+        if (index > -1) {
+            deletedEvents.splice(index, 1);
+            localStorage.setItem('donuland_deleted_events', JSON.stringify(deletedEvents));
+            console.log(`♻️ Removed from blacklist: ${eventId}`);
+        }
+    }
+};
 
 // ========================================
 // GLOBÁLNÍ STAV KALENDÁŘE
@@ -88,6 +128,23 @@ function datesOverlap(start1, end1, start2, end2) {
     return start1 <= end2 && start2 <= end1;
 }
 
+// NOVÉ: Určení statusu události podle data
+function determineEventStatus(endDate) {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0); // Nastavit na začátek dne
+    
+    const eventEnd = new Date(endDate);
+    eventEnd.setHours(23, 59, 59, 999); // Nastavit na konec dne události
+    
+    if (eventEnd < today) {
+        return 'completed'; // Akce skončila
+    } else if (eventEnd.toDateString() === today.toDateString()) {
+        return 'ongoing'; // Akce probíhá dnes
+    } else {
+        return 'planned'; // Akce je v budoucnu
+    }
+}
+
 // ========================================
 // NAČÍTÁNÍ A SLUČOVÁNÍ UDÁLOSTÍ
 // ========================================
@@ -107,7 +164,10 @@ function loadCalendarEvents() {
     // 3. Načíst aktuální predikci pokud existuje
     loadCurrentPrediction();
     
-    console.log(`✅ Loaded ${calendarState.events.length} total events`);
+    // 4. NOVÉ: Filtrovat smazané události pomocí blacklistu
+    filterDeletedEvents();
+    
+    console.log(`✅ Loaded ${calendarState.events.length} total events (after blacklist filtering)`);
     
     // Emit event pro ostatní komponenty
     if (typeof eventBus !== 'undefined') {
@@ -115,6 +175,25 @@ function loadCalendarEvents() {
             count: calendarState.events.length,
             events: calendarState.events
         });
+    }
+}
+
+// NOVÉ: Filtrování smazaných událostí
+function filterDeletedEvents() {
+    const deletedIds = deletedEventsManager.getDeletedEvents();
+    const originalCount = calendarState.events.length;
+    
+    calendarState.events = calendarState.events.filter(event => {
+        const isDeleted = deletedIds.includes(event.id);
+        if (isDeleted) {
+            console.log(`🗑️ Filtering out deleted event: ${event.title} (${event.id})`);
+        }
+        return !isDeleted;
+    });
+    
+    const filteredCount = originalCount - calendarState.events.length;
+    if (filteredCount > 0) {
+        console.log(`🗑️ Filtered out ${filteredCount} deleted events from blacklist`);
     }
 }
 
@@ -134,6 +213,9 @@ function loadHistoricalEvents() {
             
             if (!startDate) return;
             
+            // OPRAVENO: Status podle data, ne pevně "completed"
+            const status = determineEventStatus(endDate);
+            
             const event = {
                 id: `historical_${record.rowIndex || Date.now()}_${Math.random()}`,
                 title: record.eventName || 'Historická akce',
@@ -141,7 +223,7 @@ function loadHistoricalEvents() {
                 endDate: endDate,
                 category: record.category || 'ostatní',
                 city: record.city || '',
-                status: 'completed',
+                status: status, // OPRAVENO: Dynamický status
                 source: 'historical',
                 color: getUniqueEventColor(),
                 hasRealData: true,
@@ -284,6 +366,9 @@ function tryMergeWithHistoricalEvent(prediction, predictionId) {
 function createPredictionEvent(prediction, predictionId, startDate, endDate) {
     const formData = prediction.formData;
     
+    // OPRAVENO: Status podle data, ne pevně "planned"
+    const status = determineEventStatus(endDate);
+    
     const event = {
         id: predictionId,
         title: formData.eventName || 'Predikce',
@@ -291,7 +376,7 @@ function createPredictionEvent(prediction, predictionId, startDate, endDate) {
         endDate: endDate,
         category: formData.category || 'ostatní',
         city: formData.city || '',
-        status: 'planned',
+        status: status, // OPRAVENO: Dynamický status
         source: 'prediction',
         color: getUniqueEventColor(),
         hasRealData: false,
@@ -319,7 +404,7 @@ function createPredictionEvent(prediction, predictionId, startDate, endDate) {
     };
     
     calendarState.events.push(event);
-    console.log(`➕ Created prediction event: ${event.title}`);
+    console.log(`➕ Created prediction event: ${event.title} (status: ${status})`);
 }
 
 // ========================================
@@ -483,22 +568,27 @@ function displayEventsInCalendar() {
             eventElement.style.backgroundColor = event.color;
             eventElement.style.color = '#fff';
             
-            // Prefix podle typu
+            // OPRAVENO: Prefix podle statusu a typu
             let prefix = '';
-            if (event.hasRealData && event.hasPrediction) {
-                prefix = '🔄 '; // Sloučené
-            } else if (event.hasRealData) {
-                prefix = '📊 '; // Historická data
-            } else if (event.hasPrediction) {
-                prefix = '🤖 '; // Predikce
+            if (event.status === 'completed') {
+                prefix = '✅ ';
+            } else if (event.status === 'ongoing') {
+                prefix = '⏰ ';
+            } else {
+                prefix = '📅 ';
             }
             
-            if (event.status === 'completed') {
-                prefix = '✅ ' + prefix;
+            // Typ dat
+            if (event.hasRealData && event.hasPrediction) {
+                prefix += '🔄 '; // Sloučené
+            } else if (event.hasRealData) {
+                prefix += '📊 '; // Historická data
+            } else if (event.hasPrediction) {
+                prefix += '🤖 '; // Predikce
             }
             
             eventElement.textContent = prefix + event.title;
-            eventElement.title = `${event.title} - ${event.city}`;
+            eventElement.title = `${event.title} - ${event.city} (${event.status})`;
             
             eventsContainer.appendChild(eventElement);
         });
@@ -601,7 +691,18 @@ function showDayModal(date) {
         eventItem.className = 'day-event-item';
         eventItem.style.borderLeft = `4px solid ${event.color}`;
         
-        const statusIcon = event.status === 'completed' ? '✅' : '📅';
+        // OPRAVENO: Status ikony podle skutečného statusu
+        let statusIcon = '📅';
+        let statusText = 'Naplánováno';
+        
+        if (event.status === 'completed') {
+            statusIcon = '✅';
+            statusText = 'Dokončeno';
+        } else if (event.status === 'ongoing') {
+            statusIcon = '⏰';
+            statusText = 'Probíhá';
+        }
+        
         const sourceIcon = event.hasRealData && event.hasPrediction ? '🔄' : 
                           event.hasRealData ? '📊' : '🤖';
         
@@ -609,7 +710,7 @@ function showDayModal(date) {
             <div class="event-header">
                 <h4>${escapeHtml(event.title)}</h4>
                 <div class="event-meta">
-                    ${statusIcon} ${event.status === 'completed' ? 'Dokončeno' : 'Naplánováno'} • 
+                    ${statusIcon} ${statusText} • 
                     ${sourceIcon} ${event.hasRealData && event.hasPrediction ? 'Sloučená akce' : 
                                    event.hasRealData ? 'Historická data' : 'Predikce'} • 
                     📍 ${escapeHtml(event.city)} • 📋 ${escapeHtml(event.category)}
@@ -622,6 +723,7 @@ function showDayModal(date) {
             </div>
             <div class="event-actions">
                 <button class="btn btn-detail" onclick="showEventDetail('${event.id}')">📋 Detail</button>
+                <button class="btn btn-delete" onclick="deleteEvent('${event.id}')">🗑️ Smazat</button>
             </div>
         `;
         
@@ -659,6 +761,12 @@ function showEventDetail(eventId) {
     modal.className = 'modal event-detail-modal';
     modal.style.display = 'flex';
     
+    // OPRAVENO: Rozšířený detail s informacemi o statusu
+    let statusText = event.status === 'completed' ? 'Dokončeno' : 
+                    event.status === 'ongoing' ? 'Probíhá' : 'Naplánováno';
+    let statusColor = event.status === 'completed' ? '#28a745' : 
+                     event.status === 'ongoing' ? '#ffc107' : '#17a2b8';
+    
     modal.innerHTML = `
         <div class="modal-content">
             <div class="modal-header">
@@ -666,6 +774,16 @@ function showEventDetail(eventId) {
                 <button class="modal-close" onclick="this.closest('.modal').remove()">&times;</button>
             </div>
             <div class="modal-body">
+                <div class="event-status-info" style="margin-bottom: 20px; padding: 15px; background: ${statusColor}20; border-left: 4px solid ${statusColor}; border-radius: 6px;">
+                    <div style="color: ${statusColor}; font-weight: 600; font-size: 1.1em;">
+                        Status: ${statusText}
+                    </div>
+                    <div style="font-size: 0.9em; color: #666; margin-top: 5px;">
+                        ${event.hasRealData && event.hasPrediction ? '🔄 Sloučená akce (historická data + AI predikce)' : 
+                          event.hasRealData ? '📊 Historická data ze Sheets' : '🤖 AI predikce'}
+                    </div>
+                </div>
+                
                 <div class="event-detail-grid">
                     <div class="detail-item">
                         <label>Název akce:</label>
@@ -701,6 +819,12 @@ function showEventDetail(eventId) {
                             <span><strong>${formatNumber(event.data.predictedSales)} ks</strong></span>
                         </div>
                     ` : ''}
+                    ${event.hasRealData && event.hasPrediction && event.data.sales && event.data.predictedSales ? `
+                        <div class="detail-item">
+                            <label>🎯 Přesnost AI:</label>
+                            <span><strong>${calculatePredictionAccuracy(event.data.predictedSales, event.data.sales)}%</strong></span>
+                        </div>
+                    ` : ''}
                     <div class="detail-item full-width">
                         <label>Poznámky:</label>
                         <textarea id="eventNotes" rows="3" placeholder="Přidat poznámku k akci...">${escapeHtml(event.data.notes || '')}</textarea>
@@ -709,12 +833,22 @@ function showEventDetail(eventId) {
             </div>
             <div class="modal-footer">
                 <button class="btn btn-save" onclick="saveEventChanges('${event.id}')">💾 Uložit změny</button>
+                <button class="btn btn-delete" onclick="deleteEvent('${event.id}')">🗑️ Smazat akci</button>
                 <button class="btn" onclick="this.closest('.modal').remove()">Zavřít</button>
             </div>
         </div>
     `;
     
     document.body.appendChild(modal);
+}
+
+// NOVÉ: Výpočet přesnosti predikce
+function calculatePredictionAccuracy(predicted, actual) {
+    if (!predicted || !actual || predicted <= 0 || actual <= 0) {
+        return 0;
+    }
+    const accuracy = 100 - Math.abs((predicted - actual) / actual) * 100;
+    return Math.max(0, Math.min(100, Math.round(accuracy)));
 }
 
 // Uložení změn akce
@@ -728,11 +862,106 @@ function saveEventChanges(eventId) {
     if (notesTextarea) {
         event.data.notes = notesTextarea.value.trim();
         
+        // Aktualizovat v localStorage pokud je to predikce
+        if (event.hasPrediction && event.prediction.id.startsWith('prediction_')) {
+            updatePredictionInStorage(event);
+        }
+        
         if (typeof showNotification === 'function') {
             showNotification('✅ Změny uloženy', 'success', 2000);
         }
         
         modal.remove();
+    }
+}
+
+// NOVÉ: Aktualizace predikce v localStorage
+function updatePredictionInStorage(event) {
+    try {
+        const savedPredictions = JSON.parse(localStorage.getItem('donuland_predictions') || '[]');
+        const predictionIndex = parseInt(event.prediction.id.replace('prediction_', ''));
+        
+        if (savedPredictions[predictionIndex]) {
+            savedPredictions[predictionIndex].notes = event.data.notes;
+            savedPredictions[predictionIndex].updatedAt = new Date().toISOString();
+            localStorage.setItem('donuland_predictions', JSON.stringify(savedPredictions));
+        }
+    } catch (error) {
+        console.error('Error updating prediction in storage:', error);
+    }
+}
+
+// NOVÉ: Smazání akce s blacklist podporou
+function deleteEvent(eventId) {
+    const event = calendarState.events.find(e => e.id === eventId);
+    if (!event) return;
+    
+    const confirmMessage = `Opravdu chcete smazat akci "${event.title}"?` +
+        (event.hasPrediction ? '\n\nTím se smaže i související AI predikce.' : '') +
+        (event.hasRealData ? '\n\nHistorická data ze Sheets zůstanou zachována, ale akce se již nebude zobrazovat v kalendáři.' : '') +
+        '\n\nPozor: Smazaná akce se již neobnoví ani po refresh stránky.';
+    
+    if (!confirm(confirmMessage)) return;
+    
+    // PŘIDAT DO BLACKLISTU
+    deletedEventsManager.addToBlacklist(eventId);
+    
+    // Pokud je to sloučená akce, přidat do blacklistu i související predikci
+    if (event.hasPrediction && event.prediction && event.prediction.id !== eventId) {
+        deletedEventsManager.addToBlacklist(event.prediction.id);
+        console.log(`🗑️ Also blacklisted related prediction: ${event.prediction.id}`);
+    }
+    
+    // Odstranit z kalendáře (aktuální zobrazení)
+    calendarState.events = calendarState.events.filter(e => e.id !== eventId);
+    
+    // Smazat z localStorage pokud je to predikce
+    if (event.hasPrediction && event.prediction.id.startsWith('prediction_')) {
+        deletePredictionFromStorage(event.prediction.id);
+    }
+    
+    // Smazat aktuální predikci z globalState pokud je to current_prediction
+    if (eventId === 'current_prediction' && typeof globalState !== 'undefined' && globalState.lastPrediction) {
+        globalState.lastPrediction = null;
+        console.log('🗑️ Cleared current prediction from globalState');
+    }
+    
+    // Refresh kalendář
+    generateCalendarGrid();
+    
+    // Zavřít modal
+    document.querySelector('.event-detail-modal')?.remove();
+    document.querySelector('.day-modal')?.remove();
+    
+    if (typeof showNotification === 'function') {
+        showNotification(`🗑️ Akce "${event.title}" byla trvale smazána`, 'success', 4000);
+    }
+    
+    console.log(`🗑️ Event permanently deleted and blacklisted: ${event.title} (${eventId})`);
+    
+    // Emit event pro ostatní části systému
+    if (typeof eventBus !== 'undefined') {
+        eventBus.emit('eventDeleted', { 
+            eventId: eventId, 
+            eventTitle: event.title,
+            timestamp: Date.now()
+        });
+    }
+}
+
+// NOVÉ: Smazání predikce z localStorage
+function deletePredictionFromStorage(predictionId) {
+    try {
+        const savedPredictions = JSON.parse(localStorage.getItem('donuland_predictions') || '[]');
+        const predictionIndex = parseInt(predictionId.replace('prediction_', ''));
+        
+        if (savedPredictions[predictionIndex]) {
+            savedPredictions.splice(predictionIndex, 1);
+            localStorage.setItem('donuland_predictions', JSON.stringify(savedPredictions));
+            console.log(`✅ Deleted prediction from storage: ${predictionId}`);
+        }
+    } catch (error) {
+        console.error('❌ Error deleting prediction from storage:', error);
     }
 }
 
@@ -872,6 +1101,7 @@ if (typeof window !== 'undefined') {
     window.showEventDetail = showEventDetail;
     window.initializeCalendar = initializeCalendar;
     window.saveEventChanges = saveEventChanges;
+    window.deleteEvent = deleteEvent;
     
     // Debug objekt
     window.calendarDebug = {
@@ -892,1236 +1122,56 @@ if (typeof window !== 'undefined') {
                 else if (e.hasPrediction) types.prediction++;
             });
             return types;
+        },
+        eventsByStatus: () => {
+            const statuses = { completed: 0, ongoing: 0, planned: 0 };
+            calendarState.events.forEach(e => {
+                statuses[e.status]++;
+            });
+            return statuses;
+        },
+        blacklist: {
+            getAll: () => deletedEventsManager.getDeletedEvents(),
+            add: (eventId) => deletedEventsManager.addToBlacklist(eventId),
+            remove: (eventId) => deletedEventsManager.removeFromBlacklist(eventId),
+            clear: () => {
+                localStorage.removeItem('donuland_deleted_events');
+                console.log('🧹 Blacklist cleared');
+            },
+            restore: (eventId) => {
+                deletedEventsManager.removeFromBlacklist(eventId);
+                loadCalendarEvents();
+                generateCalendarGrid();
+                console.log(`♻️ Event restored: ${eventId}`);
+            }
         }
     };
 }
 
-console.log('✅ Donuland Part 4A CLEAN loaded successfully');
+console.log('✅ Donuland Part 4A FIXED loaded successfully');
 console.log('📅 Features: Basic calendar, Event loading, Smart merging, Modal details');
 console.log('🔄 Smart merging: Predictions automatically merge with historical events');
 console.log('📊 Data sources: Historical data + Saved predictions + Current prediction');
-console.log('🔧 Debug: window.calendarDebug available');
+console.log('⏰ Status system: completed/ongoing/planned based on current date');
+console.log('🗑️ Blacklist system: Deleted events stay deleted after page refresh');
+console.log('🔧 Debug: window.calendarDebug available with blacklist management');
 
 // Emit completion event
 if (typeof eventBus !== 'undefined') {
     eventBus.emit('part4ALoaded', { 
         timestamp: Date.now(),
-        version: '4A-clean-1.0.0',
+        version: '4A-fixed-1.0.0',
         features: [
             'basic-calendar-grid',
             'event-loading-and-merging', 
             'modal-day-view',
             'event-detail-modal',
             'smart-prediction-merging',
-            'multiple-data-sources'
-        ]
-    });
-}
-/* ========================================
-   DONULAND PART 4B - Filtry a měsíční přehled
-   Rozšíření Part 4A - bez duplikací
-   ======================================== */
-
-console.log('🍩 Donuland Part 4B loading...');
-
-// ========================================
-// KONTROLA INICIALIZACE
-// ========================================
-
-if (typeof window.calendarPart4BLoaded === 'undefined') {
-    window.calendarPart4BLoaded = true;
-} else {
-    console.log('⚠️ Part 4B already loaded, skipping...');
-}
-
-// ========================================
-// STAV FILTRŮ
-// ========================================
-
-const calendarFilters = {
-    category: '',
-    status: '',
-    source: '',
-    city: '',
-    searchText: ''
-};
-
-// Filtrované události (pro zobrazení)
-let filteredEvents = [];
-
-// ========================================
-// INICIALIZACE FILTRŮ
-// ========================================
-
-// Inicializace dropdown filtrů
-function initializeCalendarFilters() {
-    console.log('🔍 Initializing calendar filters...');
-    
-    // Pokud nejsou události, počkat
-    if (!calendarState.events || calendarState.events.length === 0) {
-        console.log('⚠️ No events yet, delaying filter initialization');
-        setTimeout(initializeCalendarFilters, 1000);
-        return;
-    }
-    
-    // Kategorie filter
-    populateCategoryFilter();
-    
-    // Město filter  
-    populateCityFilter();
-    
-    // Status filter (statický)
-    const statusFilter = document.getElementById('statusFilter');
-    if (statusFilter) {
-        statusFilter.innerHTML = `
-            <option value="">📊 Všechny stavy</option>
-            <option value="completed">✅ Dokončené</option>
-            <option value="planned">🔮 Naplánované</option>
-        `;
-    }
-    
-    // Zdroj filter (statický)
-    createSourceFilter();
-    
-    // Nastavit všechny události jako filtrované na začátku
-    filteredEvents = [...calendarState.events];
-    
-    console.log('✅ Calendar filters initialized');
-}
-
-// Naplnění kategorie filtru
-function populateCategoryFilter() {
-    const categoryFilter = document.getElementById('categoryFilter');
-    if (!categoryFilter) return;
-    
-    const categories = new Set();
-    calendarState.events.forEach(event => {
-        if (event.category) {
-            categories.add(event.category);
-        }
-    });
-    
-    categoryFilter.innerHTML = '<option value="">📋 Všechny kategorie</option>';
-    Array.from(categories).sort().forEach(category => {
-        const option = document.createElement('option');
-        option.value = category;
-        option.textContent = category;
-        categoryFilter.appendChild(option);
-    });
-    
-    console.log(`📋 Populated ${categories.size} categories`);
-}
-
-// Naplnění města filtru - TOTO BYLO PROBLÉM!
-function populateCityFilter() {
-    const cityFilter = document.getElementById('cityFilter');
-    if (!cityFilter) {
-        console.log('❌ cityFilter element not found');
-        return;
-    }
-    
-    const cities = new Set();
-    calendarState.events.forEach(event => {
-        if (event.city && event.city.trim()) {
-            cities.add(event.city.trim());
-        }
-    });
-    
-    cityFilter.innerHTML = '<option value="">🏙️ Všechna města</option>';
-    Array.from(cities).sort().forEach(city => {
-        const option = document.createElement('option');
-        option.value = city;
-        option.textContent = city;
-        cityFilter.appendChild(option);
-    });
-    
-    console.log(`🏙️ Populated ${cities.size} cities:`, Array.from(cities));
-}
-
-// Vytvoření zdroj filtru (neexistuje v HTML)
-function createSourceFilter() {
-    const statusFilter = document.getElementById('statusFilter');
-    if (!statusFilter || !statusFilter.parentElement) return;
-    
-    // Zkontrolovat, zda už neexistuje
-    if (document.getElementById('sourceFilter')) return;
-    
-    const sourceFilter = document.createElement('select');
-    sourceFilter.id = 'sourceFilter';
-    sourceFilter.addEventListener('change', filterCalendar);
-    
-    sourceFilter.innerHTML = `
-        <option value="">🔗 Všechny zdroje</option>
-        <option value="historical">📊 Pouze historická data</option>
-        <option value="prediction">🤖 Pouze predikce</option>
-        <option value="merged">🔄 Sloučené akce</option>
-    `;
-    
-    // Vložit za status filter
-    statusFilter.parentElement.insertBefore(sourceFilter, statusFilter.nextSibling);
-    console.log('✅ Source filter created');
-}
-
-// ========================================
-// FILTROVACÍ LOGIKA
-// ========================================
-
-// Hlavní filtrovací funkce
-function filterCalendar() {
-    console.log('🔍 Filtering calendar events...');
-    
-    // Načtení hodnot z filtrů
-    const categoryFilter = document.getElementById('categoryFilter');
-    const statusFilter = document.getElementById('statusFilter');
-    const sourceFilter = document.getElementById('sourceFilter');
-    const cityFilter = document.getElementById('cityFilter');
-    
-    if (categoryFilter) calendarFilters.category = categoryFilter.value;
-    if (statusFilter) calendarFilters.status = statusFilter.value;
-    if (sourceFilter) calendarFilters.source = sourceFilter.value;
-    if (cityFilter) calendarFilters.city = cityFilter.value;
-    
-    // Aplikace filtrů
-    filteredEvents = calendarState.events.filter(event => {
-        // Kategorie filter
-        if (calendarFilters.category && event.category !== calendarFilters.category) {
-            return false;
-        }
-        
-        // Status filter
-        if (calendarFilters.status && event.status !== calendarFilters.status) {
-            return false;
-        }
-        
-        // Město filter
-        if (calendarFilters.city && event.city !== calendarFilters.city) {
-            return false;
-        }
-        
-        // Source filter
-        if (calendarFilters.source) {
-            switch (calendarFilters.source) {
-                case 'historical':
-                    if (!event.hasRealData || event.hasPrediction) return false;
-                    break;
-                case 'prediction':
-                    if (!event.hasPrediction || event.hasRealData) return false;
-                    break;
-                case 'merged':
-                    if (!(event.hasRealData && event.hasPrediction)) return false;
-                    break;
-            }
-        }
-        
-        // Text search filter
-        if (calendarFilters.searchText) {
-            const searchableText = [
-                event.title,
-                event.category,
-                event.city,
-                event.data.notes || ''
-            ].join(' ').toLowerCase();
-            
-            if (!searchableText.includes(calendarFilters.searchText.toLowerCase())) {
-                return false;
-            }
-        }
-        
-        return true;
-    });
-    
-    // Zobrazení filtrovaných událostí
-    displayFilteredEventsInCalendar();
-    updateMonthEventsList();
-    
-    console.log(`🔍 Filtered ${filteredEvents.length} events from ${calendarState.events.length} total`);
-    
-    // Zobrazit statistiky filtru
-    showFilterStats();
-}
-
-// Zobrazení filtrovaných událostí v kalendáři
-function displayFilteredEventsInCalendar() {
-    // Vyčištění všech událostí
-    document.querySelectorAll('.day-events').forEach(container => {
-        container.innerHTML = '';
-    });
-    
-    document.querySelectorAll('.calendar-day').forEach(day => {
-        day.classList.remove('has-events');
-    });
-    
-    // Seskupení filtrovaných událostí podle datumů
-    const eventsByDate = {};
-    
-    filteredEvents.forEach(event => {
-        const startDate = event.startDate;
-        const endDate = event.endDate;
-        
-        // Pro vícedenní události
-        const currentDate = new Date(startDate);
-        while (currentDate <= endDate) {
-            const dateKey = formatDateKey(currentDate);
-            
-            if (!eventsByDate[dateKey]) {
-                eventsByDate[dateKey] = [];
-            }
-            
-            eventsByDate[dateKey].push(event);
-            currentDate.setDate(currentDate.getDate() + 1);
-        }
-    });
-    
-    // Zobrazení v kalendáři
-    Object.entries(eventsByDate).forEach(([dateKey, events]) => {
-        const dayCell = document.querySelector(`[data-date="${dateKey}"]`);
-        if (!dayCell) return;
-        
-        const eventsContainer = dayCell.querySelector('.day-events');
-        if (!eventsContainer) return;
-        
-        dayCell.classList.add('has-events');
-        
-        // Zobrazit max 3 události + počet zbývajících
-        const visibleEvents = events.slice(0, 3);
-        const hiddenCount = events.length - visibleEvents.length;
-        
-        visibleEvents.forEach(event => {
-            const eventElement = document.createElement('div');
-            eventElement.className = 'event-item';
-            eventElement.style.backgroundColor = event.color;
-            eventElement.style.color = '#fff';
-            
-            // Prefix podle typu
-            let prefix = '';
-            if (event.hasRealData && event.hasPrediction) {
-                prefix = '🔄 '; // Sloučené
-            } else if (event.hasRealData) {
-                prefix = '📊 '; // Historická data
-            } else if (event.hasPrediction) {
-                prefix = '🤖 '; // Predikce
-            }
-            
-            if (event.status === 'completed') {
-                prefix = '✅ ' + prefix;
-            }
-            
-            eventElement.textContent = prefix + event.title;
-            eventElement.title = `${event.title} - ${event.city}`;
-            
-            eventsContainer.appendChild(eventElement);
-        });
-        
-        // Počet dalších akcí
-        if (hiddenCount > 0) {
-            const moreElement = document.createElement('div');
-            moreElement.className = 'event-item more-events';
-            moreElement.style.backgroundColor = '#6c757d';
-            moreElement.style.color = '#fff';
-            moreElement.textContent = `+${hiddenCount} další`;
-            eventsContainer.appendChild(moreElement);
-        }
-    });
-}
-
-// Zobrazení statistik filtru
-function showFilterStats() {
-    // Najít nebo vytvořit stats element
-    let statsEl = document.getElementById('filterStats');
-    if (!statsEl) {
-        const filtersContainer = document.querySelector('.calendar-filters');
-        if (filtersContainer) {
-            statsEl = document.createElement('div');
-            statsEl.id = 'filterStats';
-            statsEl.className = 'filter-stats';
-            filtersContainer.appendChild(statsEl);
-        }
-    }
-    
-    if (!statsEl) return;
-    
-    // Vypočítat statistiky
-    const total = calendarState.events.length;
-    const filtered = filteredEvents.length;
-    const merged = filteredEvents.filter(e => e.hasRealData && e.hasPrediction).length;
-    const historical = filteredEvents.filter(e => e.hasRealData && !e.hasPrediction).length;
-    const predictions = filteredEvents.filter(e => !e.hasRealData && e.hasPrediction).length;
-    
-    if (filtered === total) {
-        statsEl.style.display = 'none';
-    } else {
-        statsEl.style.display = 'block';
-        statsEl.innerHTML = `
-            <small>
-                🔍 Zobrazeno ${filtered} z ${total} událostí 
-                (🔄${merged} sloučených, 📊${historical} historických, 🤖${predictions} predikcí)
-            </small>
-        `;
-    }
-}
-
-// Reset všech filtrů
-function resetCalendarFilters() {
-    console.log('🔄 Resetting calendar filters...');
-    
-    // Reset hodnot
-    calendarFilters.category = '';
-    calendarFilters.status = '';
-    calendarFilters.source = '';
-    calendarFilters.city = '';
-    calendarFilters.searchText = '';
-    
-    // Reset UI elementů
-    const categoryFilter = document.getElementById('categoryFilter');
-    const statusFilter = document.getElementById('statusFilter');
-    const sourceFilter = document.getElementById('sourceFilter');
-    const cityFilter = document.getElementById('cityFilter');
-    const searchInput = document.getElementById('eventSearch');
-    
-    if (categoryFilter) categoryFilter.value = '';
-    if (statusFilter) statusFilter.value = '';
-    if (sourceFilter) sourceFilter.value = '';
-    if (cityFilter) cityFilter.value = '';
-    if (searchInput) searchInput.value = '';
-    
-    // Zobrazit všechny události
-    filteredEvents = [...calendarState.events];
-    displayFilteredEventsInCalendar();
-    updateMonthEventsList();
-    
-    // Skrýt search stats
-    const statsEl = document.getElementById('filterStats');
-    if (statsEl) {
-        statsEl.style.display = 'none';
-    }
-    
-    if (typeof showNotification === 'function') {
-        showNotification('🔍 Filtry resetovány', 'info', 2000);
-    }
-}
-
-// ========================================
-// VYHLEDÁVÁNÍ
-// ========================================
-
-// Inicializace vyhledávání
-function initializeEventSearch() {
-    const searchInput = document.getElementById('eventSearch');
-    if (!searchInput) {
-        console.log('⚠️ Search input not found, creating it...');
-        createSearchInput();
-        return;
-    }
-    
-    let searchTimeout;
-    
-    searchInput.addEventListener('input', (e) => {
-        clearTimeout(searchTimeout);
-        searchTimeout = setTimeout(() => {
-            searchEvents(e.target.value);
-        }, 300);
-    });
-    
-    console.log('🔍 Event search initialized');
-}
-
-// Vytvoření search inputu (pokud neexistuje)
-function createSearchInput() {
-    const filtersContainer = document.querySelector('.calendar-filters');
-    if (!filtersContainer) return;
-    
-    const searchContainer = document.createElement('div');
-    searchContainer.className = 'search-container';
-    searchContainer.innerHTML = `
-        <input type="text" id="eventSearch" placeholder="🔍 Hledat události..." 
-               style="padding: 8px 12px; border: 1px solid #ddd; border-radius: 4px; width: 200px;">
-    `;
-    
-    filtersContainer.appendChild(searchContainer);
-    
-    // Inicializovat search po vytvoření
-    setTimeout(initializeEventSearch, 100);
-}
-
-// Vyhledávání v událostech
-function searchEvents(query) {
-    const trimmedQuery = query.trim();
-    calendarFilters.searchText = trimmedQuery;
-    
-    // Aplikovat všechny filtry včetně vyhledávání
-    filterCalendar();
-    
-    console.log(`🔍 Search for "${query}": ${filteredEvents.length} results`);
-}
-
-// ========================================
-// MĚSÍČNÍ PŘEHLED
-// ========================================
-
-// Aktualizace seznamu událostí měsíce
-function updateMonthEventsList() {
-    const monthEvents = document.getElementById('monthEvents');
-    if (!monthEvents) {
-        console.log('❌ monthEvents element not found');
-        return;
-    }
-    
-    console.log('📋 Updating month events list...');
-    
-    // Filtrování událostí pro aktuální měsíc
-    const monthStart = new Date(calendarState.currentYear, calendarState.currentMonth, 1);
-    const monthEnd = new Date(calendarState.currentYear, calendarState.currentMonth + 1, 0);
-    
-    const currentMonthEvents = filteredEvents.filter(event => {
-        const eventStart = event.startDate;
-        const eventEnd = event.endDate;
-        return (eventStart <= monthEnd && eventEnd >= monthStart);
-    });
-    
-    if (currentMonthEvents.length === 0) {
-        monthEvents.innerHTML = `
-            <div class="events-placeholder">
-                <p>📅 Žádné události v tomto měsíci</p>
-                <p><small>Zkuste změnit filtry nebo přidat novou akci</small></p>
-                <button class="btn btn-small" onclick="resetCalendarFilters()">🔄 Reset filtrů</button>
-            </div>
-        `;
-        return;
-    }
-    
-    // Seřazení podle data
-    currentMonthEvents.sort((a, b) => a.startDate - b.startDate);
-    
-    // Vytvoření seznamu
-    let html = `
-        <div class="month-events-header">
-            <h4>📋 Akce v měsíci (${currentMonthEvents.length})</h4>
-            <div class="month-events-controls">
-                <button class="btn btn-small" onclick="resetCalendarFilters()">🔄 Reset filtrů</button>
-                <button class="btn btn-small" onclick="exportMonthEvents()">📄 Export měsíce</button>
-            </div>
-        </div>
-        <div class="month-events-list">
-    `;
-    
-    currentMonthEvents.forEach(event => {
-        html += createMonthEventItem(event);
-    });
-    
-    html += '</div>';
-    
-    // Statistiky měsíce
-    html += createMonthStats(currentMonthEvents);
-    
-    monthEvents.innerHTML = html;
-    console.log(`📋 Month events updated: ${currentMonthEvents.length} events`);
-}
-
-// Vytvoření položky události v měsíčním seznamu
-function createMonthEventItem(event) {
-    const startDate = event.startDate.toLocaleDateString('cs-CZ', { day: '2-digit', month: '2-digit' });
-    const endDate = event.endDate.toLocaleDateString('cs-CZ', { day: '2-digit', month: '2-digit' });
-    const dateText = startDate === endDate ? startDate : `${startDate} - ${endDate}`;
-    
-    // Ikony podle typu
-    let statusIcon = event.status === 'completed' ? '✅' : '📅';
-    let sourceIcon = '';
-    if (event.hasRealData && event.hasPrediction) {
-        sourceIcon = '🔄'; // Sloučené
-    } else if (event.hasRealData) {
-        sourceIcon = '📊'; // Historická data
-    } else if (event.hasPrediction) {
-        sourceIcon = '🤖'; // Predikce
-    }
-    
-    // Statistiky
-    const visitors = event.data.visitors || 0;
-    const realSales = event.data.sales || 0;
-    const predictedSales = event.data.predictedSales || 0;
-    
-    const displaySales = realSales > 0 ? realSales : predictedSales;
-    const salesType = realSales > 0 ? 'prodáno' : 'predikce';
-    
-    const conversion = visitors > 0 && displaySales > 0 ? ((displaySales / visitors) * 100).toFixed(1) : '0';
-    const revenue = displaySales * (event.data.price || 110);
-    
-    // Accuracy pro sloučené akce
-    let accuracyHtml = '';
-    if (event.hasRealData && event.hasPrediction && realSales > 0 && predictedSales > 0) {
-        const accuracy = calculatePredictionAccuracy(predictedSales, realSales);
-        const accuracyColor = accuracy >= 80 ? '#28a745' : accuracy >= 60 ? '#ffc107' : '#dc3545';
-        accuracyHtml = `
-            <div class="stat-group">
-                <span class="stat-value" style="color: ${accuracyColor};">${accuracy}%</span>
-                <span class="stat-label">přesnost AI</span>
-            </div>
-        `;
-    }
-    
-    return `
-        <div class="month-event-item ${event.hasRealData && event.hasPrediction ? 'merged-event' : ''}" 
-             onclick="showEventDetail('${event.id}')" style="cursor: pointer;">
-            <div class="event-color-bar" style="background-color: ${event.color};"></div>
-            <div class="event-info">
-                <div class="event-title">${escapeHtml(event.title)}</div>
-                <div class="event-meta">
-                    ${statusIcon} ${dateText} • ${sourceIcon} ${escapeHtml(event.category)} • 📍 ${escapeHtml(event.city)}
-                    ${event.hasRealData && event.hasPrediction ? ' • 🔄 Sloučená akce' : ''}
-                </div>
-            </div>
-            <div class="event-stats">
-                <div class="stat-group">
-                    <span class="stat-value">${formatNumber(visitors)}</span>
-                    <span class="stat-label">návštěvníků</span>
-                </div>
-                <div class="stat-group">
-                    <span class="stat-value">${formatNumber(displaySales)}</span>
-                    <span class="stat-label">${salesType}</span>
-                </div>
-                <div class="stat-group">
-                    <span class="stat-value">${conversion}%</span>
-                    <span class="stat-label">konverze</span>
-                </div>
-                <div class="stat-group">
-                    <span class="stat-value">${formatCurrency(revenue)}</span>
-                    <span class="stat-label">obrat</span>
-                </div>
-                ${accuracyHtml}
-            </div>
-        </div>
-    `;
-}
-
-// Vytvoření statistik měsíce
-function createMonthStats(events) {
-    const stats = {
-        totalEvents: events.length,
-        completedEvents: events.filter(e => e.status === 'completed').length,
-        mergedEvents: events.filter(e => e.hasRealData && e.hasPrediction).length,
-        historicalOnlyEvents: events.filter(e => e.hasRealData && !e.hasPrediction).length,
-        predictionOnlyEvents: events.filter(e => !e.hasRealData && e.hasPrediction).length,
-        totalVisitors: 0,
-        totalSales: 0,
-        totalRevenue: 0
-    };
-    
-    let validConversions = [];
-    
-    events.forEach(event => {
-        const visitors = event.data.visitors || 0;
-        const sales = (event.data.sales || 0) + (event.data.predictedSales || 0);
-        const revenue = sales * (event.data.price || 110);
-        
-        stats.totalVisitors += visitors;
-        stats.totalSales += sales;
-        stats.totalRevenue += revenue;
-        
-        if (visitors > 0 && sales > 0) {
-            validConversions.push((sales / visitors) * 100);
-        }
-    });
-    
-    const avgConversion = validConversions.length > 0 
-        ? validConversions.reduce((sum, conv) => sum + conv, 0) / validConversions.length 
-        : 0;
-    
-    return `
-        <div class="month-stats">
-            <h4>📊 Statistiky měsíce</h4>
-            
-            <div class="stats-breakdown">
-                <h5>🔗 Typy akcí</h5>
-                <div class="breakdown-grid">
-                    <div class="breakdown-item">
-                        <span>🔄 Sloučené akce</span>
-                        <span>${stats.mergedEvents}</span>
-                    </div>
-                    <div class="breakdown-item">
-                        <span>📊 Pouze historická data</span>
-                        <span>${stats.historicalOnlyEvents}</span>
-                    </div>
-                    <div class="breakdown-item">
-                        <span>🤖 Pouze predikce</span>
-                        <span>${stats.predictionOnlyEvents}</span>
-                    </div>
-                    <div class="breakdown-item">
-                        <span>✅ Dokončené akce</span>
-                        <span>${stats.completedEvents} z ${stats.totalEvents}</span>
-                    </div>
-                </div>
-            </div>
-            
-            <div class="stats-grid">
-                <div class="stat-card">
-                    <div class="stat-number">${formatNumber(stats.totalVisitors)}</div>
-                    <div class="stat-label">Celkem návštěvníků</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-number">${formatNumber(stats.totalSales)}</div>
-                    <div class="stat-label">Celkem prodej/predikce</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-number">${avgConversion.toFixed(1)}%</div>
-                    <div class="stat-label">Průměrná konverze</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-number">${formatCurrency(stats.totalRevenue)}</div>
-                    <div class="stat-label">Celkový obrat</div>
-                </div>
-            </div>
-        </div>
-    `;
-}
-
-// Výpočet přesnosti predikce
-function calculatePredictionAccuracy(predicted, actual) {
-    if (!predicted || !actual || predicted <= 0 || actual <= 0) {
-        return 0;
-    }
-    const accuracy = 100 - Math.abs((predicted - actual) / actual) * 100;
-    return Math.max(0, Math.min(100, Math.round(accuracy)));
-}
-
-// Export událostí měsíce
-function exportMonthEvents() {
-    const monthStart = new Date(calendarState.currentYear, calendarState.currentMonth, 1);
-    const monthEnd = new Date(calendarState.currentYear, calendarState.currentMonth + 1, 0);
-    
-    const monthEvents = filteredEvents.filter(event => {
-        const eventStart = event.startDate;
-        const eventEnd = event.endDate;
-        return (eventStart <= monthEnd && eventEnd >= monthStart);
-    });
-    
-    if (monthEvents.length === 0) {
-        if (typeof showNotification === 'function') {
-            showNotification('❌ Žádné události k exportu v tomto měsíci', 'error');
-        }
-        return;
-    }
-    
-    const monthName = new Date(calendarState.currentYear, calendarState.currentMonth, 1)
-        .toLocaleDateString('cs-CZ', { month: 'long', year: 'numeric' });
-    
-    console.log(`📄 Exporting ${monthEvents.length} events for ${monthName}`);
-    
-    if (typeof showNotification === 'function') {
-        showNotification(`📄 ${monthEvents.length} událostí exportováno pro ${monthName}`, 'success');
-    }
-}
-
-// ========================================
-// ROZŠÍŘENÍ EXISTUJÍCÍCH FUNKCÍ
-// ========================================
-
-// Rozšíření changeMonth z Part 4A
-if (typeof window.changeMonth_Part4B_Extended === 'undefined') {
-    window.changeMonth_Part4B_Extended = true;
-    
-    const originalChangeMonth = window.changeMonth;
-    window.changeMonth = function(direction) {
-        originalChangeMonth(direction);
-        
-        // Po změně měsíce aktualizovat filtrované zobrazení
-        setTimeout(() => {
-            displayFilteredEventsInCalendar();
-            updateMonthEventsList();
-        }, 100);
-    };
-}
-
-// Rozšíření goToToday z Part 4A
-if (typeof window.goToToday_Part4B_Extended === 'undefined') {
-    window.goToToday_Part4B_Extended = true;
-    
-    const originalGoToToday = window.goToToday;
-    window.goToToday = function() {
-        originalGoToToday();
-        
-        // Po přechodu na dnes aktualizovat filtrované zobrazení
-        setTimeout(() => {
-            displayFilteredEventsInCalendar();
-            updateMonthEventsList();
-        }, 100);
-    };
-}
-
-// Rozšíření showDayModal z Part 4A pro filtrované události
-if (typeof window.showDayModal_Part4B_Extended === 'undefined') {
-    window.showDayModal_Part4B_Extended = true;
-    
-    const originalShowDayModal = window.showDayModal;
-    window.showDayModal = function(date) {
-        const dateKey = formatDateKey(date);
-        const dayEvents = filteredEvents.filter(event => {
-            const startKey = formatDateKey(event.startDate);
-            const endKey = formatDateKey(event.endDate);
-            return dateKey >= startKey && dateKey <= endKey;
-        });
-        
-        if (dayEvents.length === 0) {
-            if (typeof showNotification === 'function') {
-                showNotification('📅 Žádné události v tomto dni (po filtrování)', 'info', 2000);
-            }
-            return;
-        }
-        
-        // Pokračovat s původní funkcí, ale s filtrovanými událostmi
-        originalShowDayModal.call(this, date);
-    };
-}
-
-// ========================================
-// EVENT LISTENERS PRO PART 4B
-// ========================================
-
-// Event listeners pro filtry
-if (typeof eventBus !== 'undefined') {
-    
-    eventBus.on('calendarEventsLoaded', () => {
-        console.log('📅 Events loaded, initializing filters');
-        setTimeout(() => {
-            initializeCalendarFilters();
-            initializeEventSearch();
-            updateMonthEventsList();
-        }, 200);
-    });
-    
-    eventBus.on('dataLoaded', () => {
-        setTimeout(() => {
-            if (typeof globalState !== 'undefined' && globalState.currentSection === 'calendar') {
-                // Re-initialize filters after data load
-                initializeCalendarFilters();
-                updateMonthEventsList();
-            }
-        }, 500);
-    });
-    
-    eventBus.on('predictionSaved', () => {
-        setTimeout(() => {
-            if (typeof globalState !== 'undefined' && globalState.currentSection === 'calendar') {
-                // Re-populate filters after prediction save
-                populateCategoryFilter();
-                populateCityFilter();
-                filteredEvents = [...calendarState.events];
-                displayFilteredEventsInCalendar();
-                updateMonthEventsList();
-            }
-        }, 500);
-    });
-    
-    eventBus.on('calendarRequested', () => {
-        setTimeout(() => {
-            if (calendarState.events && calendarState.events.length > 0) {
-                initializeCalendarFilters();
-                initializeEventSearch();
-                filteredEvents = [...calendarState.events];
-                displayFilteredEventsInCalendar();
-                updateMonthEventsList();
-            }
-        }, 500);
-    });
-    
-    eventBus.on('predictionCalculated', () => {
-        setTimeout(() => {
-            // Update filters when new prediction is calculated
-            if (calendarState.events && calendarState.events.length > 0) {
-                populateCategoryFilter();
-                populateCityFilter();
-                filteredEvents = [...calendarState.events];
-                displayFilteredEventsInCalendar();
-                updateMonthEventsList();
-            }
-        }, 300);
-    });
-}
-
-// ========================================
-// HELPER FUNKCE A CSS INJEKCE
-// ========================================
-
-// Inject CSS pro Part 4B pokud neexistuje
-function injectPart4BCSS() {
-    if (document.getElementById('part4b-styles')) return;
-    
-    const style = document.createElement('style');
-    style.id = 'part4b-styles';
-    style.textContent = `
-        .filter-stats {
-            text-align: center;
-            padding: 10px;
-            background: #f8f9fa;
-            border-radius: 6px;
-            margin-top: 10px;
-            border: 1px solid #dee2e6;
-        }
-        
-        .search-container {
-            margin-top: 10px;
-            text-align: center;
-        }
-        
-        .month-events-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 20px;
-            padding-bottom: 10px;
-            border-bottom: 2px solid #dee2e6;
-        }
-        
-        .month-events-header h4 {
-            margin: 0;
-            color: #495057;
-        }
-        
-        .month-events-controls {
-            display: flex;
-            gap: 10px;
-        }
-        
-        .btn-small {
-            padding: 6px 12px;
-            font-size: 0.875rem;
-            border-radius: 4px;
-            background: #6c757d;
-            color: white;
-            border: none;
-            cursor: pointer;
-            transition: all 0.3s ease;
-        }
-        
-        .btn-small:hover {
-            background: #5a6268;
-            transform: translateY(-1px);
-        }
-        
-        .month-events-list {
-            margin-bottom: 30px;
-        }
-        
-        .month-event-item {
-            background: white;
-            border-radius: 8px;
-            margin-bottom: 15px;
-            border: 1px solid #dee2e6;
-            overflow: hidden;
-            transition: all 0.3s ease;
-            display: flex;
-            align-items: center;
-            gap: 15px;
-            padding: 15px;
-            cursor: pointer;
-        }
-        
-        .month-event-item:hover {
-            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
-            transform: translateY(-2px);
-            border-color: #667eea;
-        }
-        
-        .month-event-item.merged-event {
-            border-left: 4px solid #28a745;
-            background: linear-gradient(135deg, #ffffff, #f8fff9);
-        }
-        
-        .event-color-bar {
-            width: 6px;
-            height: 50px;
-            border-radius: 3px;
-            flex-shrink: 0;
-        }
-        
-        .event-info {
-            flex: 1;
-            min-width: 0;
-        }
-        
-        .event-title {
-            font-weight: 600;
-            color: #495057;
-            font-size: 1rem;
-            margin-bottom: 5px;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-        }
-        
-        .event-meta {
-            color: #6c757d;
-            font-size: 0.875rem;
-            line-height: 1.3;
-        }
-        
-        .event-stats {
-            display: flex;
-            gap: 20px;
-            align-items: center;
-            flex-wrap: wrap;
-        }
-        
-        .stat-group {
-            text-align: center;
-            min-width: 80px;
-        }
-        
-        .stat-value {
-            display: block;
-            font-weight: 700;
-            color: #495057;
-            font-size: 0.875rem;
-            line-height: 1.2;
-        }
-        
-        .stat-label {
-            display: block;
-            color: #6c757d;
-            font-size: 0.75rem;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-            margin-top: 2px;
-        }
-        
-        .month-stats {
-            background: linear-gradient(135deg, #f8f9fa, #e9ecef);
-            padding: 25px;
-            border-radius: 12px;
-            border: 1px solid #dee2e6;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
-        }
-        
-        .month-stats h4 {
-            text-align: center;
-            margin-bottom: 20px;
-            color: #495057;
-            font-size: 1.25rem;
-        }
-        
-        .stats-breakdown {
-            margin-bottom: 25px;
-        }
-        
-        .stats-breakdown h5 {
-            margin-bottom: 15px;
-            color: #495057;
-            font-size: 1rem;
-            text-align: center;
-        }
-        
-        .breakdown-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 10px;
-        }
-        
-        .breakdown-item {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 10px 15px;
-            background: white;
-            border-radius: 6px;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-            border: 1px solid #e9ecef;
-        }
-        
-        .breakdown-item span:first-child {
-            color: #495057;
-            font-weight: 500;
-            font-size: 0.875rem;
-        }
-        
-        .breakdown-item span:last-child {
-            color: #667eea;
-            font-weight: 600;
-        }
-        
-        .stats-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-            gap: 15px;
-        }
-        
-        .stat-card {
-            background: white;
-            padding: 20px;
-            border-radius: 8px;
-            text-align: center;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
-            transition: all 0.3s ease;
-            border-left: 4px solid #667eea;
-        }
-        
-        .stat-card:hover {
-            transform: translateY(-3px);
-            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
-        }
-        
-        .stat-number {
-            font-size: 1.5rem;
-            font-weight: 700;
-            color: #667eea;
-            margin-bottom: 5px;
-            line-height: 1;
-        }
-        
-        .stat-card .stat-label {
-            font-weight: 600;
-            color: #495057;
-            margin-bottom: 0;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-            font-size: 0.75rem;
-        }
-        
-        .events-placeholder {
-            text-align: center;
-            padding: 40px 20px;
-            color: #6c757d;
-            background: #f8f9fa;
-            border-radius: 8px;
-            border: 1px dashed #dee2e6;
-        }
-        
-        .events-placeholder p {
-            margin-bottom: 10px;
-        }
-        
-        .events-placeholder small {
-            color: #6c757d;
-        }
-        
-        @media (max-width: 768px) {
-            .month-event-item {
-                flex-direction: column;
-                align-items: flex-start;
-                text-align: left;
-            }
-            
-            .event-stats {
-                justify-content: space-around;
-                width: 100%;
-                margin-top: 10px;
-            }
-            
-            .stats-grid {
-                grid-template-columns: repeat(2, 1fr);
-            }
-            
-            .breakdown-grid {
-                grid-template-columns: 1fr;
-            }
-        }
-        
-        @media (max-width: 480px) {
-            .month-events-header {
-                flex-direction: column;
-                text-align: center;
-                gap: 15px;
-            }
-            
-            .event-stats {
-                gap: 15px;
-            }
-            
-            .stat-group {
-                min-width: 60px;
-            }
-            
-            .stats-grid {
-                grid-template-columns: 1fr;
-            }
-            
-            .month-stats {
-                padding: 20px 15px;
-            }
-        }
-    `;
-    
-    document.head.appendChild(style);
-    console.log('✅ Part 4B CSS injected');
-}
-
-// ========================================
-// GLOBÁLNÍ EXPORT PRO PART 4B
-// ========================================
-
-// Export funkcí pro HTML onclick handlers
-if (typeof window !== 'undefined') {
-    window.filterCalendar = filterCalendar;
-    window.resetCalendarFilters = resetCalendarFilters;
-    window.searchEvents = searchEvents;
-    window.exportMonthEvents = exportMonthEvents;
-    
-    // Rozšíření debug objektu
-    if (window.calendarDebug) {
-        window.calendarDebug.filters = calendarFilters;
-        window.calendarDebug.filteredEvents = () => filteredEvents;
-        window.calendarDebug.resetFilters = resetCalendarFilters;
-        window.calendarDebug.reloadFilters = () => {
-            initializeCalendarFilters();
-            initializeEventSearch();
-        };
-        window.calendarDebug.getMonthStats = () => {
-            const monthStart = new Date(calendarState.currentYear, calendarState.currentMonth, 1);
-            const monthEnd = new Date(calendarState.currentYear, calendarState.currentMonth + 1, 0);
-            
-            const monthEvents = filteredEvents.filter(event => {
-                const eventStart = event.startDate;
-                const eventEnd = event.endDate;
-                return (eventStart <= monthEnd && eventEnd >= monthStart);
-            });
-            
-            return {
-                total: monthEvents.length,
-                merged: monthEvents.filter(e => e.hasRealData && e.hasPrediction).length,
-                historicalOnly: monthEvents.filter(e => e.hasRealData && !e.hasPrediction).length,
-                predictionOnly: monthEvents.filter(e => !e.hasRealData && e.hasPrediction).length,
-                completed: monthEvents.filter(e => e.status === 'completed').length
-            };
-        };
-    }
-}
-
-// ========================================
-// INICIALIZACE PART 4B
-// ========================================
-
-// Inicializace při načtení DOM
-document.addEventListener('DOMContentLoaded', function() {
-    // Inject CSS styly
-    injectPart4BCSS();
-    
-    // Malé zpoždění pro načtení Part 4A
-    setTimeout(() => {
-        if (calendarState && calendarState.events && calendarState.events.length > 0) {
-            console.log('📅 Part 4B initializing filters and search');
-            initializeCalendarFilters();
-            initializeEventSearch();
-            filteredEvents = [...calendarState.events];
-            updateMonthEventsList();
-        }
-    }, 3000);
-});
-
-console.log('✅ Donuland Part 4B loaded successfully');
-console.log('🔍 Filter features: Category, Status, Source, City, Text search');
-console.log('📋 Monthly overview: Event list with merge indicators, Statistics, Export');
-console.log('🔄 Smart integration: All Part 4A functions work with enhanced filters');
-
-// Emit completion event
-if (typeof eventBus !== 'undefined') {
-    eventBus.emit('part4BLoaded', { 
-        timestamp: Date.now(),
-        version: '4B-clean-1.0.0',
-        features: [
-            'enhanced-filters-for-merged-events',
-            'smart-search-functionality', 
-            'monthly-overview-with-statistics',
-            'city-filter-population',
-            'filter-statistics-display',
-            'responsive-month-event-list',
-            'merged-events-indicators'
+            'multiple-data-sources',
+            'dynamic-status-by-date',
+            'blacklist-deleted-events',
+            'persistent-deletion',
+            'prediction-accuracy-calculation'
         ]
     });
 }
