@@ -120,100 +120,6 @@ const deletedEventsManager = {
 // ========================================
 
 // Hlavní funkce pro načtení všech událostí s inteligentním slučováním a blacklist kontrolou
-function loadCalendarEvents() {
-    console.log('📅 Loading calendar events with smart merging and blacklist...');
-    
-    calendarState.events = [];
-    eventColorIndex = 0;
-    
-    // Získání blacklistu smazaných událostí
-    const deletedEvents = deletedEventsManager.getDeletedEvents();
-    console.log(`🗑️ Blacklist contains ${deletedEvents.length} deleted events`);
-    
-    // 1. Historická data ze Sheets (základní události) - kontrola blacklistu
-    if (typeof globalState !== 'undefined' && globalState.historicalData) {
-        globalState.historicalData.forEach((record, index) => {
-            const eventId = 'historical_' + index;
-            
-            // KONTROLA BLACKLISTU - přeskočit smazané události
-            if (deletedEventsManager.isDeleted(eventId)) {
-                console.log(`⏭️ Skipping deleted historical event: ${eventId}`);
-                return;
-            }
-            
-            const startDate = parseDate(record.dateFrom);
-            const endDate = parseDate(record.dateTo || record.dateFrom);
-            
-            if (startDate) {
-                const today = new Date();
-                today.setHours(0, 0, 0, 0);
-                
-                calendarState.events.push({
-                    id: eventId,
-                    title: record.eventName || 'Neznámá akce',
-                    startDate: startDate,
-                    endDate: endDate,
-                    category: record.category || 'ostatní',
-                    city: record.city || '',
-                    status: endDate < today ? 'completed' : 'planned',
-                    source: 'historical',
-                    color: getUniqueEventColor(),
-                    hasRealData: true,
-                    hasPrediction: false,
-                    data: {
-                        visitors: record.visitors || 0,
-                        sales: record.sales || 0,
-                        competition: record.competition || 2,
-                        rating: record.rating || 0,
-                        notes: record.notes || '',
-                        businessModel: record.businessModel || '',
-                        price: record.price || 110
-                    },
-                    prediction: null // Bude naplněno při slučování
-                });
-            }
-        });
-    }
-    
-    // 2. Slučování uložených predikcí s existujícími akcemi - kontrola blacklistu
-    try {
-        const savedPredictions = JSON.parse(localStorage.getItem('donuland_predictions') || '[]');
-        savedPredictions.forEach((prediction, index) => {
-            const predictionId = 'prediction_' + index;
-            
-            // KONTROLA BLACKLISTU - přeskočit smazané predikce
-            if (deletedEventsManager.isDeleted(predictionId)) {
-                console.log(`⏭️ Skipping deleted prediction: ${predictionId}`);
-                return;
-            }
-            
-            if (prediction.formData) {
-                mergePredictionWithEvents(prediction, predictionId);
-            }
-        });
-    } catch (error) {
-        console.warn('⚠️ Error loading predictions:', error);
-    }
-    
-    // 3. Slučování aktuální predikce - kontrola blacklistu
-    if (typeof globalState !== 'undefined' && globalState.lastPrediction && 
-        !globalState.lastPrediction.saved && globalState.lastPrediction.formData) {
-        
-        const currentPredictionId = 'current_prediction';
-        
-        // KONTROLA BLACKLISTU - přeskočit smazanou aktuální predikci
-        if (!deletedEventsManager.isDeleted(currentPredictionId)) {
-            mergePredictionWithEvents(globalState.lastPrediction, currentPredictionId);
-        } else {
-            console.log(`⏭️ Skipping deleted current prediction: ${currentPredictionId}`);
-        }
-    }
-    
-    console.log(`✅ Loaded ${calendarState.events.length} calendar events (with smart merging and blacklist filtering)`);
-    console.log(`🗑️ Filtered out ${deletedEvents.length} deleted events`);
-}
-
-// Funkce pro slučování predikce s existující akcí nebo vytvoření nové
 function mergePredictionWithEvents(prediction, predictionId) {
     const formData = prediction.formData;
     const startDate = parseDate(formData.eventDateFrom);
@@ -221,19 +127,32 @@ function mergePredictionWithEvents(prediction, predictionId) {
     
     if (!startDate) return;
     
+    console.log(`🔄 Attempting to merge prediction: "${formData.eventName}"`);
+    
     // Hledání existující akce se stejným názvem a překrývajícím se datem
     const existingEvent = calendarState.events.find(event => {
         const nameMatch = normalizeEventName(event.title) === normalizeEventName(formData.eventName);
         const dateOverlap = datesOverlap(event.startDate, event.endDate, startDate, endDate);
-        return nameMatch && dateOverlap;
+        const result = nameMatch && dateOverlap;
+        
+        console.log(`  Checking "${event.title}":`, {
+            nameMatch,
+            dateOverlap,
+            willMerge: result
+        });
+        
+        return result;
     });
     
     if (existingEvent) {
-        // SLOUČIT s existující akcí
-        console.log(`🔄 Merging prediction with existing event: ${existingEvent.title}`);
+        // SLOUČIT s existující akcí - OPRAVENO!
+        console.log(`✅ Merging prediction with existing event: ${existingEvent.title}`);
         
+        // Označit jako sloučenou akci
         existingEvent.hasPrediction = true;
         existingEvent.source = 'merged'; // Označit jako sloučenou
+        
+        // KLÍČOVÁ OPRAVA: Přidat predikční data do existující akce
         existingEvent.prediction = {
             id: predictionId,
             predictedSales: prediction.prediction?.predictedSales || 0,
@@ -242,19 +161,56 @@ function mergePredictionWithEvents(prediction, predictionId) {
             expectedProfit: prediction.businessResults?.profit || 0,
             businessModel: formData.businessModel || '',
             createdAt: prediction.timestamp || new Date().toISOString(),
-            formData: formData
+            formData: formData,
+            // NOVÉ: Detailní business data
+            costs: prediction.businessResults?.costs || {},
+            totalCosts: prediction.businessResults?.totalCosts || 0,
+            roi: prediction.businessResults?.roi || 0,
+            margin: prediction.businessResults?.margin || 0,
+            breakeven: prediction.businessResults?.breakeven || 0
         };
         
-        // Aktualizovat některé údaje z predikce pokud nejsou v historických datech
+        // NOVÉ: Doplnit data pokud nejsou v historických datech
         if (!existingEvent.data.visitors && formData.visitors) {
             existingEvent.data.visitors = formData.visitors;
+            console.log(`  Added visitors: ${formData.visitors}`);
         }
+        
         if (!existingEvent.data.businessModel && formData.businessModel) {
             existingEvent.data.businessModel = formData.businessModel;
+            console.log(`  Added business model: ${formData.businessModel}`);
+        }
+        
+        if (!existingEvent.data.price && formData.price) {
+            existingEvent.data.price = formData.price;
+            console.log(`  Added price: ${formData.price}`);
+        }
+        
+        // NOVÉ: Přidat predikované hodnoty do data objektu pro zobrazení
+        existingEvent.data.predictedSales = prediction.prediction?.predictedSales || 0;
+        existingEvent.data.confidence = prediction.prediction?.confidence || 0;
+        existingEvent.data.expectedRevenue = prediction.businessResults?.revenue || 0;
+        existingEvent.data.expectedProfit = prediction.businessResults?.profit || 0;
+        
+        console.log(`✅ Successfully merged prediction data:`, {
+            predictedSales: existingEvent.prediction.predictedSales,
+            expectedRevenue: existingEvent.prediction.expectedRevenue,
+            expectedProfit: existingEvent.prediction.expectedProfit,
+            confidence: existingEvent.prediction.confidence
+        });
+        
+        // Emit event o úspěšném sloučení
+        if (typeof eventBus !== 'undefined') {
+            eventBus.emit('predictionMerged', {
+                eventId: existingEvent.id,
+                eventName: existingEvent.title,
+                predictionId: predictionId,
+                timestamp: Date.now()
+            });
         }
         
     } else {
-        // VYTVOŘIT novou akci (pouze predikce)
+        // VYTVOŘIT novou akci (pouze predikce) - BEZ ZMĚN
         console.log(`➕ Creating new prediction event: ${formData.eventName}`);
         
         calendarState.events.push({
@@ -1431,9 +1387,11 @@ function createMonthEventItem(event) {
         sourceIcon = '🤖'; // Predikce
     }
     
-    // Statistiky - rozšířené pro slučované akce
+    // OPRAVA: Správné získání prodejních dat
     const visitors = event.data.visitors || 0;
     const realSales = event.data.sales || 0;
+    
+    // NOVÉ: Pokud je akce sloučená, zobrazit predikované hodnoty
     const predictedSales = event.prediction?.predictedSales || event.data.predictedSales || 0;
     
     // Určení hlavního čísla prodeje pro zobrazení
@@ -1442,11 +1400,11 @@ function createMonthEventItem(event) {
     
     const conversion = visitors > 0 && displaySales > 0 ? ((displaySales / visitors) * 100).toFixed(1) : '0';
     
-    // Business data
+    // NOVÉ: Business data z predikce pro sloučené akce
     const revenue = event.prediction?.expectedRevenue || (displaySales * (event.data.price || 110));
     const profit = event.prediction?.expectedProfit || 0;
     
-    // Accuracy indicator pokud máme oboje
+    // NOVÉ: Accuracy indicator pokud máme oboje
     let accuracyHtml = '';
     if (event.hasRealData && event.hasPrediction && realSales > 0 && predictedSales > 0) {
         const accuracy = calculatePredictionAccuracy(predictedSales, realSales);
@@ -1454,7 +1412,7 @@ function createMonthEventItem(event) {
         accuracyHtml = `
             <div class="stat-group">
                 <span class="stat-value" style="color: ${accuracyColor};">${accuracy}%</span>
-                <span class="stat-label">přesnost</span>
+                <span class="stat-label">přesnost AI</span>
             </div>
         `;
     }
