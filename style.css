@@ -3621,5 +3621,305 @@ kbd:last-of-type {
         margin-bottom: var(--spacing-sm);
     }
 }
+/* ========================================
+   OPRAVA KALENDÁŘOVÉ MŘÍŽKY - FIXNÍ ROZMĚRY
+   Přidat do style.css nebo nahradit existující .calendar-grid
+   ======================================== */
 
+/* Hlavní kalendářová mřížka s fixními rozměry */
+.calendar-grid {
+    display: grid;
+    /* OPRAVENO: Fixní šířky sloupců místo 1fr */
+    grid-template-columns: repeat(7, 140px); /* 7 sloupců, každý 140px */
+    grid-template-rows: auto repeat(6, 120px); /* Hlavička + 6 řádků, každý 120px */
+    gap: 2px;
+    background: var(--gray-300);
+    border-radius: var(--radius-md);
+    overflow: hidden;
+    margin-bottom: var(--spacing-xl);
+    box-shadow: var(--shadow-md);
+    
+    /* NOVÉ: Fixní šířka celé mřížky */
+    width: 990px; /* 7 × 140px + 6 × 2px gap = 988px + padding */
+    margin-left: auto;
+    margin-right: auto;
+}
+
+/* Hlavička s názvy dnů - fixní velikost */
+.calendar-header {
+    background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+    color: var(--white);
+    padding: var(--spacing-md);
+    text-align: center;
+    font-weight: 700;
+    font-size: var(--font-size-sm);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    
+    /* NOVÉ: Fixní rozměry */
+    width: 140px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* Buňky dnů - fixní velikost */
+.calendar-day {
+    background: var(--white);
+    /* OPRAVENO: Fixní rozměry */
+    width: 140px;
+    height: 120px;
+    padding: var(--spacing-xs);
+    position: relative;
+    transition: all 0.3s ease;
+    cursor: pointer;
+    border: 2px solid transparent;
+    
+    /* NOVÉ: Kontrola overflow */
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+}
+
+.calendar-day:hover {
+    background: var(--gray-100);
+    transform: scale(1.02);
+    border-color: var(--primary-color);
+    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.2);
+    z-index: 10;
+}
+
+.calendar-day.other-month {
+    background: var(--gray-200);
+    color: var(--gray-400);
+    opacity: 0.6;
+}
+
+.calendar-day.today {
+    background: linear-gradient(135deg, #fff3cd, #ffeaa7);
+    border: 2px solid var(--warning-color);
+    font-weight: 700;
+    box-shadow: 0 0 15px rgba(255, 193, 7, 0.3);
+}
+
+.calendar-day.has-events {
+    border-left: 4px solid var(--success-color);
+    /* OPRAVENO: Upravit padding kvůli levému borderu */
+    padding-left: calc(var(--spacing-xs) - 2px);
+}
+
+/* Číslo dne - pozice a velikost */
+.day-number {
+    font-weight: 700;
+    margin-bottom: var(--spacing-xs);
+    font-size: var(--font-size-sm);
+    /* NOVÉ: Sticky pozice */
+    position: sticky;
+    top: 0;
+    background: inherit;
+    z-index: 1;
+    padding: 2px 0;
+    /* NOVÉ: Flexbox pro centrování */
+    display: flex;
+    align-items: center;
+    height: 20px;
+    flex-shrink: 0;
+}
+
+/* Kontejner událostí - flexibilní výška */
+.day-events {
+    font-size: var(--font-size-xs);
+    /* OPRAVENO: Zbytek prostoru po day-number */
+    flex: 1;
+    overflow-y: auto;
+    overflow-x: hidden;
+    
+    /* NOVÉ: Custom scrollbar */
+    scrollbar-width: thin;
+    scrollbar-color: var(--primary-color) transparent;
+}
+
+.day-events::-webkit-scrollbar {
+    width: 3px;
+}
+
+.day-events::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.day-events::-webkit-scrollbar-thumb {
+    background: var(--primary-color);
+    border-radius: 3px;
+}
+
+/* Položky událostí - optimalizovaná velikost */
+.event-item {
+    background: var(--primary-color);
+    color: var(--white);
+    padding: 2px 4px;
+    border-radius: 3px;
+    margin-bottom: 2px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    text-overflow: ellipsis;
+    overflow: hidden;
+    white-space: nowrap;
+    font-size: 10px;
+    font-weight: 500;
+    position: relative;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+    line-height: 1.2;
+    
+    /* NOVÉ: Min a max výška */
+    min-height: 16px;
+    max-height: 20px;
+}
+
+.event-item:hover {
+    transform: scale(1.05);
+    z-index: 20;
+    white-space: normal;
+    position: absolute;
+    min-width: 160px;
+    max-width: 200px;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+    padding: 4px 6px;
+    font-size: 11px;
+    max-height: none;
+    background: var(--primary-dark);
+}
+
+.event-item.more-events {
+    background: var(--gray-600);
+    text-align: center;
+    font-style: italic;
+    font-size: 9px;
+}
+
+.event-item.more-events:hover {
+    background: var(--gray-700);
+    transform: scale(1.02);
+    position: static;
+    white-space: nowrap;
+}
+
+/* Wrapper pro celý kalendář - scroll když je potřeba */
+.calendar-wrapper {
+    overflow-x: auto;
+    border-radius: var(--radius-md);
+    /* NOVÉ: Centrování */
+    display: flex;
+    justify-content: center;
+    padding: 10px 0;
+}
+
+/* NOVÉ: Responsive breakpointy */
+@media (max-width: 1024px) {
+    .calendar-grid {
+        grid-template-columns: repeat(7, 120px);
+        width: 854px; /* 7 × 120px + 6 × 2px */
+    }
+    
+    .calendar-header,
+    .calendar-day {
+        width: 120px;
+    }
+    
+    .calendar-day {
+        height: 100px;
+    }
+}
+
+@media (max-width: 768px) {
+    .calendar-grid {
+        grid-template-columns: repeat(7, 100px);
+        width: 712px; /* 7 × 100px + 6 × 2px */
+    }
+    
+    .calendar-header,
+    .calendar-day {
+        width: 100px;
+    }
+    
+    .calendar-day {
+        height: 80px;
+        padding: 2px;
+    }
+    
+    .day-number {
+        font-size: var(--font-size-xs);
+        height: 16px;
+    }
+    
+    .event-item {
+        font-size: 9px;
+        padding: 1px 3px;
+        min-height: 14px;
+        max-height: 16px;
+    }
+}
+
+@media (max-width: 480px) {
+    .calendar-grid {
+        grid-template-columns: repeat(7, 80px);
+        width: 572px; /* 7 × 80px + 6 × 2px */
+    }
+    
+    .calendar-header,
+    .calendar-day {
+        width: 80px;
+    }
+    
+    .calendar-day {
+        height: 60px;
+        padding: 1px;
+    }
+    
+    .day-number {
+        font-size: 10px;
+        height: 14px;
+        margin-bottom: 2px;
+    }
+    
+    .event-item {
+        font-size: 8px;
+        padding: 1px 2px;
+        margin-bottom: 1px;
+        min-height: 12px;
+        max-height: 14px;
+    }
+    
+    .event-item:hover {
+        min-width: 120px;
+        max-width: 150px;
+        font-size: 9px;
+    }
+}
+
+/* NOVÉ: Print styly pro fixní velikosti */
+@media print {
+    .calendar-grid {
+        width: 100%;
+        grid-template-columns: repeat(7, 1fr);
+        box-shadow: none;
+        border: 1px solid var(--gray-400);
+    }
+    
+    .calendar-day {
+        width: auto;
+        height: 80px;
+        border: 1px solid var(--gray-300);
+    }
+    
+    .calendar-header {
+        width: auto;
+    }
+    
+    .event-item {
+        background: var(--gray-200) !important;
+        color: var(--gray-800) !important;
+        border: 1px solid var(--gray-400);
+    }
+}
 
