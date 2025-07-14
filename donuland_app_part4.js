@@ -1653,7 +1653,6 @@ function updateMonthEventsList() {
     // Vytvoření seznamu
     let html = `
         <div class="month-events-header">
-            <h4>📋 Akce v měsíci (${currentMonthEvents.length})</h4>
             <div class="month-events-controls">
                 <button class="btn btn-small" onclick="resetCalendarFilters()">🔄 Reset filtrů</button>
                 <button class="btn btn-small" onclick="exportMonthEvents()">📄 Export měsíce</button>
