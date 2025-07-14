@@ -1,3 +1,39 @@
+// ========================================
+// OPRAVA CHYB V KALENDÁŘI - RYCHLÉ ŘEŠENÍ
+// ========================================
+
+function calculatePredictionAccuracy(predicted, actual) {
+    if (!predicted || !actual || predicted <= 0 || actual <= 0) {
+        return 0;
+    }
+    const accuracy = 100 - Math.abs((predicted - actual) / actual) * 100;
+    return Math.max(0, Math.min(100, Math.round(accuracy)));
+}
+
+function safeGetUniqueEventColor() {
+    if (typeof getUniqueEventColor === 'function') {
+        return getUniqueEventColor();
+    }
+    const fallbackColors = [
+        '#ff6b6b', '#4ecdc4', '#45b7d1', '#96ceb4', '#ffeaa7', '#dda0dd'
+    ];
+    const randomIndex = Math.floor(Math.random() * fallbackColors.length);
+    return fallbackColors[randomIndex];
+}
+
+function deletePredictionFromStorage(predictionId) {
+    try {
+        const savedPredictions = JSON.parse(localStorage.getItem('donuland_predictions') || '[]');
+        const predictionIndex = parseInt(predictionId.replace('prediction_', ''));
+        
+        if (savedPredictions[predictionIndex]) {
+            savedPredictions.splice(predictionIndex, 1);
+            localStorage.setItem('donuland_predictions', JSON.stringify(savedPredictions));
+        }
+    } catch (error) {
+        console.error('Error deleting prediction from storage:', error);
+    }
+}
 /* ========================================
    DONULAND PART 4A - Základní kalendář CLEAN
    Opravená verze bez duplikací
