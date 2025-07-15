@@ -3083,3 +3083,1287 @@ if (typeof eventBus !== 'undefined') {
         ]
     });
 }
+/* ========================================
+   DONULAND MANAGEMENT SYSTEM - PART 5C
+   Města ranking & Kategorie analýzy
+   ======================================== */
+
+console.log('🍩 Donuland Part 5C loading...');
+
+// ========================================
+// KONTROLA INICIALIZACE
+// ========================================
+
+if (typeof window.analyticsPart5CLoaded === 'undefined') {
+    window.analyticsPart5CLoaded = true;
+} else {
+    console.log('⚠️ Part 5C already loaded, skipping...');
+}
+
+// ========================================
+// MĚSTA RANKING
+// ========================================
+
+// Výpočet rankingu měst podle zisku
+function calculateCitiesRanking(data = null) {
+    console.log('🏙️ Calculating cities ranking...');
+    
+    const records = data || analyticsState.filteredData;
+    
+    if (!records || records.length === 0) {
+        return [];
+    }
+    
+    const cityStats = {};
+    
+    records.forEach(record => {
+        const financials = calculateFinancials(record);
+        if (!financials.isValid) return;
+        
+        const city = record.city || 'Neznámé město';
+        
+        if (!cityStats[city]) {
+            cityStats[city] = {
+                city: city,
+                count: 0,
+                totalRevenue: 0,
+                totalCosts: 0,
+                totalProfit: 0,
+                totalSales: 0,
+                totalVisitors: 0,
+                events: []
+            };
+        }
+        
+        cityStats[city].count++;
+        cityStats[city].totalRevenue += financials.revenue;
+        cityStats[city].totalCosts += financials.costs.total;
+        cityStats[city].totalProfit += financials.profit;
+        cityStats[city].totalSales += financials.sales;
+        cityStats[city].totalVisitors += record.visitors || 0;
+        cityStats[city].events.push({
+            name: record.eventName,
+            profit: financials.profit,
+            date: record.dateTo
+        });
+    });
+    
+    // Vypočítat průměry a seřadit podle celkového zisku
+    const ranking = Object.values(cityStats).map(stats => ({
+        ...stats,
+        avgProfit: stats.totalProfit / stats.count,
+        avgRevenue: stats.totalRevenue / stats.count,
+        margin: stats.totalRevenue > 0 ? (stats.totalProfit / stats.totalRevenue) * 100 : 0,
+        roi: stats.totalCosts > 0 ? (stats.totalProfit / stats.totalCosts) * 100 : 0,
+        avgSales: stats.totalSales / stats.count,
+        conversion: stats.totalVisitors > 0 ? (stats.totalSales / stats.totalVisitors) * 100 : 0
+    })).sort((a, b) => b.totalProfit - a.totalProfit);
+    
+    console.log(`✅ Cities ranking calculated: ${ranking.length} cities`);
+    return ranking;
+}
+
+// ========================================
+// KATEGORIE ANALÝZY
+// ========================================
+
+// Výpočet výkonnosti podle kategorií
+function calculateCategoriesAnalysis(data = null) {
+    console.log('📊 Calculating categories analysis...');
+    
+    const records = data || analyticsState.filteredData;
+    
+    if (!records || records.length === 0) {
+        return [];
+    }
+    
+    const categoryStats = {};
+    
+    records.forEach(record => {
+        const financials = calculateFinancials(record);
+        if (!financials.isValid) return;
+        
+        const category = record.category || 'ostatní';
+        
+        if (!categoryStats[category]) {
+            categoryStats[category] = {
+                category: category,
+                count: 0,
+                totalRevenue: 0,
+                totalCosts: 0,
+                totalProfit: 0,
+                totalSales: 0,
+                totalVisitors: 0,
+                cities: new Set(),
+                events: []
+            };
+        }
+        
+        categoryStats[category].count++;
+        categoryStats[category].totalRevenue += financials.revenue;
+        categoryStats[category].totalCosts += financials.costs.total;
+        categoryStats[category].totalProfit += financials.profit;
+        categoryStats[category].totalSales += financials.sales;
+        categoryStats[category].totalVisitors += record.visitors || 0;
+        categoryStats[category].cities.add(record.city);
+        categoryStats[category].events.push({
+            name: record.eventName,
+            city: record.city,
+            profit: financials.profit,
+            date: record.dateTo
+        });
+    });
+    
+    // Vypočítat průměry a seřadit podle průměrného zisku
+    const analysis = Object.values(categoryStats).map(stats => ({
+        ...stats,
+        citiesCount: stats.cities.size,
+        cities: undefined, // Odebrat Set
+        avgProfit: stats.totalProfit / stats.count,
+        avgRevenue: stats.totalRevenue / stats.count,
+        margin: stats.totalRevenue > 0 ? (stats.totalProfit / stats.totalRevenue) * 100 : 0,
+        roi: stats.totalCosts > 0 ? (stats.totalProfit / stats.totalCosts) * 100 : 0,
+        avgSales: stats.totalSales / stats.count,
+        conversion: stats.totalVisitors > 0 ? (stats.totalSales / stats.totalVisitors) * 100 : 0
+    })).sort((a, b) => b.avgProfit - a.avgProfit);
+    
+    console.log(`✅ Categories analysis calculated: ${analysis.length} categories`);
+    return analysis;
+}
+
+// ========================================
+// UI ZOBRAZENÍ
+// ========================================
+
+// Vytvoření UI pro Part 5C
+function createPart5CUI() {
+    console.log('🎨 Creating Part 5C UI...');
+    
+    const analyticsSection = document.getElementById('analytics');
+    if (!analyticsSection) {
+        console.error('❌ Analytics section not found');
+        return;
+    }
+    
+    // Zkontrolovat, zda už není UI vytvořené
+    if (analyticsSection.querySelector('.cities-ranking-card')) {
+        console.log('🎨 Part 5C UI already exists');
+        return;
+    }
+    
+    const part5CHTML = `
+        <!-- Města Ranking -->
+        <div class="card cities-ranking-card">
+            <h3>🏆 Top města podle zisku</h3>
+            <div id="citiesRanking" class="cities-ranking-grid">
+                <!-- Města karty se vygenerují dynamicky -->
+            </div>
+        </div>
+        
+        <!-- Kategorie Analýzy -->
+        <div class="card categories-analysis-card">
+            <h3>📊 Výkonnost podle kategorií</h3>
+            <div id="categoriesAnalysis" class="categories-analysis-grid">
+                <!-- Kategorie karty se vygenerují dynamicky -->
+            </div>
+        </div>
+    `;
+    
+    analyticsSection.insertAdjacentHTML('beforeend', part5CHTML);
+    
+    console.log('✅ Part 5C UI created');
+}
+
+// Zobrazení rankingu měst
+function displayCitiesRanking(ranking = null) {
+    console.log('🏆 Displaying cities ranking...');
+    
+    const container = document.getElementById('citiesRanking');
+    if (!container) {
+        console.error('❌ Cities ranking container not found');
+        return;
+    }
+    
+    if (!ranking || ranking.length === 0) {
+        container.innerHTML = '<div class="ranking-empty">🏙️ Nedostatek dat pro ranking měst</div>';
+        return;
+    }
+    
+    // Top 5 měst
+    const topCities = ranking.slice(0, 5);
+    
+    const medailIcons = ['🥇', '🥈', '🥉', '🏅', '🎖️'];
+    const medalColors = ['#FFD700', '#C0C0C0', '#CD7F32', '#4169E1', '#8A2BE2'];
+    
+    const cards = topCities.map((city, index) => {
+        const medal = medailIcons[index] || '🏆';
+        const medalColor = medalColors[index] || '#667eea';
+        
+        return `
+            <div class="city-ranking-card" style="border-left-color: ${medalColor};">
+                <div class="ranking-position">
+                    <span class="medal">${medal}</span>
+                    <span class="position">#${index + 1}</span>
+                </div>
+                
+                <div class="city-info">
+                    <h4>${escapeHtml(city.city)}</h4>
+                    <div class="city-stats">
+                        <div class="stat-small">
+                            <span class="label">Akcí:</span>
+                            <span class="value">${city.count}</span>
+                        </div>
+                        <div class="stat-small">
+                            <span class="label">Celkový zisk:</span>
+                            <span class="value profit">${formatCurrency(city.totalProfit)}</span>
+                        </div>
+                        <div class="stat-small">
+                            <span class="label">Průměr/akci:</span>
+                            <span class="value">${formatCurrency(city.avgProfit)}</span>
+                        </div>
+                        <div class="stat-small">
+                            <span class="label">ROI:</span>
+                            <span class="value ${city.roi >= 50 ? 'positive' : city.roi >= 25 ? 'neutral' : 'negative'}">${city.roi.toFixed(1)}%</span>
+                        </div>
+                        <div class="stat-small">
+                            <span class="label">Marže:</span>
+                            <span class="value ${city.margin >= 30 ? 'positive' : city.margin >= 15 ? 'neutral' : 'negative'}">${city.margin.toFixed(1)}%</span>
+                        </div>
+                        <div class="stat-small">
+                            <span class="label">Konverze:</span>
+                            <span class="value">${city.conversion.toFixed(1)}%</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="city-details">
+                    <button class="btn-detail" onclick="showCityDetail('${escapeHtml(city.city)}')">
+                        📋 Detail
+                    </button>
+                </div>
+            </div>
+        `;
+    }).join('');
+    
+    container.innerHTML = cards;
+    
+    console.log('✅ Cities ranking displayed');
+}
+
+// Zobrazení analýzy kategorií
+function displayCategoriesAnalysis(analysis = null) {
+    console.log('📊 Displaying categories analysis...');
+    
+    const container = document.getElementById('categoriesAnalysis');
+    if (!container) {
+        console.error('❌ Categories analysis container not found');
+        return;
+    }
+    
+    if (!analysis || analysis.length === 0) {
+        container.innerHTML = '<div class="analysis-empty">📊 Nedostatek dat pro analýzu kategorií</div>';
+        return;
+    }
+    
+    const categoryIcons = {
+        'food festival': '🍔',
+        'veletrh': '🏢',
+        'koncert': '🎵',
+        'kulturní akce': '🎭',
+        'kulturní akce (rodinná)': '👨‍👩‍👧‍👦',
+        'sportovní akce': '⚽',
+        'Sportovní akce (dospělí)': '🏃‍♂️',
+        'rodinný festival': '🎪',
+        'dětské akce': '🧸',
+        'ostatní': '📋'
+    };
+    
+    const cards = analysis.map((category, index) => {
+        const icon = categoryIcons[category.category] || '📋';
+        const rankColor = index === 0 ? '#FFD700' : index === 1 ? '#C0C0C0' : index === 2 ? '#CD7F32' : '#667eea';
+        
+        return `
+            <div class="category-analysis-card" style="border-top-color: ${rankColor};">
+                <div class="category-header">
+                    <div class="category-icon">${icon}</div>
+                    <div class="category-title">
+                        <h4>${escapeHtml(category.category)}</h4>
+                        <div class="category-rank">#${index + 1} kategorie</div>
+                    </div>
+                </div>
+                
+                <div class="category-metrics">
+                    <div class="metric-primary">
+                        <div class="metric-value">${formatCurrency(category.avgProfit)}</div>
+                        <div class="metric-label">Průměrný zisk/akci</div>
+                    </div>
+                    
+                    <div class="metrics-grid">
+                        <div class="metric-item">
+                            <span class="metric-number">${category.count}</span>
+                            <span class="metric-text">akcí</span>
+                        </div>
+                        <div class="metric-item">
+                            <span class="metric-number">${category.citiesCount}</span>
+                            <span class="metric-text">měst</span>
+                        </div>
+                        <div class="metric-item">
+                            <span class="metric-number ${category.margin >= 30 ? 'positive' : category.margin >= 15 ? 'neutral' : 'negative'}">${category.margin.toFixed(0)}%</span>
+                            <span class="metric-text">marže</span>
+                        </div>
+                        <div class="metric-item">
+                            <span class="metric-number">${category.conversion.toFixed(1)}%</span>
+                            <span class="metric-text">konverze</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="category-summary">
+                    <div class="summary-item">
+                        <span>Celkový zisk:</span>
+                        <span class="summary-value">${formatCurrency(category.totalProfit)}</span>
+                    </div>
+                </div>
+                
+                <div class="category-actions">
+                    <button class="btn-detail" onclick="showCategoryDetail('${escapeHtml(category.category)}')">
+                        📊 Detail kategorie
+                    </button>
+                </div>
+            </div>
+        `;
+    }).join('');
+    
+    container.innerHTML = cards;
+    
+    console.log('✅ Categories analysis displayed');
+}
+
+// ========================================
+// DETAIL MODALY
+// ========================================
+
+// Zobrazení detailu města
+function showCityDetail(cityName) {
+    console.log(`🏙️ Showing city detail for: ${cityName}`);
+    
+    const ranking = calculateCitiesRanking();
+    const city = ranking.find(c => c.city === cityName);
+    
+    if (!city) {
+        showNotification('❌ Město nenalezeno', 'error');
+        return;
+    }
+    
+    const modal = document.createElement('div');
+    modal.className = 'modal city-detail-modal';
+    modal.style.display = 'flex';
+    
+    // Seřadit události podle zisku
+    const topEvents = city.events
+        .sort((a, b) => b.profit - a.profit)
+        .slice(0, 5);
+    
+    modal.innerHTML = `
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>🏙️ ${escapeHtml(cityName)} - Detailní analýza</h3>
+                <button class="modal-close" onclick="this.closest('.modal').remove()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="city-detail-grid">
+                    <!-- Celkové metriky -->
+                    <div class="detail-section">
+                        <h4>📊 Celkové výsledky</h4>
+                        <div class="metrics-list">
+                            <div class="metric-row">
+                                <span>Počet akcí:</span>
+                                <span class="metric-value">${city.count}</span>
+                            </div>
+                            <div class="metric-row">
+                                <span>Celkový obrat:</span>
+                                <span class="metric-value">${formatCurrency(city.totalRevenue)}</span>
+                            </div>
+                            <div class="metric-row">
+                                <span>Celkové náklady:</span>
+                                <span class="metric-value">${formatCurrency(city.totalCosts)}</span>
+                            </div>
+                            <div class="metric-row highlight">
+                                <span>Celkový zisk:</span>
+                                <span class="metric-value profit">${formatCurrency(city.totalProfit)}</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Průměrné hodnoty -->
+                    <div class="detail-section">
+                        <h4>📈 Průměrné hodnoty</h4>
+                        <div class="metrics-list">
+                            <div class="metric-row">
+                                <span>Obrat/akci:</span>
+                                <span class="metric-value">${formatCurrency(city.avgRevenue)}</span>
+                            </div>
+                            <div class="metric-row">
+                                <span>Zisk/akci:</span>
+                                <span class="metric-value">${formatCurrency(city.avgProfit)}</span>
+                            </div>
+                            <div class="metric-row">
+                                <span>Prodej/akci:</span>
+                                <span class="metric-value">${formatNumber(city.avgSales)} ks</span>
+                            </div>
+                            <div class="metric-row">
+                                <span>Konverze:</span>
+                                <span class="metric-value">${city.conversion.toFixed(1)}%</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Top události -->
+                    <div class="detail-section full-width">
+                        <h4>🏆 Top ${topEvents.length} nejziskovějších akcí</h4>
+                        <div class="top-events-list">
+                            ${topEvents.map((event, index) => `
+                                <div class="event-summary">
+                                    <div class="event-rank">#${index + 1}</div>
+                                    <div class="event-info">
+                                        <div class="event-name">${escapeHtml(event.name)}</div>
+                                        <div class="event-date">${formatDate(event.date)}</div>
+                                    </div>
+                                    <div class="event-profit ${event.profit >= 0 ? 'positive' : 'negative'}">
+                                        ${formatCurrency(event.profit)}
+                                    </div>
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn" onclick="this.closest('.modal').remove()">Zavřít</button>
+            </div>
+        </div>
+    `;
+    
+    document.body.appendChild(modal);
+}
+
+// Zobrazení detailu kategorie
+function showCategoryDetail(categoryName) {
+    console.log(`📊 Showing category detail for: ${categoryName}`);
+    
+    const analysis = calculateCategoriesAnalysis();
+    const category = analysis.find(c => c.category === categoryName);
+    
+    if (!category) {
+        showNotification('❌ Kategorie nenalezena', 'error');
+        return;
+    }
+    
+    const modal = document.createElement('div');
+    modal.className = 'modal category-detail-modal';
+    modal.style.display = 'flex';
+    
+    // Seřadit události podle zisku
+    const topEvents = category.events
+        .sort((a, b) => b.profit - a.profit)
+        .slice(0, 5);
+    
+    modal.innerHTML = `
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>📊 ${escapeHtml(categoryName)} - Analýza kategorie</h3>
+                <button class="modal-close" onclick="this.closest('.modal').remove()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="category-detail-grid">
+                    <!-- Celkové metriky -->
+                    <div class="detail-section">
+                        <h4>📊 Celkové výsledky</h4>
+                        <div class="metrics-list">
+                            <div class="metric-row">
+                                <span>Počet akcí:</span>
+                                <span class="metric-value">${category.count}</span>
+                            </div>
+                            <div class="metric-row">
+                                <span>Počet měst:</span>
+                                <span class="metric-value">${category.citiesCount}</span>
+                            </div>
+                            <div class="metric-row">
+                                <span>Celkový obrat:</span>
+                                <span class="metric-value">${formatCurrency(category.totalRevenue)}</span>
+                            </div>
+                            <div class="metric-row highlight">
+                                <span>Celkový zisk:</span>
+                                <span class="metric-value profit">${formatCurrency(category.totalProfit)}</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Performance metriky -->
+                    <div class="detail-section">
+                        <h4>🎯 Performance</h4>
+                        <div class="metrics-list">
+                            <div class="metric-row">
+                                <span>Průměrný zisk/akci:</span>
+                                <span class="metric-value">${formatCurrency(category.avgProfit)}</span>
+                            </div>
+                            <div class="metric-row">
+                                <span>Marže:</span>
+                                <span class="metric-value ${category.margin >= 30 ? 'positive' : category.margin >= 15 ? 'neutral' : 'negative'}">${category.margin.toFixed(1)}%</span>
+                            </div>
+                            <div class="metric-row">
+                                <span>ROI:</span>
+                                <span class="metric-value ${category.roi >= 50 ? 'positive' : category.roi >= 25 ? 'neutral' : 'negative'}">${category.roi.toFixed(1)}%</span>
+                            </div>
+                            <div class="metric-row">
+                                <span>Konverze:</span>
+                                <span class="metric-value">${category.conversion.toFixed(1)}%</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Top události -->
+                    <div class="detail-section full-width">
+                        <h4>🏆 Top ${topEvents.length} nejziskovějších akcí</h4>
+                        <div class="top-events-list">
+                            ${topEvents.map((event, index) => `
+                                <div class="event-summary">
+                                    <div class="event-rank">#${index + 1}</div>
+                                    <div class="event-info">
+                                        <div class="event-name">${escapeHtml(event.name)}</div>
+                                        <div class="event-meta">${escapeHtml(event.city)} • ${formatDate(event.date)}</div>
+                                    </div>
+                                    <div class="event-profit ${event.profit >= 0 ? 'positive' : 'negative'}">
+                                        ${formatCurrency(event.profit)}
+                                    </div>
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn" onclick="this.closest('.modal').remove()">Zavřít</button>
+            </div>
+        </div>
+    `;
+    
+    document.body.appendChild(modal);
+}
+
+// ========================================
+// HLAVNÍ UPDATE FUNKCE
+// ========================================
+
+// Hlavní funkce pro aktualizaci Part 5C
+function updatePart5CDisplay() {
+    console.log('🔄 Updating Part 5C display...');
+    
+    try {
+        // Výpočet rankingu měst
+        const citiesRanking = calculateCitiesRanking();
+        
+        // Výpočet analýzy kategorií
+        const categoriesAnalysis = calculateCategoriesAnalysis();
+        
+        // Zobrazení komponent
+        displayCitiesRanking(citiesRanking);
+        displayCategoriesAnalysis(categoriesAnalysis);
+        
+        console.log('✅ Part 5C display updated');
+        
+    } catch (error) {
+        console.error('❌ Error updating Part 5C display:', error);
+        showNotification('❌ Chyba při aktualizaci analýz', 'error');
+    }
+}
+
+// ========================================
+// INICIALIZACE PART 5C
+// ========================================
+
+// Hlavní inicializační funkce Part 5C
+function initializePart5C() {
+    console.log('🔧 Initializing Part 5C...');
+    
+    // Ověřit, že Part 5A je načten
+    if (typeof analyticsState === 'undefined') {
+        console.error('❌ Part 5A not loaded! Part 5C requires Part 5A.');
+        setTimeout(initializePart5C, 1000);
+        return;
+    }
+    
+    try {
+        // 1. Vytvořit UI
+        createPart5CUI();
+        
+        // 2. Načíst a zobrazit data (pokud jsou dostupná)
+        if (analyticsState.filteredData && analyticsState.filteredData.length > 0) {
+            updatePart5CDisplay();
+        }
+        
+        console.log('✅ Part 5C initialized successfully');
+        
+        // Emit completion event
+        if (typeof eventBus !== 'undefined') {
+            eventBus.emit('part5CInitialized', {
+                timestamp: Date.now(),
+                version: '5C-1.0.0'
+            });
+        }
+        
+    } catch (error) {
+        console.error('❌ Error initializing Part 5C:', error);
+        showNotification('❌ Chyba při inicializaci analýz měst a kategorií', 'error');
+    }
+}
+
+// ========================================
+// EVENT LISTENERS
+// ========================================
+
+// Event listeners pro kompatibilitu s ostatními částmi
+if (typeof eventBus !== 'undefined') {
+    
+    // Po aktualizaci analytics (z Part 5A/5B)
+    eventBus.on('analyticsUpdated', (data) => {
+        console.log('📊 Analytics updated, updating Part 5C');
+        setTimeout(() => {
+            updatePart5CDisplay();
+        }, 200);
+    });
+    
+    // Po inicializaci analytics (z Part 5A)
+    eventBus.on('analyticsInitialized', () => {
+        console.log('📊 Analytics initialized, initializing Part 5C');
+        setTimeout(() => {
+            initializePart5C();
+        }, 800);
+    });
+    
+    // Po inicializaci Part 5B
+    eventBus.on('part5BInitialized', () => {
+        console.log('📊 Part 5B initialized, initializing Part 5C');
+        setTimeout(() => {
+            initializePart5C();
+        }, 200);
+    });
+}
+
+// DOM ready listener
+document.addEventListener('DOMContentLoaded', function() {
+    setTimeout(() => {
+        if (typeof analyticsState !== 'undefined' && analyticsState.isInitialized) {
+            console.log('📊 DOM ready - initializing Part 5C');
+            initializePart5C();
+        }
+    }, 4000);
+});
+
+// ========================================
+// GLOBÁLNÍ EXPORT PRO HTML
+// ========================================
+
+// Export funkcí pro HTML onclick handlers
+if (typeof window !== 'undefined') {
+    window.showCityDetail = showCityDetail;
+    window.showCategoryDetail = showCategoryDetail;
+    window.initializePart5C = initializePart5C;
+    
+    // Rozšíření debug objektu
+    if (window.analyticsDebug) {
+        window.analyticsDebug.part5C = {
+            calculateCitiesRanking: calculateCitiesRanking,
+            calculateCategoriesAnalysis: calculateCategoriesAnalysis,
+            updateDisplay: updatePart5CDisplay,
+            
+            // Test funkce
+            getTopCities: (limit = 5) => {
+                return calculateCitiesRanking().slice(0, limit);
+            },
+            
+            getTopCategories: (limit = 5) => {
+                return calculateCategoriesAnalysis().slice(0, limit);
+            },
+            
+            getCityStats: (cityName) => {
+                const ranking = calculateCitiesRanking();
+                return ranking.find(c => c.city === cityName);
+            }
+        };
+    }
+}
+
+// ========================================
+// CSS INJEKCE PRO PART 5C
+// ========================================
+
+// Přidání stylů pro Part 5C UI
+function injectPart5CCSS() {
+    if (document.getElementById('analytics-part5c-styles')) return;
+    
+    const style = document.createElement('style');
+    style.id = 'analytics-part5c-styles';
+    style.textContent = `
+        /* Cities Ranking */
+        .cities-ranking-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 20px;
+            margin-top: 20px;
+        }
+        
+        .city-ranking-card {
+            background: white;
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            transition: all 0.3s ease;
+            border-left: 6px solid var(--primary-color);
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .city-ranking-card:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 4px 15px rgba(0,0,0,0.15);
+        }
+        
+        .ranking-position {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+        
+        .medal {
+            font-size: 2rem;
+            filter: drop-shadow(0 2px 4px rgba(0,0,0,0.2));
+        }
+        
+        .position {
+            font-size: 1.2rem;
+            font-weight: 700;
+            color: var(--gray-600);
+        }
+        
+        .city-info h4 {
+            margin: 0 0 15px 0;
+            color: var(--gray-800);
+            font-size: 1.25rem;
+            font-weight: 600;
+        }
+        
+        .city-stats {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+            margin-bottom: 15px;
+        }
+        
+        .stat-small {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 6px 0;
+            border-bottom: 1px solid var(--gray-200);
+        }
+        
+        .stat-small:last-child {
+            border-bottom: none;
+        }
+        
+        .stat-small .label {
+            font-size: 0.8rem;
+            color: var(--gray-600);
+        }
+        
+        .stat-small .value {
+            font-weight: 600;
+            color: var(--gray-800);
+            font-size: 0.85rem;
+        }
+        
+        .stat-small .value.profit {
+            color: var(--success-color);
+            font-weight: 700;
+        }
+        
+        .stat-small .value.positive {
+            color: var(--success-color);
+        }
+        
+        .stat-small .value.neutral {
+            color: var(--warning-color);
+        }
+        
+        .stat-small .value.negative {
+            color: var(--error-color);
+        }
+        
+        .city-details {
+            text-align: center;
+            margin-top: 15px;
+            padding-top: 15px;
+            border-top: 1px solid var(--gray-200);
+        }
+        
+        .btn-detail {
+            background: var(--primary-color);
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.85rem;
+            font-weight: 500;
+            transition: all 0.3s ease;
+        }
+        
+        .btn-detail:hover {
+            background: var(--primary-dark);
+            transform: translateY(-1px);
+        }
+        
+        /* Categories Analysis */
+        .categories-analysis-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+            gap: 20px;
+            margin-top: 20px;
+        }
+        
+        .category-analysis-card {
+            background: white;
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            transition: all 0.3s ease;
+            border-top: 4px solid var(--primary-color);
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .category-analysis-card:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 4px 15px rgba(0,0,0,0.15);
+        }
+        
+        .category-header {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+        
+        .category-icon {
+            font-size: 2.5rem;
+            flex-shrink: 0;
+        }
+        
+        .category-title h4 {
+            margin: 0 0 5px 0;
+            color: var(--gray-800);
+            font-size: 1.2rem;
+            font-weight: 600;
+        }
+        
+        .category-rank {
+            font-size: 0.8rem;
+            color: var(--gray-500);
+            font-weight: 500;
+        }
+        
+        .category-metrics {
+            margin-bottom: 20px;
+        }
+        
+        .metric-primary {
+            text-align: center;
+            margin-bottom: 20px;
+            padding: 15px;
+            background: var(--gray-100);
+            border-radius: 8px;
+        }
+        
+        .metric-primary .metric-value {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--success-color);
+            margin-bottom: 5px;
+        }
+        
+        .metric-primary .metric-label {
+            font-size: 0.85rem;
+            color: var(--gray-600);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 10px;
+        }
+        
+        .metric-item {
+            text-align: center;
+            padding: 10px;
+            background: var(--gray-100);
+            border-radius: 6px;
+        }
+        
+        .metric-item .metric-number {
+            display: block;
+            font-size: 1.1rem;
+            font-weight: 700;
+            color: var(--gray-800);
+            margin-bottom: 3px;
+        }
+        
+        .metric-item .metric-number.positive {
+            color: var(--success-color);
+        }
+        
+        .metric-item .metric-number.neutral {
+            color: var(--warning-color);
+        }
+        
+        .metric-item .metric-number.negative {
+            color: var(--error-color);
+        }
+        
+        .metric-item .metric-text {
+            font-size: 0.75rem;
+            color: var(--gray-600);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .category-summary {
+            background: var(--gray-100);
+            padding: 12px;
+            border-radius: 6px;
+            margin-bottom: 15px;
+        }
+        
+        .summary-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 0.9rem;
+        }
+        
+        .summary-item span:first-child {
+            color: var(--gray-600);
+        }
+        
+        .summary-value {
+            font-weight: 700;
+            color: var(--success-color);
+        }
+        
+        .category-actions {
+            text-align: center;
+        }
+        
+        /* Detail Modals */
+        .city-detail-modal .modal-content,
+        .category-detail-modal .modal-content {
+            max-width: 800px;
+            width: 95%;
+            max-height: 90vh;
+            overflow-y: auto;
+        }
+        
+        .city-detail-grid,
+        .category-detail-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+        }
+        
+        .detail-section {
+            background: var(--gray-100);
+            padding: 20px;
+            border-radius: 8px;
+            border-left: 4px solid var(--primary-color);
+        }
+        
+        .detail-section.full-width {
+            grid-column: 1 / -1;
+        }
+        
+        .detail-section h4 {
+            margin: 0 0 15px 0;
+            color: var(--gray-800);
+            font-size: 1.1rem;
+            padding-bottom: 8px;
+            border-bottom: 1px solid var(--gray-300);
+        }
+        
+        .metrics-list {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        
+        .metric-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 8px 0;
+            border-bottom: 1px solid var(--gray-200);
+        }
+        
+        .metric-row:last-child {
+            border-bottom: none;
+        }
+        
+        .metric-row.highlight {
+            background: white;
+            padding: 12px;
+            margin: 8px 0;
+            border-radius: 6px;
+            border-left: 4px solid var(--success-color);
+        }
+        
+        .metric-row span:first-child {
+            color: var(--gray-600);
+            font-size: 0.9rem;
+        }
+        
+        .metric-row .metric-value {
+            font-weight: 600;
+            color: var(--gray-800);
+        }
+        
+        .metric-row .metric-value.profit {
+            color: var(--success-color);
+            font-weight: 700;
+        }
+        
+        .metric-row .metric-value.positive {
+            color: var(--success-color);
+        }
+        
+        .metric-row .metric-value.neutral {
+            color: var(--warning-color);
+        }
+        
+        .metric-row .metric-value.negative {
+            color: var(--error-color);
+        }
+        
+        .top-events-list {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        
+        .event-summary {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            background: white;
+            padding: 12px;
+            border-radius: 6px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            transition: all 0.3s ease;
+        }
+        
+        .event-summary:hover {
+            transform: translateX(3px);
+            box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+        }
+        
+        .event-rank {
+            background: var(--primary-color);
+            color: white;
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            font-size: 0.85rem;
+            flex-shrink: 0;
+        }
+        
+        .event-info {
+            flex: 1;
+            min-width: 0;
+        }
+        
+        .event-name {
+            font-weight: 600;
+            color: var(--gray-800);
+            margin-bottom: 3px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        
+        .event-date,
+        .event-meta {
+            font-size: 0.8rem;
+            color: var(--gray-600);
+        }
+        
+        .event-profit {
+            font-weight: 700;
+            font-size: 0.9rem;
+            flex-shrink: 0;
+        }
+        
+        .event-profit.positive {
+            color: var(--success-color);
+        }
+        
+        .event-profit.negative {
+            color: var(--error-color);
+        }
+        
+        /* Empty States */
+        .ranking-empty,
+        .analysis-empty {
+            text-align: center;
+            padding: 40px 20px;
+            color: var(--gray-500);
+            font-style: italic;
+            background: var(--gray-100);
+            border-radius: 8px;
+        }
+        
+        /* Responsive Design */
+        @media (max-width: 768px) {
+            .cities-ranking-grid,
+            .categories-analysis-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .city-stats {
+                grid-template-columns: 1fr;
+            }
+            
+            .metrics-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .city-detail-grid,
+            .category-detail-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .event-summary {
+                flex-direction: column;
+                text-align: center;
+                gap: 10px;
+            }
+            
+            .event-info {
+                text-align: center;
+            }
+            
+            .event-name {
+                white-space: normal;
+            }
+        }
+        
+        @media (max-width: 480px) {
+            .category-header {
+                flex-direction: column;
+                text-align: center;
+                gap: 10px;
+            }
+            
+            .category-icon {
+                font-size: 2rem;
+            }
+            
+            .medal {
+                font-size: 1.5rem;
+            }
+            
+            .metric-primary .metric-value {
+                font-size: 1.2rem;
+            }
+            
+            .detail-section {
+                padding: 15px;
+            }
+            
+            .event-rank {
+                width: 25px;
+                height: 25px;
+                font-size: 0.75rem;
+            }
+        }
+    `;
+    
+    document.head.appendChild(style);
+    console.log('✅ Part 5C CSS injected');
+}
+
+// Inject CSS při načtení
+document.addEventListener('DOMContentLoaded', function() {
+    setTimeout(injectPart5CCSS, 300);
+});
+
+// ========================================
+// HELPER FUNKCE (kompatibilní s ostatními částmi)
+// ========================================
+
+if (typeof escapeHtml === 'undefined') {
+    function escapeHtml(text) {
+        if (!text) return '';
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+}
+
+if (typeof formatDate === 'undefined') {
+    function formatDate(date) {
+        if (!date) return '';
+        
+        if (typeof date === 'string') {
+            date = new Date(date);
+        }
+        
+        if (isNaN(date.getTime())) {
+            return '';
+        }
+        
+        return date.toLocaleDateString('cs-CZ');
+    }
+}
+
+// ========================================
+// FINALIZACE
+// ========================================
+
+console.log('✅ Donuland Part 5C loaded successfully');
+console.log('🏆 Features: Cities ranking with medals, Categories performance analysis');
+console.log('🏙️ Cities: Top 5 ranking with detailed metrics and ROI analysis');
+console.log('📊 Categories: Performance ranking with conversion rates and profit analysis');
+console.log('📋 Modals: Detailed city and category analysis with top events');
+console.log('🔧 Debug: window.analyticsDebug.part5C available');
+
+// Emit completion event
+if (typeof eventBus !== 'undefined') {
+    eventBus.emit('part5CLoaded', { 
+        timestamp: Date.now(),
+        version: '5C-1.0.0',
+        features: [
+            'cities-ranking-top5-with-medals',
+            'categories-performance-analysis',
+            'detailed-city-modal-with-top-events',
+            'detailed-category-modal-with-metrics',
+            'roi-margin-conversion-analysis',
+            'responsive-grid-layout',
+            'color-coded-performance-indicators'
+        ]
+    });
+}
