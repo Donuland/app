@@ -2385,18 +2385,6 @@ if (typeof eventBus !== 'undefined') {
    Zaměřeno na běžné používání - přidávání, mazání, úpravy, filtry, statistiky
    ======================================== */
 
-console.log('🍩 Donuland Part 4C loading...');
-
-// ========================================
-// KONTROLA INICIALIZACE
-// ========================================
-
-if (typeof window.calendarPart4CLoaded === 'undefined') {
-    window.calendarPart4CLoaded = true;
-} else {
-    console.log('⚠️ Part 4C already loaded, skipping...');
-}
-
 // ========================================
 // RYCHLÉ PŘIDÁNÍ UDÁLOSTI
 // ========================================
