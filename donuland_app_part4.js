@@ -2379,4 +2379,6 @@ if (typeof eventBus !== 'undefined') {
             'filter-statistics-display',
             'responsive-month-event-list',
             'merged-events-indicators'
-
+       ]
+    });
+}
