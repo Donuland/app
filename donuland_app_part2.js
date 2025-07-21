@@ -1368,18 +1368,18 @@ function getSeasonalFactor(dateStr) {
     
     // Sezónní faktory pro food business (0 = leden)
     const seasonalFactors = {
-        0: 0.7,   // Leden - nízká aktivita
-        1: 0.8,   // Únor
-        2: 0.9,   // Březen - začátek sezóny
-        3: 1.1,   // Duben
-        4: 1.2,   // Květen - vysoká sezóna začíná
-        5: 1.3,   // Červen - peak sezóna
-        6: 1.3,   // Červenec - peak sezóna
-        7: 1.3,   // Srpen - peak sezóna
-        8: 1.1,   // Září - konec peak sezóny
-        9: 1.0,   // Říjen
-        10: 0.8,  // Listopad
-        11: 0.9   // Prosinec - vánoční trhy
+        0: 1.0,   // Leden - nízká aktivita
+        1: 1.0,   // Únor
+        2: 1.1,   // Březen - začátek sezóny
+        3: 1.3,   // Duben
+        4: 1.5,   // Květen - vysoká sezóna začíná
+        5: 0.7,   // Červen - peak sezóna
+        6: 0.5,   // Červenec - peak sezóna
+        7: 0.7,   // Srpen - peak sezóna
+        8: 1.4,   // Září - konec peak sezóny
+        9: 1.4,   // Říjen
+        10: 1.2,  // Listopad
+        11: 1.0   // Prosinec - vánoční trhy
     };
     
     return seasonalFactors[month] || 1.0;
