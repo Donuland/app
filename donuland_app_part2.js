@@ -223,7 +223,7 @@ function parseSheetData(csvText) {
             record.rating = parseFloat(getColumnValue(values, 'X')) || 0;
             record.notes = getColumnValue(values, 'Y') || '';
             record.businessModel = getColumnValue(values, 'I');
-            record.price = parseFloat(getColumnValue(values, 'L')) || 110;
+            record.price = parseFloat(getColumnValue(values, 'L')) || 0;
             record.rent = getColumnValue(values, 'O');
             record.employees = parseInt(getColumnValue(values, 'R')) || 2;
             record.transport = parseFloat(getColumnValue(values, 'U')) || 0;
