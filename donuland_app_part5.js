@@ -87,7 +87,7 @@ function calculateFinancials(record) {
     try {
         // Základní data
         const sales = parseInt(record.sales) || 0;
-        const price = parseFloat(record.price) || 110; // fallback na 110 Kč
+        const price = parseFloat(record.price) || 0; // fallback na 110 Kč
         const employees = parseInt(record.employees) || 2;
         const businessModel = normalizeBusinessModel(record.businessModel);
         
