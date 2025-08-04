@@ -236,7 +236,7 @@ function loadHistoricalEvents() {
                     rating: record.rating || 0,
                     notes: record.notes || '',
                     businessModel: record.businessModel || '',
-                    price: record.price || 110
+                    price: record.price || 0
                 }
             };
             
