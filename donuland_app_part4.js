@@ -1700,7 +1700,7 @@ function createMonthEventItem(event) {
     const salesType = realSales > 0 ? 'prodáno' : 'predikce';
     
     const conversion = visitors > 0 && displaySales > 0 ? ((displaySales / visitors) * 100).toFixed(1) : '0';
-    const revenue = displaySales * (event.data.price || 110);
+    const revenue = displaySales * (record.price || 0);
     
     // Accuracy pro sloučené akce
     let accuracyHtml = '';
@@ -1767,7 +1767,7 @@ function createMonthStats(events) {
     events.forEach(event => {
         const visitors = event.data.visitors || 0;
         const sales = (event.data.sales || 0) + (event.data.predictedSales || 0);
-        const revenue = sales * (event.data.price || 110);
+        const revenue = sales * (record.price || 0);
         
         stats.totalVisitors += visitors;
         stats.totalSales += sales;
@@ -2558,7 +2558,7 @@ function saveEventEdit(eventId) {
         
         // Aktualizace flags
         event.hasRealData = event.data.sales > 0;
-        event.data.expectedRevenue = event.data.sales * (event.data.price || 110);
+        event.data.expectedRevenue = event.data.sales * (recor.price || 0);
         
         // Refresh kalendář (použít funkce z Part 4A pokud jsou dostupné)
         if (typeof generateCalendarGrid === 'function') {
